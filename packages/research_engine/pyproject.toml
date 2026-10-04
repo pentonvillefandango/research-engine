@@ -6,6 +6,9 @@ requires-python = ">=3.12"
 license = "MIT"
 dependencies = ["research-engine-client"]
 
+[project.scripts]
+research-engine = "research_engine.cli:main"
+
 [tool.uv.sources]
 research-engine-client = { workspace = true }
 

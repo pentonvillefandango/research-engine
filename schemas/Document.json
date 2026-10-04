@@ -1,0 +1,333 @@
+{
+  "$defs": {
+    "EscalationReason": {
+      "enum": [
+        "static_failed",
+        "thin_content",
+        "js_rendered",
+        "forced"
+      ],
+      "title": "EscalationReason",
+      "type": "string"
+    },
+    "FetchMethod": {
+      "enum": [
+        "static",
+        "browser",
+        "api",
+        "archive"
+      ],
+      "title": "FetchMethod",
+      "type": "string"
+    },
+    "Link": {
+      "additionalProperties": false,
+      "properties": {
+        "external": {
+          "title": "External",
+          "type": "boolean"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "text",
+        "external"
+      ],
+      "title": "Link",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "fetched_at": {
+          "format": "date-time",
+          "title": "Fetched At",
+          "type": "string"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job Id"
+        },
+        "method": {
+          "$ref": "#/$defs/FetchMethod"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "fetched_at",
+        "content_hash",
+        "method"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Quality": {
+      "additionalProperties": false,
+      "properties": {
+        "escalation_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EscalationReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "has_title": {
+          "title": "Has Title",
+          "type": "boolean"
+        },
+        "text_html_ratio": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Text Html Ratio",
+          "type": "number"
+        },
+        "word_count": {
+          "minimum": 0,
+          "title": "Word Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "word_count",
+        "text_html_ratio",
+        "has_title"
+      ],
+      "title": "Quality",
+      "type": "object"
+    },
+    "StructuredData": {
+      "additionalProperties": false,
+      "properties": {
+        "json_ld": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Json Ld",
+          "type": "array"
+        },
+        "microdata": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Microdata",
+          "type": "array"
+        },
+        "opengraph": {
+          "additionalProperties": true,
+          "title": "Opengraph",
+          "type": "object"
+        }
+      },
+      "title": "StructuredData",
+      "type": "object"
+    },
+    "Table": {
+      "additionalProperties": false,
+      "properties": {
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "headers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Headers",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "source_selector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Selector"
+        }
+      },
+      "title": "Table",
+      "type": "object"
+    }
+  },
+  "$id": "research-engine/1.0.0/Document.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "author": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Author"
+    },
+    "final_url": {
+      "title": "Final Url",
+      "type": "string"
+    },
+    "html": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Raw HTML, only when 'html' is in formats",
+      "title": "Html"
+    },
+    "language": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Language"
+    },
+    "links": {
+      "items": {
+        "$ref": "#/$defs/Link"
+      },
+      "title": "Links",
+      "type": "array"
+    },
+    "markdown": {
+      "title": "Markdown",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "published_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Published At"
+    },
+    "quality": {
+      "$ref": "#/$defs/Quality"
+    },
+    "status": {
+      "title": "Status",
+      "type": "integer"
+    },
+    "structured_data": {
+      "$ref": "#/$defs/StructuredData"
+    },
+    "tables": {
+      "items": {
+        "$ref": "#/$defs/Table"
+      },
+      "title": "Tables",
+      "type": "array"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Title"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "word_count": {
+      "minimum": 0,
+      "title": "Word Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "url",
+    "final_url",
+    "status",
+    "markdown",
+    "word_count",
+    "provenance",
+    "quality"
+  ],
+  "title": "Document",
+  "type": "object"
+}

@@ -1,0 +1,52 @@
+{
+  "$defs": {
+    "EscalationReason": {
+      "enum": [
+        "static_failed",
+        "thin_content",
+        "js_rendered",
+        "forced"
+      ],
+      "title": "EscalationReason",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/Quality.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "escalation_reason": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EscalationReason"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "has_title": {
+      "title": "Has Title",
+      "type": "boolean"
+    },
+    "text_html_ratio": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Text Html Ratio",
+      "type": "number"
+    },
+    "word_count": {
+      "minimum": 0,
+      "title": "Word Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "word_count",
+    "text_html_ratio",
+    "has_title"
+  ],
+  "title": "Quality",
+  "type": "object"
+}

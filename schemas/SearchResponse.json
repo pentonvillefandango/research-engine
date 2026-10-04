@@ -1,0 +1,196 @@
+{
+  "$defs": {
+    "Infobox": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content"
+        },
+        "engine": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Engine"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "$ref": "#/$defs/InfoboxLink"
+          },
+          "title": "Urls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "Infobox",
+      "type": "object"
+    },
+    "InfoboxLink": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "url"
+      ],
+      "title": "InfoboxLink",
+      "type": "object"
+    },
+    "SearchResult": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_url": {
+          "title": "Canonical Url",
+          "type": "string"
+        },
+        "domain": {
+          "title": "Domain",
+          "type": "string"
+        },
+        "engines": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Engines",
+          "type": "array"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published At"
+        },
+        "rank": {
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "score": {
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "snippet": {
+          "title": "Snippet",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rank",
+        "url",
+        "canonical_url",
+        "title",
+        "snippet",
+        "domain",
+        "engines",
+        "score"
+      ],
+      "title": "SearchResult",
+      "type": "object"
+    },
+    "UnresponsiveEngine": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "title": "Engine",
+          "type": "string"
+        },
+        "error": {
+          "title": "Error",
+          "type": "string"
+        }
+      },
+      "required": [
+        "engine",
+        "error"
+      ],
+      "title": "UnresponsiveEngine",
+      "type": "object"
+    }
+  },
+  "$id": "research-engine/1.0.0/SearchResponse.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "infoboxes": {
+      "items": {
+        "$ref": "#/$defs/Infobox"
+      },
+      "title": "Infoboxes",
+      "type": "array"
+    },
+    "query": {
+      "title": "Query",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/SearchResult"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "suggestions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Suggestions",
+      "type": "array"
+    },
+    "unresponsive_engines": {
+      "items": {
+        "$ref": "#/$defs/UnresponsiveEngine"
+      },
+      "title": "Unresponsive Engines",
+      "type": "array"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "title": "SearchResponse",
+  "type": "object"
+}

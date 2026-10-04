@@ -17,6 +17,7 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pyright
+      - run: uv run research-engine schemas export --check
       - run: uv run pytest --cov=research_engine --cov=research_engine_client --cov-report=term-missing
   gitleaks:
     runs-on: ubuntu-latest

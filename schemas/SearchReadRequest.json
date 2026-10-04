@@ -1,0 +1,199 @@
+{
+  "$defs": {
+    "DocumentFormat": {
+      "enum": [
+        "markdown",
+        "html"
+      ],
+      "title": "DocumentFormat",
+      "type": "string"
+    },
+    "FetchMode": {
+      "enum": [
+        "auto",
+        "static",
+        "browser"
+      ],
+      "title": "FetchMode",
+      "type": "string"
+    },
+    "FetchRequestOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "formats": {
+          "default": [
+            "markdown"
+          ],
+          "items": {
+            "$ref": "#/$defs/DocumentFormat"
+          },
+          "title": "Formats",
+          "type": "array"
+        },
+        "mode": {
+          "$ref": "#/$defs/FetchMode",
+          "default": "auto"
+        },
+        "timeout_s": {
+          "default": 60,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Timeout S",
+          "type": "integer"
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "title": "FetchRequestOptions",
+      "type": "object"
+    },
+    "SearchDepth": {
+      "description": "How many SearXNG result pages to request: quick=1, standard=2, deep=3.",
+      "enum": [
+        "quick",
+        "standard",
+        "deep"
+      ],
+      "title": "SearchDepth",
+      "type": "string"
+    },
+    "SearchIntent": {
+      "enum": [
+        "general",
+        "technical",
+        "library",
+        "product",
+        "standard",
+        "news",
+        "academic"
+      ],
+      "title": "SearchIntent",
+      "type": "string"
+    },
+    "SearchRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "depth": {
+          "$ref": "#/$defs/SearchDepth",
+          "default": "standard"
+        },
+        "engines": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Override the intent preset's engines",
+          "title": "Engines"
+        },
+        "intent": {
+          "$ref": "#/$defs/SearchIntent",
+          "default": "general"
+        },
+        "language": {
+          "default": "en-GB",
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$|^all$",
+          "title": "Language",
+          "type": "string"
+        },
+        "max_results": {
+          "default": 20,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Results",
+          "type": "integer"
+        },
+        "query": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "time_range": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TimeRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "use_cache": {
+          "default": true,
+          "title": "Use Cache",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "title": "SearchRequest",
+      "type": "object"
+    },
+    "TimeRange": {
+      "enum": [
+        "day",
+        "week",
+        "month",
+        "year"
+      ],
+      "title": "TimeRange",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/SearchReadRequest.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "fetch": {
+      "$ref": "#/$defs/FetchRequestOptions",
+      "default": {
+        "formats": [
+          "markdown"
+        ],
+        "mode": "auto",
+        "timeout_s": 60,
+        "use_cache": true
+      }
+    },
+    "search": {
+      "$ref": "#/$defs/SearchRequest"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Session Id"
+    },
+    "top_n": {
+      "default": 5,
+      "maximum": 20,
+      "minimum": 1,
+      "title": "Top N",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "search"
+  ],
+  "title": "SearchReadRequest",
+  "type": "object"
+}

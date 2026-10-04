@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "DocumentFormat": {
+      "enum": [
+        "markdown",
+        "html"
+      ],
+      "title": "DocumentFormat",
+      "type": "string"
+    },
+    "FetchMode": {
+      "enum": [
+        "auto",
+        "static",
+        "browser"
+      ],
+      "title": "FetchMode",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/FetchRequest.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "formats": {
+      "default": [
+        "markdown"
+      ],
+      "items": {
+        "$ref": "#/$defs/DocumentFormat"
+      },
+      "title": "Formats",
+      "type": "array"
+    },
+    "mode": {
+      "$ref": "#/$defs/FetchMode",
+      "default": "auto"
+    },
+    "timeout_s": {
+      "default": 60,
+      "maximum": 300,
+      "minimum": 1,
+      "title": "Timeout S",
+      "type": "integer"
+    },
+    "url": {
+      "maxLength": 4096,
+      "title": "Url",
+      "type": "string"
+    },
+    "use_cache": {
+      "default": true,
+      "title": "Use Cache",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "url"
+  ],
+  "title": "FetchRequest",
+  "type": "object"
+}

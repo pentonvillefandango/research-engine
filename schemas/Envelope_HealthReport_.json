@@ -1,0 +1,199 @@
+{
+  "$defs": {
+    "DependencyHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
+        "state": {
+          "$ref": "#/$defs/DependencyState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "DependencyHealth",
+      "type": "object"
+    },
+    "DependencyState": {
+      "enum": [
+        "up",
+        "down",
+        "degraded"
+      ],
+      "title": "DependencyState",
+      "type": "string"
+    },
+    "ErrorCode": {
+      "enum": [
+        "invalid_request",
+        "unauthorized",
+        "not_found",
+        "ssrf_blocked",
+        "robots_disallowed",
+        "content_type_not_allowed",
+        "response_too_large",
+        "upstream_timeout",
+        "upstream_error",
+        "engine_failed",
+        "fetch_failed",
+        "extraction_failed",
+        "job_cancelled",
+        "job_timeout",
+        "interrupted",
+        "internal_error"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "ErrorDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL, engine or component that failed",
+          "title": "Source"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "title": "ErrorDetail",
+      "type": "object"
+    },
+    "HealthReport": {
+      "additionalProperties": false,
+      "properties": {
+        "dependencies": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DependencyHealth"
+          },
+          "title": "Dependencies",
+          "type": "object"
+        },
+        "git_sha": {
+          "title": "Git Sha",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/DependencyState"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "version",
+        "git_sha"
+      ],
+      "title": "HealthReport",
+      "type": "object"
+    },
+    "Meta": {
+      "additionalProperties": false,
+      "properties": {
+        "cache_hit": {
+          "default": false,
+          "title": "Cache Hit",
+          "type": "boolean"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "took_ms": {
+          "minimum": 0,
+          "title": "Took Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "request_id",
+        "took_ms"
+      ],
+      "title": "Meta",
+      "type": "object"
+    }
+  },
+  "$id": "research-engine/1.0.0/Envelope_HealthReport_.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "data": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HealthReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/ErrorDetail"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "meta": {
+      "$ref": "#/$defs/Meta"
+    }
+  },
+  "required": [
+    "meta"
+  ],
+  "title": "Envelope_HealthReport_",
+  "type": "object"
+}

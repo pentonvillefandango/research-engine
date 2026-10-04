@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "DependencyHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
+        "state": {
+          "$ref": "#/$defs/DependencyState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "DependencyHealth",
+      "type": "object"
+    },
+    "DependencyState": {
+      "enum": [
+        "up",
+        "down",
+        "degraded"
+      ],
+      "title": "DependencyState",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/HealthReport.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dependencies": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DependencyHealth"
+      },
+      "title": "Dependencies",
+      "type": "object"
+    },
+    "git_sha": {
+      "title": "Git Sha",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/DependencyState"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "version",
+    "git_sha"
+  ],
+  "title": "HealthReport",
+  "type": "object"
+}

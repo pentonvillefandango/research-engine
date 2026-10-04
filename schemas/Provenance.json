@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "FetchMethod": {
+      "enum": [
+        "static",
+        "browser",
+        "api",
+        "archive"
+      ],
+      "title": "FetchMethod",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/Provenance.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "content_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "fetched_at": {
+      "format": "date-time",
+      "title": "Fetched At",
+      "type": "string"
+    },
+    "job_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Job Id"
+    },
+    "method": {
+      "$ref": "#/$defs/FetchMethod"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "url",
+    "fetched_at",
+    "content_hash",
+    "method"
+  ],
+  "title": "Provenance",
+  "type": "object"
+}

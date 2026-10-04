@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "SearchDepth": {
+      "description": "How many SearXNG result pages to request: quick=1, standard=2, deep=3.",
+      "enum": [
+        "quick",
+        "standard",
+        "deep"
+      ],
+      "title": "SearchDepth",
+      "type": "string"
+    },
+    "SearchIntent": {
+      "enum": [
+        "general",
+        "technical",
+        "library",
+        "product",
+        "standard",
+        "news",
+        "academic"
+      ],
+      "title": "SearchIntent",
+      "type": "string"
+    },
+    "TimeRange": {
+      "enum": [
+        "day",
+        "week",
+        "month",
+        "year"
+      ],
+      "title": "TimeRange",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/SearchRequest.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "depth": {
+      "$ref": "#/$defs/SearchDepth",
+      "default": "standard"
+    },
+    "engines": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Override the intent preset's engines",
+      "title": "Engines"
+    },
+    "intent": {
+      "$ref": "#/$defs/SearchIntent",
+      "default": "general"
+    },
+    "language": {
+      "default": "en-GB",
+      "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$|^all$",
+      "title": "Language",
+      "type": "string"
+    },
+    "max_results": {
+      "default": 20,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Max Results",
+      "type": "integer"
+    },
+    "query": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Query",
+      "type": "string"
+    },
+    "time_range": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimeRange"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "use_cache": {
+      "default": true,
+      "title": "Use Cache",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "title": "SearchRequest",
+  "type": "object"
+}

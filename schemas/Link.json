@@ -1,0 +1,26 @@
+{
+  "$id": "research-engine/1.0.0/Link.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "external": {
+      "title": "External",
+      "type": "boolean"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "url",
+    "text",
+    "external"
+  ],
+  "title": "Link",
+  "type": "object"
+}
