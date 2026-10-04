@@ -1,6 +1,6 @@
 """Extractor protocols and the shared result type (Shared Interface Contract)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
@@ -20,6 +20,8 @@ class Extracted:
     structured_data: StructuredData
     html_len: int
     text_len: int
+    warnings: list[str] = field(default_factory=list[str])
+    """Short stable strings recording truncation or degraded extraction."""
 
 
 class HtmlExtractor(Protocol):

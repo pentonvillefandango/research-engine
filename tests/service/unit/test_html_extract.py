@@ -1,3 +1,5 @@
+import time
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -100,4 +102,110 @@ def test_oversized_html_is_truncated(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(html_extract, "MAX_HTML_CHARS", 200)
     html = "<html><body><p>" + "word " * 5000 + "</p></body></html>"
     ex = X.extract(html, "https://a.example/")
-    assert ex.html_len == 200
+    assert ex.html_len == len(html)
+    assert "html truncated to 200 chars" in ex.warnings
+
+
+TINY_TABLE = "<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>"
+
+
+def test_many_tables_do_not_blow_up_trafilatura() -> None:
+    html = f"<html><body><p>Intro text here.</p>{TINY_TABLE * 5000}</body></html>"
+    start = time.perf_counter()
+    ex = X.extract(html, "https://a.example/")
+    assert time.perf_counter() - start < 3
+    assert len(ex.tables) == html_extract.MAX_TABLES
+    assert "trafilatura tables disabled" in ex.warnings
+    assert f"tables capped at {html_extract.MAX_TABLES}" in ex.warnings
+
+
+def test_huge_element_count_skips_trafilatura() -> None:
+    html = "<html><body>" + "<div><p>tiny words</p></div>" * 50_000 + "</body></html>"
+    start = time.perf_counter()
+    ex = X.extract(html, "https://a.example/")
+    assert time.perf_counter() - start < 5
+    assert "trafilatura skipped" in ex.warnings
+    assert ex.markdown.startswith("tiny words") and ex.word_count == 100_000
+
+
+def test_fallback_metadata_when_trafilatura_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(html_extract, "MAX_ELEMENTS_FOR_TRAFILATURA", 3)
+    ex = X.extract(
+        '<html lang="en"><head><title>T</title><meta name="author" content="Test Author">'
+        '<meta property="article:published_time" content="2026-03-14T09:00:00Z"></head>'
+        "<body><p>a</p><p>b</p></body></html>",
+        "https://a.example/",
+    )
+    assert "trafilatura skipped" in ex.warnings
+    assert ex.title == "T" and ex.author == "Test Author" and ex.language == "en"
+    assert ex.published_at is not None and ex.published_at.year == 2026
+
+
+def test_fallback_text_ignores_scripts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(html_extract, "MAX_ELEMENTS_FOR_TRAFILATURA", 3)
+    ex = X.extract(
+        "<html><body><script>var x=1</script><style>p{}</style><p>a</p><p> b\n c</p></body></html>",
+        "https://a.example/",
+    )
+    assert ex.markdown == "a b c"
+
+
+def test_row_cap_warning() -> None:
+    rows = "<tr><td>a</td><td>b</td></tr>" * 1500
+    ex = X.extract(f"<html><body><table>{rows}</table></body></html>", "https://a.example/")
+    assert f"table rows capped at {html_extract.MAX_TABLE_ROWS}" in ex.warnings
+
+
+def test_no_warnings_on_normal_page() -> None:
+    ex = X.extract((PAGES / "article.html").read_text(), "https://blog.example/post")
+    assert ex.warnings == []
+
+
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [
+        ("en", "en"),
+        ("EN-us", "en"),
+        ("en_US", "en"),
+        ("EN_us", "en"),
+        ("fil", "fil"),
+        ("x" * 5000, None),
+        ("\u202een", None),
+        ("   ", None),
+        ("", None),
+        ("e", None),
+        ("english", None),
+        ("1234", None),
+    ],
+)
+def test_language_normalised(lang: str, expected: str | None) -> None:
+    ex = X.extract(f'<html lang="{lang}"><body><p>hello</p></body></html>', "https://a.example/")
+    assert ex.language == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["9999-12-31T23:59:59-23:59", "0001-01-01T00:00:00+23:59", "garbage", "", None],
+)
+def test_parse_date_extremes_return_none(value: str | None) -> None:
+    assert html_extract._parse_date(value) is None  # pyright: ignore[reportPrivateUsage]
+
+
+def test_parse_date_normalises_to_utc() -> None:
+    dt = html_extract._parse_date("2026-03-14T10:00:00+02:00")  # pyright: ignore[reportPrivateUsage]
+    assert dt is not None and dt.utcoffset() == timedelta(0)
+    assert dt.hour == 8
+    naive = html_extract._parse_date("2026-03-14")  # pyright: ignore[reportPrivateUsage]
+    assert naive is not None and naive.tzinfo is not None
+
+
+def test_nested_thead_does_not_make_outer_header() -> None:
+    html = (
+        "<html><body><table><tr><td><table><thead><tr><th>i</th><th>j</th></tr></thead>"
+        "<tr><td>1</td><td>2</td></tr></table></td><td>x</td></tr>"
+        "<tr><td>y</td><td>z</td></tr></table></body></html>"
+    )
+    ex = X.extract(html, "https://a.example/")
+    outer, inner = ex.tables
+    assert outer.headers == [] and len(outer.rows) == 2
+    assert inner.headers == ["i", "j"]
