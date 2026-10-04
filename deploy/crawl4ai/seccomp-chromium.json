@@ -1225,8 +1225,7 @@
 		{
 			"names": [
 				"clone",
-				"unshare",
-				"setns"
+				"unshare"
 			],
 			"action": "SCMP_ACT_ALLOW",
 			"comment": "research-engine ADR-0022: Chromium namespace sandbox (CLONE_NEWUSER/NEWPID/NEWNET) without CAP_SYS_ADMIN"

@@ -25,15 +25,17 @@ services:
     environment:
       CRAWL4AI_API_TOKEN: ${CRAWL4AI_API_TOKEN:?set CRAWL4AI_API_TOKEN in .env}
       CRAWL4AI_CHROMIUM_SANDBOX: "true"     # Chromium sandbox stays ON (§12, B3, ADR-0022)
-    # ADR-0022: Chromium's namespace sandbox needs clone/unshare/setns with namespace flags,
-    # which Docker's default seccomp allows only with extra capabilities. The profile is moby's
-    # default plus that one rule (deploy/crawl4ai/README.md). The add-on makes Crawl4AI 0.9.4
-    # honour CRAWL4AI_CHROMIUM_SANDBOX on every launch path; scripts/check_sandbox.sh verifies.
+      PYTHONPATH: /opt/re-addon             # loads deploy/crawl4ai/addon/sitecustomize.py
+    # ADR-0022: Chromium's namespace sandbox needs clone/unshare with namespace flags, which
+    # Docker's default seccomp allows only with extra capabilities. The profile is moby's default
+    # plus that one rule (deploy/crawl4ai/README.md). The add-on (deploy/crawl4ai/addon, loaded via
+    # PYTHONPATH) makes Crawl4AI 0.9.4 honour CRAWL4AI_CHROMIUM_SANDBOX on every launch path;
+    # scripts/check_sandbox.sh verifies both launch paths.
     security_opt:
       - seccomp=./deploy/crawl4ai/seccomp-chromium.json
       - no-new-privileges:true
     volumes:
-      - ./deploy/crawl4ai/sitecustomize.py:/usr/local/lib/python3.12/site-packages/sitecustomize.py:ro
+      - ./deploy/crawl4ai/addon:/opt/re-addon:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:11235/health || exit 1"]
       interval: 20s
