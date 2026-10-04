@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Self-hosted web search and scraping service for research agents"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = ["research-engine-client"]
+dependencies = [
+    "pydantic-settings>=2.15.0",
+    "pyyaml>=6.0.3",
+    "research-engine-client",
+]
 
 [project.scripts]
 research-engine = "research_engine.cli:main"

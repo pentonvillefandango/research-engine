@@ -1,0 +1,30 @@
+# Search intent presets (V1-02). Engine names must be enabled in deploy/searxng/settings.yml.
+intents:
+  general:
+    description: Broad web search across general engines.
+    categories: [general]
+    engines: []
+  technical:
+    description: Code, Q&A and developer docs.
+    categories: [general, it]
+    engines: [github, stackoverflow, mdn, duckduckgo, brave, bing]
+  library:
+    description: Software packages and their homepages.
+    categories: [it, general]
+    engines: [pypi, npm, github, duckduckgo, brave]
+  product:
+    description: Commercial products, vendors and pricing.
+    categories: [general]
+    engines: [duckduckgo, brave, bing, qwant]
+  standard:
+    description: Specifications and standards bodies.
+    categories: [general]
+    engines: [duckduckgo, brave, bing, wikipedia, qwant]
+  news:
+    description: Recent news coverage.
+    categories: [news]
+    engines: [bing news, duckduckgo news]
+  academic:
+    description: Papers and scholarly sources.
+    categories: [science]
+    engines: [arxiv, google scholar, semantic scholar, crossref]
