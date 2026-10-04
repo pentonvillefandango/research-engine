@@ -124,7 +124,7 @@ class RobotsPolicy:
     async def _fetch(self, origin: str) -> tuple[Protego, int, str]:
         robots_url = f"{origin}/robots.txt"
         await self._guard.check(robots_url)
-        request = build_clean_request(self._client, robots_url, {"User-Agent": self._ua})
+        request = build_clean_request(robots_url, {"User-Agent": self._ua}, self._timeout)
         try:
             async with asyncio.timeout(self._timeout):
                 resp = await self._client.send(
@@ -142,6 +142,8 @@ class RobotsPolicy:
                     return _DISALLOW_ALL, ERROR_TTL_S, str(resp.status_code)
                 finally:
                     await resp.aclose()
+        except httpx.InvalidURL:  # httpx cannot parse a hostile redirect Location: a redirect
+            return _ALLOW_ALL, self._ttl, "redirect (invalid location, treated as allow)"
         except (httpx.HTTPError, TimeoutError) as exc:
             return _DISALLOW_ALL, ERROR_TTL_S, f"error {type(exc).__name__}"
 

@@ -149,6 +149,13 @@ async def test_redirect_treated_as_allow_and_not_followed(policy: Any) -> None:
 
 
 @respx.mock
+async def test_unparseable_redirect_location_treated_as_allow(policy: Any) -> None:
+    pol, _ = policy
+    respx.get("https://r.example/robots.txt").respond(302, headers={"location": "javascript:x(1)"})
+    await pol.check("https://r.example/anything")
+
+
+@respx.mock
 async def test_concurrent_checks_fetch_once(policy: Any) -> None:
     pol, _ = policy
 

@@ -19,10 +19,14 @@ async def _search(provider: SearxngProvider, pageno: int = 1):
     )
 
 
+async def _nosleep(_: float) -> None:
+    return None
+
+
 @pytest.fixture
 async def provider() -> AsyncIterator[SearxngProvider]:
     async with httpx.AsyncClient() as client:
-        yield SearxngProvider(BASE, client, timeout_s=5)
+        yield SearxngProvider(BASE, client, timeout_s=5, sleep=_nosleep)
 
 
 @respx.mock
@@ -135,9 +139,10 @@ async def test_missing_fields_and_date_formats(provider: SearxngProvider) -> Non
 
 @respx.mock
 async def test_timeout_maps_to_typed_error(provider: SearxngProvider) -> None:
-    respx.get(f"{BASE}/search").mock(side_effect=httpx.ReadTimeout("slow"))
+    route = respx.get(f"{BASE}/search").mock(side_effect=httpx.ReadTimeout("slow"))
     with pytest.raises(ServiceError) as ei:
         await _search(provider)
+    assert route.call_count == 2  # retried once (attempts=2)
     d = ei.value.detail
     assert (d.code, d.retryable, d.source, ei.value.http_status) == (
         ErrorCode.UPSTREAM_TIMEOUT,
@@ -158,9 +163,10 @@ async def test_connect_error_is_retryable_upstream_error(provider: SearxngProvid
 @respx.mock
 @pytest.mark.parametrize(("status", "retryable"), [(503, True), (403, False)])
 async def test_http_errors(provider: SearxngProvider, status: int, retryable: bool) -> None:
-    respx.get(f"{BASE}/search").respond(status)
+    route = respx.get(f"{BASE}/search").respond(status)
     with pytest.raises(ServiceError) as ei:
         await _search(provider)
+    assert route.call_count == (2 if retryable else 1)
     assert ei.value.detail.code is ErrorCode.UPSTREAM_ERROR
     assert ei.value.detail.retryable is retryable
     if status == 403:

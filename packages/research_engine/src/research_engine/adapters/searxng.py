@@ -1,5 +1,7 @@
 """SearXNG JSON API adapter (V1-01, V1-03). AGPL service, called over HTTP only (D14)."""
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -14,6 +16,7 @@ from research_engine_client.models import (
 )
 
 from research_engine.errors import ServiceError
+from research_engine.retry import retry
 
 from .search import RawHit, RawSearchPage
 
@@ -40,10 +43,18 @@ def _parse_dt(value: Any) -> datetime | None:
 
 
 class SearxngProvider:
-    def __init__(self, base_url: str, client: httpx.AsyncClient, timeout_s: float) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        client: httpx.AsyncClient,
+        timeout_s: float,
+        *,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    ) -> None:
         self._base = base_url.rstrip("/")
         self._client = client
         self._timeout = timeout_s
+        self._sleep = sleep
 
     async def search(
         self,
@@ -68,34 +79,39 @@ class SearxngProvider:
             params["categories"] = ",".join(categories)
         if time_range is not None:
             params["time_range"] = time_range.value
-        try:
-            resp = await self._client.get(
-                f"{self._base}/search", params=params, timeout=self._timeout
-            )
-            resp.raise_for_status()
-        except httpx.TimeoutException as exc:
-            raise ServiceError.of(
-                ErrorCode.UPSTREAM_TIMEOUT,
-                f"SearXNG timed out: {exc}",
-                retryable=True,
-                source="searxng",
-                http_status=504,
-            ) from exc
-        except httpx.HTTPStatusError as exc:
-            status = exc.response.status_code
-            msg = f"SearXNG returned {status}" + (
-                "; enable json in search.formats" if status == 403 else ""
-            )
-            raise ServiceError.of(
-                ErrorCode.UPSTREAM_ERROR, msg, retryable=status >= 500, source="searxng"
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise ServiceError.of(
-                ErrorCode.UPSTREAM_ERROR,
-                f"SearXNG unreachable: {exc}",
-                retryable=True,
-                source="searxng",
-            ) from exc
+
+        async def _once() -> httpx.Response:
+            try:
+                resp = await self._client.get(
+                    f"{self._base}/search", params=params, timeout=self._timeout
+                )
+                resp.raise_for_status()
+                return resp
+            except httpx.TimeoutException as exc:
+                raise ServiceError.of(
+                    ErrorCode.UPSTREAM_TIMEOUT,
+                    f"SearXNG timed out: {exc}",
+                    retryable=True,
+                    source="searxng",
+                    http_status=504,
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                msg = f"SearXNG returned {status}" + (
+                    "; enable json in search.formats" if status == 403 else ""
+                )
+                raise ServiceError.of(
+                    ErrorCode.UPSTREAM_ERROR, msg, retryable=status >= 500, source="searxng"
+                ) from exc
+            except httpx.HTTPError as exc:
+                raise ServiceError.of(
+                    ErrorCode.UPSTREAM_ERROR,
+                    f"SearXNG unreachable: {exc}",
+                    retryable=True,
+                    source="searxng",
+                ) from exc
+
+        resp = await retry(_once, attempts=2, sleep=self._sleep)
         try:
             body = resp.json()
         except ValueError as exc:

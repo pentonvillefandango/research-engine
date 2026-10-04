@@ -3,16 +3,16 @@
 import httpx
 
 
-def build_clean_request(
-    client: httpx.AsyncClient, url: str, headers: dict[str, str]
-) -> httpx.Request:
-    """Build a GET with only the given headers: no cookies, no auth, no client defaults.
+def build_clean_request(url: str, headers: dict[str, str], timeout_s: float) -> httpx.Request:
+    """Build a bare GET carrying only the given headers.
 
-    The shared client's cookie jar and default headers must never leak to a target site, so
-    anything they inject is stripped after the request is built.
+    Deliberately not ``client.build_request``: that would merge the shared client's cookie jar
+    and default headers (including any auth) into a request bound for an untrusted site. Send it
+    with ``client.send(request, auth=None)`` so client-level auth is skipped too.
     """
-    request = client.build_request("GET", url, headers=headers)
-    for name in ("cookie", "authorization", "proxy-authorization"):
-        if name in request.headers and name not in {h.lower() for h in headers}:
-            del request.headers[name]
-    return request
+    return httpx.Request(
+        "GET",
+        url,
+        headers={"Accept-Encoding": "gzip, deflate", **headers},
+        extensions={"timeout": httpx.Timeout(timeout_s).as_dict()},
+    )
