@@ -5,6 +5,7 @@ from enum import StrEnum
 from pydantic import Field
 
 from ._base import Model
+from .common import SEMVER_PATTERN
 
 
 class DependencyState(StrEnum):
@@ -22,7 +23,7 @@ class DependencyHealth(Model):
 class VersionInfo(Model):
     version: str
     git_sha: str
-    schema_version: str
+    schema_version: str = Field(pattern=SEMVER_PATTERN)
 
 
 class HealthReport(Model):

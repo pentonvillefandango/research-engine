@@ -40,7 +40,10 @@
         }
       },
       "required": [
-        "title"
+        "title",
+        "content",
+        "engine",
+        "urls"
       ],
       "title": "Infobox",
       "type": "object"
@@ -126,7 +129,8 @@
         "snippet",
         "domain",
         "engines",
-        "score"
+        "score",
+        "published_at"
       ],
       "title": "SearchResult",
       "type": "object"
@@ -189,7 +193,11 @@
     }
   },
   "required": [
-    "query"
+    "query",
+    "results",
+    "suggestions",
+    "infoboxes",
+    "unresponsive_engines"
   ],
   "title": "SearchResponse",
   "type": "object"

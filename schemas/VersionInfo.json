@@ -8,6 +8,7 @@
       "type": "string"
     },
     "schema_version": {
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "title": "Schema Version",
       "type": "string"
     },

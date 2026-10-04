@@ -53,7 +53,8 @@
       "required": [
         "code",
         "message",
-        "retryable"
+        "retryable",
+        "source"
       ],
       "title": "ErrorDetail",
       "type": "object"
@@ -98,7 +99,10 @@
         }
       },
       "required": [
-        "title"
+        "title",
+        "content",
+        "engine",
+        "urls"
       ],
       "title": "Infobox",
       "type": "object"
@@ -136,6 +140,7 @@
         },
         "schema_version": {
           "default": "1.0.0",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
           "title": "Schema Version",
           "type": "string"
         },
@@ -147,7 +152,9 @@
       },
       "required": [
         "request_id",
-        "took_ms"
+        "schema_version",
+        "took_ms",
+        "cache_hit"
       ],
       "title": "Meta",
       "type": "object"
@@ -189,7 +196,11 @@
         }
       },
       "required": [
-        "query"
+        "query",
+        "results",
+        "suggestions",
+        "infoboxes",
+        "unresponsive_engines"
       ],
       "title": "SearchResponse",
       "type": "object"
@@ -256,7 +267,8 @@
         "snippet",
         "domain",
         "engines",
-        "score"
+        "score",
+        "published_at"
       ],
       "title": "SearchResult",
       "type": "object"
@@ -308,7 +320,9 @@
     }
   },
   "required": [
-    "meta"
+    "data",
+    "meta",
+    "errors"
   ],
   "title": "Envelope_SearchResponse_",
   "type": "object"

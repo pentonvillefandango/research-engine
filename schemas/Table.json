@@ -45,6 +45,12 @@
       "title": "Source Selector"
     }
   },
+  "required": [
+    "caption",
+    "headers",
+    "rows",
+    "source_selector"
+  ],
   "title": "Table",
   "type": "object"
 }

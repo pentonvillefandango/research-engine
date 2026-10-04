@@ -25,6 +25,11 @@
       "type": "object"
     }
   },
+  "required": [
+    "json_ld",
+    "microdata",
+    "opengraph"
+  ],
   "title": "StructuredData",
   "type": "object"
 }

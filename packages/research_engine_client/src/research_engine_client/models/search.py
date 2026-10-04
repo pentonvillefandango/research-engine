@@ -3,9 +3,9 @@
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import AwareDatetime, Field, StringConstraints
+from pydantic import Field, StringConstraints
 
-from ._base import Model, RequestModel
+from ._base import Model, RequestModel, UtcDatetime
 
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
@@ -57,7 +57,7 @@ class SearchResult(Model):
     domain: str
     engines: list[str]
     score: float = Field(ge=0)
-    published_at: AwareDatetime | None = None
+    published_at: UtcDatetime | None = None
 
 
 class InfoboxLink(Model):

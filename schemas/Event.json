@@ -92,10 +92,13 @@
     }
   },
   "required": [
+    "id",
     "ts",
+    "job_id",
     "level",
     "kind",
-    "message"
+    "message",
+    "data"
   ],
   "title": "Event",
   "type": "object"

@@ -32,7 +32,9 @@
         }
       },
       "required": [
-        "state"
+        "state",
+        "latency_ms",
+        "detail"
       ],
       "title": "DependencyHealth",
       "type": "object"
@@ -73,7 +75,8 @@
   "required": [
     "status",
     "version",
-    "git_sha"
+    "git_sha",
+    "dependencies"
   ],
   "title": "HealthReport",
   "type": "object"

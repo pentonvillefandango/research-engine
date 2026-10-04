@@ -55,7 +55,8 @@
   "required": [
     "code",
     "message",
-    "retryable"
+    "retryable",
+    "source"
   ],
   "title": "ErrorDetail",
   "type": "object"

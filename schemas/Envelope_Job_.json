@@ -53,7 +53,8 @@
       "required": [
         "code",
         "message",
-        "retryable"
+        "retryable",
+        "source"
       ],
       "title": "ErrorDetail",
       "type": "object"
@@ -159,8 +160,14 @@
         "type",
         "status",
         "progress",
+        "parent_id",
+        "session_id",
         "request",
-        "created_at"
+        "result_ref",
+        "errors",
+        "created_at",
+        "started_at",
+        "finished_at"
       ],
       "title": "Job",
       "type": "object"
@@ -194,7 +201,8 @@
       },
       "required": [
         "done",
-        "total"
+        "total",
+        "current"
       ],
       "title": "JobProgress",
       "type": "object"
@@ -233,6 +241,7 @@
         },
         "schema_version": {
           "default": "1.0.0",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
           "title": "Schema Version",
           "type": "string"
         },
@@ -244,7 +253,9 @@
       },
       "required": [
         "request_id",
-        "took_ms"
+        "schema_version",
+        "took_ms",
+        "cache_hit"
       ],
       "title": "Meta",
       "type": "object"
@@ -277,7 +288,9 @@
     }
   },
   "required": [
-    "meta"
+    "data",
+    "meta",
+    "errors"
   ],
   "title": "Envelope_Job_",
   "type": "object"

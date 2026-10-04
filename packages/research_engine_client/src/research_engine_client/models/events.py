@@ -3,9 +3,9 @@
 from enum import StrEnum
 from typing import Any
 
-from pydantic import AwareDatetime, Field
+from pydantic import Field
 
-from ._base import Model
+from ._base import Model, UtcDatetime
 
 
 class EventLevel(StrEnum):
@@ -44,7 +44,7 @@ class EventKind(StrEnum):
 
 class Event(Model):
     id: int | None = Field(default=None, description="Store-assigned sequence number")
-    ts: AwareDatetime
+    ts: UtcDatetime
     job_id: str | None = None
     level: EventLevel
     kind: EventKind

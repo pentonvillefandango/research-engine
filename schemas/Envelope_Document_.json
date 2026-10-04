@@ -121,10 +121,19 @@
         "url",
         "final_url",
         "status",
+        "title",
+        "author",
+        "published_at",
+        "language",
         "markdown",
+        "html",
         "word_count",
+        "links",
+        "tables",
+        "structured_data",
         "provenance",
-        "quality"
+        "quality",
+        "warnings"
       ],
       "title": "Document",
       "type": "object"
@@ -182,7 +191,8 @@
       "required": [
         "code",
         "message",
-        "retryable"
+        "retryable",
+        "source"
       ],
       "title": "ErrorDetail",
       "type": "object"
@@ -245,6 +255,7 @@
         },
         "schema_version": {
           "default": "1.0.0",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
           "title": "Schema Version",
           "type": "string"
         },
@@ -256,7 +267,9 @@
       },
       "required": [
         "request_id",
-        "took_ms"
+        "schema_version",
+        "took_ms",
+        "cache_hit"
       ],
       "title": "Meta",
       "type": "object"
@@ -298,7 +311,8 @@
         "url",
         "fetched_at",
         "content_hash",
-        "method"
+        "method",
+        "job_id"
       ],
       "title": "Provenance",
       "type": "object"
@@ -336,7 +350,8 @@
       "required": [
         "word_count",
         "text_html_ratio",
-        "has_title"
+        "has_title",
+        "escalation_reason"
       ],
       "title": "Quality",
       "type": "object"
@@ -366,6 +381,11 @@
           "type": "object"
         }
       },
+      "required": [
+        "json_ld",
+        "microdata",
+        "opengraph"
+      ],
       "title": "StructuredData",
       "type": "object"
     },
@@ -414,6 +434,12 @@
           "title": "Source Selector"
         }
       },
+      "required": [
+        "caption",
+        "headers",
+        "rows",
+        "source_selector"
+      ],
       "title": "Table",
       "type": "object"
     }
@@ -445,7 +471,9 @@
     }
   },
   "required": [
-    "meta"
+    "data",
+    "meta",
+    "errors"
   ],
   "title": "Envelope_Document_",
   "type": "object"

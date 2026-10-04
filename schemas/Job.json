@@ -53,7 +53,8 @@
       "required": [
         "code",
         "message",
-        "retryable"
+        "retryable",
+        "source"
       ],
       "title": "ErrorDetail",
       "type": "object"
@@ -87,7 +88,8 @@
       },
       "required": [
         "done",
-        "total"
+        "total",
+        "current"
       ],
       "title": "JobProgress",
       "type": "object"
@@ -215,8 +217,14 @@
     "type",
     "status",
     "progress",
+    "parent_id",
+    "session_id",
     "request",
-    "created_at"
+    "result_ref",
+    "errors",
+    "created_at",
+    "started_at",
+    "finished_at"
   ],
   "title": "Job",
   "type": "object"

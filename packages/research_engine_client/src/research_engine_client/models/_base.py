@@ -1,12 +1,26 @@
 """Base classes shared by every public model."""
 
-from pydantic import BaseModel, ConfigDict
+from datetime import UTC
+from typing import Annotated
+
+from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict
+
+UtcDatetime = Annotated[AwareDatetime, AfterValidator(lambda d: d.astimezone(UTC))]
+"""Timezone-aware datetime, normalised to UTC on validation."""
 
 
 class Model(BaseModel):
-    """Response/data model: strict about unknown fields."""
+    """Response/data model: strict about unknown fields.
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    Defaulted fields are still listed as `required` in the serialisation JSON Schema, because
+    responses always emit them (optional fields are explicit nulls, never omitted).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_serialization_defaults_required=True,
+    )
 
 
 class RequestModel(BaseModel):

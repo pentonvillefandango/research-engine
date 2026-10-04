@@ -7,6 +7,7 @@ from pydantic import Field
 from ._base import Model
 
 SCHEMA_VERSION = "1.0.0"
+SEMVER_PATTERN = r"^\d+\.\d+\.\d+$"
 
 
 class ErrorCode(StrEnum):
@@ -37,7 +38,7 @@ class ErrorDetail(Model):
 
 class Meta(Model):
     request_id: str
-    schema_version: str = SCHEMA_VERSION
+    schema_version: str = Field(default=SCHEMA_VERSION, pattern=SEMVER_PATTERN)
     took_ms: int = Field(ge=0)
     cache_hit: bool = False
 

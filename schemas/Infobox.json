@@ -61,7 +61,10 @@
     }
   },
   "required": [
-    "title"
+    "title",
+    "content",
+    "engine",
+    "urls"
   ],
   "title": "Infobox",
   "type": "object"

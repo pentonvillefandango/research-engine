@@ -45,7 +45,8 @@
   "required": [
     "word_count",
     "text_html_ratio",
-    "has_title"
+    "has_title",
+    "escalation_reason"
   ],
   "title": "Quality",
   "type": "object"

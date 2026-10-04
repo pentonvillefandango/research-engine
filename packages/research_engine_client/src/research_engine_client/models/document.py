@@ -4,9 +4,9 @@ from enum import StrEnum
 from typing import Annotated, Any
 from urllib.parse import urlsplit
 
-from pydantic import AfterValidator, AwareDatetime, Field
+from pydantic import AfterValidator, Field
 
-from ._base import Model, RequestModel
+from ._base import Model, RequestModel, UtcDatetime
 
 
 def _http_url(value: str) -> str:
@@ -73,7 +73,7 @@ class StructuredData(Model):
 
 class Provenance(Model):
     url: str
-    fetched_at: AwareDatetime
+    fetched_at: UtcDatetime
     content_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     method: FetchMethod
     job_id: str | None = None
@@ -92,7 +92,7 @@ class Document(Model):
     status: int
     title: str | None = None
     author: str | None = None
-    published_at: AwareDatetime | None = None
+    published_at: UtcDatetime | None = None
     language: str | None = None
     markdown: str
     html: str | None = Field(default=None, description="Raw HTML, only when 'html' is in formats")

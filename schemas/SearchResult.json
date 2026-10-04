@@ -62,7 +62,8 @@
     "snippet",
     "domain",
     "engines",
-    "score"
+    "score",
+    "published_at"
   ],
   "title": "SearchResult",
   "type": "object"

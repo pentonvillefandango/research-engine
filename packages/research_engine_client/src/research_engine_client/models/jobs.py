@@ -3,9 +3,9 @@
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import AwareDatetime, Field
+from pydantic import Field
 
-from ._base import Model, RequestModel
+from ._base import Model, RequestModel, UtcDatetime
 from .common import ErrorDetail
 from .document import Document, DocumentFormat, FetchMode, HttpUrlStr
 from .search import SearchRequest, SearchResponse
@@ -45,9 +45,9 @@ class Job(Model):
     request: dict[str, Any]
     result_ref: str | None = None
     errors: list[ErrorDetail] = Field(default_factory=list[ErrorDetail])
-    created_at: AwareDatetime
-    started_at: AwareDatetime | None = None
-    finished_at: AwareDatetime | None = None
+    created_at: UtcDatetime
+    started_at: UtcDatetime | None = None
+    finished_at: UtcDatetime | None = None
 
 
 class FetchRequestOptions(RequestModel):

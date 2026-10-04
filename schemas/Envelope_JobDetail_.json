@@ -25,6 +25,7 @@
         }
       },
       "required": [
+        "kind",
         "documents",
         "failed"
       ],
@@ -152,10 +153,19 @@
         "url",
         "final_url",
         "status",
+        "title",
+        "author",
+        "published_at",
+        "language",
         "markdown",
+        "html",
         "word_count",
+        "links",
+        "tables",
+        "structured_data",
         "provenance",
-        "quality"
+        "quality",
+        "warnings"
       ],
       "title": "Document",
       "type": "object"
@@ -213,7 +223,8 @@
       "required": [
         "code",
         "message",
-        "retryable"
+        "retryable",
+        "source"
       ],
       "title": "ErrorDetail",
       "type": "object"
@@ -296,7 +307,10 @@
         }
       },
       "required": [
-        "title"
+        "title",
+        "content",
+        "engine",
+        "urls"
       ],
       "title": "Infobox",
       "type": "object"
@@ -421,8 +435,14 @@
         "type",
         "status",
         "progress",
+        "parent_id",
+        "session_id",
         "request",
-        "created_at"
+        "result_ref",
+        "errors",
+        "created_at",
+        "started_at",
+        "finished_at"
       ],
       "title": "Job",
       "type": "object"
@@ -461,7 +481,8 @@
         }
       },
       "required": [
-        "job"
+        "job",
+        "result"
       ],
       "title": "JobDetail",
       "type": "object"
@@ -495,7 +516,8 @@
       },
       "required": [
         "done",
-        "total"
+        "total",
+        "current"
       ],
       "title": "JobProgress",
       "type": "object"
@@ -558,6 +580,7 @@
         },
         "schema_version": {
           "default": "1.0.0",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
           "title": "Schema Version",
           "type": "string"
         },
@@ -569,7 +592,9 @@
       },
       "required": [
         "request_id",
-        "took_ms"
+        "schema_version",
+        "took_ms",
+        "cache_hit"
       ],
       "title": "Meta",
       "type": "object"
@@ -611,7 +636,8 @@
         "url",
         "fetched_at",
         "content_hash",
-        "method"
+        "method",
+        "job_id"
       ],
       "title": "Provenance",
       "type": "object"
@@ -649,7 +675,8 @@
       "required": [
         "word_count",
         "text_html_ratio",
-        "has_title"
+        "has_title",
+        "escalation_reason"
       ],
       "title": "Quality",
       "type": "object"
@@ -707,8 +734,10 @@
         }
       },
       "required": [
+        "kind",
         "search",
-        "documents"
+        "documents",
+        "failed"
       ],
       "title": "SearchReadResult",
       "type": "object"
@@ -750,7 +779,11 @@
         }
       },
       "required": [
-        "query"
+        "query",
+        "results",
+        "suggestions",
+        "infoboxes",
+        "unresponsive_engines"
       ],
       "title": "SearchResponse",
       "type": "object"
@@ -817,7 +850,8 @@
         "snippet",
         "domain",
         "engines",
-        "score"
+        "score",
+        "published_at"
       ],
       "title": "SearchResult",
       "type": "object"
@@ -847,6 +881,11 @@
           "type": "object"
         }
       },
+      "required": [
+        "json_ld",
+        "microdata",
+        "opengraph"
+      ],
       "title": "StructuredData",
       "type": "object"
     },
@@ -895,6 +934,12 @@
           "title": "Source Selector"
         }
       },
+      "required": [
+        "caption",
+        "headers",
+        "rows",
+        "source_selector"
+      ],
       "title": "Table",
       "type": "object"
     },
@@ -945,7 +990,9 @@
     }
   },
   "required": [
-    "meta"
+    "data",
+    "meta",
+    "errors"
   ],
   "title": "Envelope_JobDetail_",
   "type": "object"
