@@ -172,7 +172,8 @@ paths = ['''\.env\.example$''']
 - [ ] **Step 4: Prove it blocks a secret (red).**
 
 ```bash
-printf 'aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"\naws_access_key_id = AKIAZ7Q3VLRDXK4PM2TB\n' > leak-test.txt
+# Build the fake key at runtime from two parts, so no scannable literal lives in this doc.
+printf 'aws_secret_access_key = "%s%s"\naws_access_key_id = %s%s\n' wJalrXUtnFEMI/K7MDENG bPxRfiCYEXAMPLEKEY AKIAZ7Q3 VLRDXK4PM2TB > leak-test.txt
 git add leak-test.txt
 git commit -m "should fail" ; echo "commit-exit=$?"
 git reset -q leak-test.txt && rm leak-test.txt
