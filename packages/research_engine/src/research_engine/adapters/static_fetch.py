@@ -8,6 +8,7 @@ decompression bomb is bounded by one chunk's expansion (about 1000x of <=64 KiB)
 import asyncio
 import re
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 
 import httpx
 from research_engine_client.models import ErrorCode, ErrorDetail, FetchMethod
@@ -17,7 +18,7 @@ from research_engine.retry import retry
 from research_engine.safety.http import build_clean_request
 from research_engine.safety.ssrf import SsrfGuard
 
-from .fetch import RawPage
+from .fetch import RawPage, RedirectHook
 
 MAX_REDIRECTS = 5
 _ACCEPT = "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5"
@@ -70,11 +71,14 @@ class StaticFetcher:
         self._ua = user_agent
         self._sleep = sleep
 
-    async def fetch(self, url: str, *, timeout_s: float) -> RawPage:
+    async def fetch(
+        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+    ) -> RawPage:
+        """``on_redirect`` wraps each redirect hop after the SSRF check, before its request."""
         try:
             async with asyncio.timeout(timeout_s):  # one budget for all attempts and backoffs
                 return await retry(
-                    lambda: self._fetch_once(url, timeout_s),
+                    lambda: self._fetch_once(url, timeout_s, on_redirect),
                     attempts=3,
                     sleep=self._sleep,
                     retry_if=lambda exc: not isinstance(exc, _NoRetry),
@@ -88,41 +92,47 @@ class StaticFetcher:
                 http_status=504,
             ) from exc
 
-    async def _fetch_once(self, url: str, timeout_s: float) -> RawPage:
+    async def _fetch_once(
+        self, url: str, timeout_s: float, on_redirect: RedirectHook | None
+    ) -> RawPage:
         current: httpx.URL | str = url
         where = url  # printable form of the hop in flight, for error messages
         hops: list[str] = []
         seen: set[str] = set()
         try:
             async with asyncio.timeout(timeout_s):  # whole attempt, so slow-drip bodies are cut
-                for _ in range(MAX_REDIRECTS + 1):
+                for i in range(MAX_REDIRECTS + 1):
                     current = await self._guard.check(current)  # the URL we then connect to
                     where = str(current)
                     seen.add(str(current.copy_with(fragment=None)))
-                    request = build_clean_request(
-                        current, {"User-Agent": self._ua, "Accept": _ACCEPT}, timeout_s
+                    hop: AbstractAsyncContextManager[None] = (
+                        on_redirect(where) if i and on_redirect is not None else nullcontext()
                     )
-                    resp = await self._client.send(
-                        request, stream=True, follow_redirects=False, auth=None
-                    )
-                    try:
-                        if resp.is_redirect and "location" in resp.headers:
-                            hops.append(str(current))
-                            current = current.join(resp.headers["location"].strip())
-                            if str(current.copy_with(fragment=None)) in seen:
-                                raise ServiceError.of(
-                                    ErrorCode.FETCH_FAILED,
-                                    f"redirect loop fetching {url}",
-                                    retryable=False,
-                                    source=url,
-                                )
-                            continue
-                        self._check_status(resp, where)
-                        ctype = self._check_declared_type(resp, where)
-                        body = await self._read_capped(resp, where)
-                        return self._build(url, where, resp, ctype, body, hops)
-                    finally:
-                        await resp.aclose()
+                    async with hop:
+                        request = build_clean_request(
+                            current, {"User-Agent": self._ua, "Accept": _ACCEPT}, timeout_s
+                        )
+                        resp = await self._client.send(
+                            request, stream=True, follow_redirects=False, auth=None
+                        )
+                        try:
+                            if resp.is_redirect and "location" in resp.headers:
+                                hops.append(str(current))
+                                current = current.join(resp.headers["location"].strip())
+                                if str(current.copy_with(fragment=None)) in seen:
+                                    raise ServiceError.of(
+                                        ErrorCode.FETCH_FAILED,
+                                        f"redirect loop fetching {url}",
+                                        retryable=False,
+                                        source=url,
+                                    )
+                                continue
+                            self._check_status(resp, where)
+                            ctype = self._check_declared_type(resp, where)
+                            body = await self._read_capped(resp, where)
+                            return self._build(url, where, resp, ctype, body, hops)
+                        finally:
+                            await resp.aclose()
         except (httpx.TimeoutException, TimeoutError) as exc:
             raise ServiceError.of(
                 ErrorCode.UPSTREAM_TIMEOUT,
@@ -164,7 +174,8 @@ class StaticFetcher:
                 message=f"HTTP {resp.status_code} from {url}",
                 retryable=retryable,
                 source=url,
-            )
+            ),
+            upstream_status=resp.status_code,
         )
 
     def _not_allowed(self, ctype: str, url: str) -> ServiceError:

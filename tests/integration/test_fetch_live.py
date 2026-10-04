@@ -52,6 +52,7 @@ async def test_static_article(service: FetchService) -> None:
     assert doc.provenance.method is FetchMethod.STATIC
     assert doc.quality.escalation_reason is None
     assert doc.word_count >= 100
+    assert "coroutines and tasks" in doc.markdown.lower()  # live heading: "Coroutines and tasks"
     _assert_clean(doc.markdown)
 
 
@@ -62,6 +63,7 @@ async def test_spa_escalates_to_browser(service: FetchService) -> None:
     assert doc.provenance.method is FetchMethod.BROWSER, doc.warnings
     assert doc.word_count >= 100
     assert reason is not None and f"escalated to browser: {reason.value}" in doc.warnings
+    assert "Albert Einstein" in doc.markdown  # author of the first quote on the rendered page
     _assert_clean(doc.markdown)
 
 

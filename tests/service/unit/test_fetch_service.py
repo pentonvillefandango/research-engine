@@ -1,14 +1,18 @@
+import asyncio
 import hashlib
 import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 
+import httpx
 import pytest
 import respx
 from research_engine.adapters.extract import Extracted
-from research_engine.adapters.fetch import RawPage
+from research_engine.adapters.fetch import RawPage, RedirectHook
 from research_engine.adapters.html_extract import DefaultHtmlExtractor
 from research_engine.adapters.pdf_extract import PypdfExtractor
+from research_engine.adapters.static_fetch import StaticFetcher
 from research_engine.cache.memory import InMemoryCache
 from research_engine.config import Settings
 from research_engine.errors import ServiceError
@@ -37,9 +41,13 @@ class FakeFetcher:
     def __init__(self, method: FetchMethod, pages: dict[str, RawPage | ServiceError]) -> None:
         self.method, self.pages = method, pages
         self.calls: list[str] = []
+        self.timeouts: list[float] = []
 
-    async def fetch(self, url: str, *, timeout_s: float) -> RawPage:
+    async def fetch(
+        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+    ) -> RawPage:
         self.calls.append(url)
+        self.timeouts.append(timeout_s)
         out = self.pages[url]
         if isinstance(out, ServiceError):
             raise out
@@ -229,8 +237,12 @@ async def test_non_escalating_errors(settings: Settings, code: ErrorCode) -> Non
 @pytest.mark.parametrize(
     "err",
     [
-        ServiceError.of(ErrorCode.FETCH_FAILED, "HTTP 403", retryable=False),
+        ServiceError.of(ErrorCode.FETCH_FAILED, "HTTP 403", retryable=False, upstream_status=403),
+        ServiceError.of(ErrorCode.FETCH_FAILED, "HTTP 401", retryable=False, upstream_status=401),
+        ServiceError.of(ErrorCode.FETCH_FAILED, "HTTP 429", retryable=True, upstream_status=429),
+        ServiceError.of(ErrorCode.FETCH_FAILED, "HTTP 503", retryable=True, upstream_status=503),
         ServiceError.of(ErrorCode.FETCH_FAILED, "network", retryable=True),
+        ServiceError.of(ErrorCode.UPSTREAM_TIMEOUT, "slow", retryable=True, http_status=504),
     ],
 )
 async def test_static_failure_escalates(settings: Settings, err: ServiceError) -> None:
@@ -313,7 +325,9 @@ async def test_robots_and_slot_on_original_url_before_fetch(settings: Settings) 
             return super().slot(url)
 
     class LogFetcher(FakeFetcher):
-        async def fetch(self, url: str, *, timeout_s: float) -> RawPage:
+        async def fetch(
+            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+        ) -> RawPage:
             log.append(f"fetch:{url}")
             return await super().fetch(url, timeout_s=timeout_s)
 
@@ -417,3 +431,332 @@ async def test_extraction_off_loop(settings: Settings) -> None:
     await svc.fetch(FetchRequest(url=pdf_url))
     await svc.fetch(FetchRequest(url=spa))
     assert len(seen) == 4 and all(t != loop_thread for t in seen)
+
+
+# --- Fix round 1 ------------------------------------------------------------------------------
+
+
+class AnyPage(FakeFetcher):
+    """Serves article.html for any URL."""
+
+    async def fetch(
+        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+    ) -> RawPage:
+        self.calls.append(url)
+        return html_page(url, "article.html", self.method)
+
+
+class Slow(FakeFetcher):
+    async def fetch(
+        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+    ) -> RawPage:
+        self.calls.append(url)
+        self.timeouts.append(timeout_s)
+        await asyncio.sleep(100)
+        raise AssertionError("unreachable")
+
+
+def _thin(url: str) -> RawPage:
+    return RawPage(
+        url=url,
+        final_url=url,
+        status=200,
+        content_type="text/html",
+        body=b"",
+        html="<html><head><title>T</title></head><body><p>short page</p></body></html>",
+        markdown=None,
+        method=FetchMethod.STATIC,
+    )
+
+
+# 1. definitive 4xx are raised; error pages are never cached
+
+
+@pytest.mark.parametrize("status", [404, 410, 400])
+async def test_definitive_4xx_not_escalated(settings: Settings, status: int) -> None:
+    url = "https://gone.example/"
+    err = ServiceError.of(
+        ErrorCode.FETCH_FAILED, f"HTTP {status}", retryable=False, upstream_status=status
+    )
+    svc, _, b, _ = make({url: err}, {}, settings)
+    with pytest.raises(ServiceError) as ei:
+        await svc.fetch(FetchRequest(url=url))
+    assert ei.value.detail.code is ErrorCode.FETCH_FAILED and b.calls == []
+
+
+async def test_non_retryable_without_status_not_escalated(settings: Settings) -> None:
+    url = "https://loop.example/"
+    err = ServiceError.of(ErrorCode.FETCH_FAILED, "redirect loop", retryable=False)
+    svc, _, b, _ = make({url: err}, {}, settings)
+    with pytest.raises(ServiceError):
+        await svc.fetch(FetchRequest(url=url))
+    assert b.calls == []
+
+
+async def test_error_status_document_not_cached(settings: Settings) -> None:
+    url = "https://app.example/missing"
+    page = replace(html_page(url, "article.html", FetchMethod.BROWSER, "word " * 300), status=404)
+    cache = SpyCache()
+    svc, _, b, _ = make({}, {url: page}, settings, cache=cache)
+    doc, _ = await svc.fetch(FetchRequest(url=url, mode=FetchMode.BROWSER))
+    assert doc.status == 404 and cache.ttls == []
+    _, hit = await svc.fetch(FetchRequest(url=url, mode=FetchMode.BROWSER))
+    assert not hit and len(b.calls) == 2
+
+
+# 2. cache key
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("https://git.example/r?ref=main", "https://git.example/r?ref=dev"),
+        ("https://spa.example/#/pricing", "https://spa.example/#/about"),
+        ("https://spa.example/#!/pricing", "https://spa.example/#!/about"),
+        ("https://d.example/docs", "https://d.example/docs/"),
+        ("https://q.example/?a=1&b=2", "https://q.example/?b=2&a=1"),
+    ],
+)
+async def test_cache_keys_do_not_collide(settings: Settings, a: str, b: str) -> None:
+    svc, _, _, _ = make({}, {}, settings)
+    svc._static = fetcher = AnyPage(FetchMethod.STATIC, {})
+    _, hit_a = await svc.fetch(FetchRequest(url=a))
+    _, hit_b = await svc.fetch(FetchRequest(url=b))
+    assert not hit_a and not hit_b and fetcher.calls == [a, b]
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("https://blog.example/post?utm_source=x", "https://blog.example/post"),
+        ("https://blog.example/post?id=1&gclid=z&fbclid=y", "https://blog.example/post?id=1"),
+        ("HTTPS://Blog.Example:443/post", "https://blog.example/post"),
+        ("https://blog.example/post#section-2", "https://blog.example/post"),
+    ],
+)
+async def test_cache_keys_shared(settings: Settings, a: str, b: str) -> None:
+    svc, _, _, _ = make({}, {}, settings)
+    svc._static = AnyPage(FetchMethod.STATIC, {})
+    await svc.fetch(FetchRequest(url=a))
+    _, hit = await svc.fetch(FetchRequest(url=b))
+    assert hit
+
+
+async def test_cache_key_ignores_format_order_and_timeout(settings: Settings) -> None:
+    url = "https://blog.example/post"
+    svc, s, _, _ = make({url: html_page(url, "article.html")}, {}, settings)
+    md, html = DocumentFormat.MARKDOWN, DocumentFormat.HTML
+    await svc.fetch(FetchRequest(url=url, formats=(md, html), timeout_s=60))
+    _, hit = await svc.fetch(FetchRequest(url=url, formats=(html, md), timeout_s=30))
+    assert hit and len(s.calls) == 1
+
+
+# 7. a cache hit carries the current requester's url
+
+
+async def test_cache_hit_reports_requested_url(settings: Settings) -> None:
+    first, second = "https://blog.example/post?utm_source=x", "https://blog.example/post"
+    svc, _, _, _ = make({first: html_page(first, "article.html")}, {}, settings)
+    await svc.fetch(FetchRequest(url=first))
+    doc, hit = await svc.fetch(FetchRequest(url=second))
+    assert hit and doc.url == second
+    assert doc.final_url == first and doc.provenance.url == first
+
+
+# 3. latency budget
+
+
+async def test_static_gets_a_share_and_browser_the_rest(settings: Settings) -> None:
+    url = "https://thin.example/"
+    rendered = html_page(url, "article.html", FetchMethod.BROWSER, markdown="word " * 300)
+    svc, s, b, _ = make({url: _thin(url)}, {url: rendered}, settings)
+    await svc.fetch(FetchRequest(url=url, timeout_s=60))
+    assert s.timeouts == [20]
+    assert 50 < b.timeouts[0] <= 60
+    await svc.fetch(FetchRequest(url=url, mode=FetchMode.STATIC, use_cache=False, timeout_s=60))
+    assert s.timeouts[-1] == 60
+
+
+async def test_total_time_bounded_when_both_stages_slow(settings: Settings) -> None:
+    url = "https://slow.example/"
+    svc, _, _, _ = make({}, {}, settings)
+    svc._static, svc._browser = Slow(FetchMethod.STATIC, {}), Slow(FetchMethod.BROWSER, {})
+    t0 = time.monotonic()
+    with pytest.raises(ServiceError) as ei:
+        await svc.fetch(FetchRequest(url=url, timeout_s=1))
+    assert time.monotonic() - t0 <= 1.3
+    assert ei.value.detail.code is ErrorCode.UPSTREAM_TIMEOUT and ei.value.http_status == 504
+
+
+async def test_thin_then_browser_timeout_keeps_static(settings: Settings) -> None:
+    url = "https://thin.example/"
+    svc, _, _, _ = make({url: _thin(url)}, {}, settings)
+    svc._browser = Slow(FetchMethod.BROWSER, {})
+    t0 = time.monotonic()
+    doc, _ = await svc.fetch(FetchRequest(url=url, timeout_s=1))
+    assert time.monotonic() - t0 <= 1.3
+    assert doc.provenance.method is FetchMethod.STATIC
+    assert any(w.startswith("browser escalation failed") for w in doc.warnings)
+
+
+async def test_slow_robots_bounded_by_budget(settings: Settings) -> None:
+    class SlowRobots:
+        async def check(self, url: str, em: Emitter | None = None) -> None:
+            await asyncio.sleep(100)
+
+    url = "https://blog.example/post"
+    svc, s, _, _ = make({url: html_page(url, "article.html")}, {}, settings, robots=SlowRobots())
+    with pytest.raises(ServiceError) as ei:
+        await svc.fetch(FetchRequest(url=url, timeout_s=1))
+    assert ei.value.detail.code is ErrorCode.UPSTREAM_TIMEOUT and s.calls == []
+
+
+# 4. robots and politeness on every hop
+
+
+class Clock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    async def sleep(self, s: float) -> None:
+        self.now += s
+
+
+async def test_browser_stage_respaced_by_crawl_delay(settings: Settings) -> None:
+    url = "https://thin.example/"
+    clock = Clock()
+    limiter = DomainLimiter(1, 0, clock=clock, sleep=clock.sleep)
+    limiter.set_delay("thin.example", 3)  # as robots.txt Crawl-delay would
+    starts: dict[str, float] = {}
+
+    class Stamp(FakeFetcher):
+        async def fetch(
+            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+        ) -> RawPage:
+            starts[self.method.value] = clock.now
+            return await super().fetch(url, timeout_s=timeout_s)
+
+    rendered = html_page(url, "article.html", FetchMethod.BROWSER, markdown="word " * 300)
+    svc, _, _, _ = make({}, {}, settings, limiter=limiter)
+    svc._static = Stamp(FetchMethod.STATIC, {url: _thin(url)})
+    svc._browser = Stamp(FetchMethod.BROWSER, {url: rendered})
+    doc, _ = await svc.fetch(FetchRequest(url=url))
+    assert doc.provenance.method is FetchMethod.BROWSER
+    assert starts["browser"] - starts["static"] >= 3
+
+
+def _real_static(client: httpx.AsyncClient, guard: SsrfGuard) -> StaticFetcher:
+    return StaticFetcher(
+        client,
+        guard,
+        max_bytes=1_000_000,
+        allowed_types=frozenset({"text/html"}),
+        user_agent=UA,
+    )
+
+
+async def _public(_host: str) -> list[str]:
+    return ["93.184.216.34"]
+
+
+@respx.mock
+async def test_cross_origin_redirect_checks_target_robots(settings: Settings) -> None:
+    respx.get("https://a.example/robots.txt").respond(text="")
+    b_robots = respx.get("https://b.example/robots.txt").respond(
+        text="User-agent: *\nDisallow: /y\n"
+    )
+    respx.get("https://a.example/x").respond(302, headers={"Location": "https://b.example/y"})
+    target = respx.get("https://b.example/y").respond(200, html="<p>x</p>")
+    limiter = DomainLimiter(1, 0)
+    guard = SsrfGuard(frozenset(), resolver=_public)
+    async with make_fetch_client(UA) as client:
+        robots = RobotsPolicy(client, UA, limiter, guard)
+        svc, _, b, _ = make({}, {}, settings, robots=robots, limiter=limiter)
+        svc._static = _real_static(client, guard)
+        with pytest.raises(ServiceError) as ei:
+            await svc.fetch(FetchRequest(url="https://a.example/x"))
+    assert ei.value.detail.code is ErrorCode.ROBOTS_DISALLOWED
+    assert b_robots.called and not target.called and b.calls == []
+
+
+@respx.mock
+async def test_cross_origin_redirect_takes_target_slot(settings: Settings) -> None:
+    respx.get("https://a.example/robots.txt").respond(text="")
+    respx.get("https://b.example/robots.txt").respond(text="")
+    respx.get("https://a.example/x").respond(302, headers={"Location": "https://b.example/y"})
+    respx.get("https://b.example/y").respond(200, html=(PAGES / "article.html").read_text())
+    slots: list[str] = []
+
+    class LogLimiter(DomainLimiter):
+        def slot(self, url: str):  # type: ignore[override]
+            slots.append(url)
+            return super().slot(url)
+
+    limiter = LogLimiter(1, 0)
+    guard = SsrfGuard(frozenset(), resolver=_public)
+    async with make_fetch_client(UA) as client:
+        robots = RobotsPolicy(client, UA, limiter, guard)
+        svc, _, _, _ = make({}, {}, settings, robots=robots, limiter=limiter)
+        svc._static = _real_static(client, guard)
+        doc, _ = await svc.fetch(FetchRequest(url="https://a.example/x"))
+    assert doc.final_url == "https://b.example/y"
+    assert slots == ["https://a.example/x", "https://b.example/y"]
+
+
+@respx.mock
+async def test_same_origin_redirect_does_not_refetch_robots(settings: Settings) -> None:
+    robots_route = respx.get("https://a.example/robots.txt").respond(text="")
+    respx.get("https://a.example/x").respond(302, headers={"Location": "/z"})
+    respx.get("https://a.example/z").respond(200, html=(PAGES / "article.html").read_text())
+    limiter = DomainLimiter(1, 0)  # concurrency 1: re-taking the held slot would deadlock
+    guard = SsrfGuard(frozenset(), resolver=_public)
+    async with make_fetch_client(UA) as client:
+        robots = RobotsPolicy(client, UA, limiter, guard)
+        svc, _, _, _ = make({}, {}, settings, robots=robots, limiter=limiter)
+        svc._static = _real_static(client, guard)
+        async with asyncio.timeout(5):
+            doc, _ = await svc.fetch(FetchRequest(url="https://a.example/x"))
+    assert doc.final_url == "https://a.example/z" and robots_route.call_count == 1
+
+
+async def test_same_origin_redirect_path_disallowed(settings: Settings) -> None:
+    """Robots is checked per hop (cached per origin), so a redirect into a disallowed path fails."""
+
+    class PathRobots:
+        async def check(self, url: str, em: Emitter | None = None) -> None:
+            if "/private" in url:
+                raise ServiceError.of(ErrorCode.ROBOTS_DISALLOWED, "no", retryable=False)
+
+    class Redirecting(FakeFetcher):
+        async def fetch(
+            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+        ) -> RawPage:
+            assert on_redirect is not None
+            async with on_redirect("https://a.example/private"):
+                raise AssertionError("must not fetch the disallowed hop")
+
+    svc, _, _, _ = make({}, {}, settings, robots=PathRobots())
+    svc._static = Redirecting(FetchMethod.STATIC, {})
+    with pytest.raises(ServiceError) as ei:
+        await svc.fetch(FetchRequest(url="https://a.example/x"))
+    assert ei.value.detail.code is ErrorCode.ROBOTS_DISALLOWED
+
+
+async def test_browser_final_url_checked_against_robots(settings: Settings) -> None:
+    class DenyOther:
+        async def check(self, url: str, em: Emitter | None = None) -> None:
+            if "other.example" in url:
+                raise ServiceError.of(ErrorCode.ROBOTS_DISALLOWED, "no", retryable=False)
+
+    url = "https://app.example/"
+    rendered = replace(
+        html_page(url, "article.html", FetchMethod.BROWSER, markdown="word " * 300),
+        final_url="https://other.example/landing",
+    )
+    svc, _, _, _ = make({}, {url: rendered}, settings, robots=DenyOther())
+    with pytest.raises(ServiceError) as ei:
+        await svc.fetch(FetchRequest(url=url, mode=FetchMode.BROWSER))
+    assert ei.value.detail.code is ErrorCode.ROBOTS_DISALLOWED

@@ -2,6 +2,7 @@ import asyncio
 import gzip
 import time
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import httpx
 import pytest
@@ -455,3 +456,49 @@ async def test_set_cookie_not_retained(fetcher: StaticFetcher, client: httpx.Asy
     )
     await fetcher.fetch("https://a.example/c", timeout_s=5)
     assert len(client.cookies) == 0
+
+
+@respx.mock
+@pytest.mark.parametrize("status", [401, 403, 404, 410, 429, 503])
+async def test_status_error_carries_upstream_status(fetcher: StaticFetcher, status: int) -> None:
+    respx.get("https://a.example/s").respond(status)
+    with pytest.raises(ServiceError) as ei:
+        await fetcher.fetch("https://a.example/s", timeout_s=5)
+    assert ei.value.upstream_status == status
+
+
+@respx.mock
+async def test_on_redirect_wraps_each_redirect_hop(fetcher: StaticFetcher) -> None:
+    log: list[str] = []
+
+    @asynccontextmanager
+    async def hook(url: str) -> AsyncIterator[None]:
+        log.append(f"enter {url}")
+        yield
+        log.append(f"exit {url}")
+
+    respx.get("https://a.example/1").respond(302, headers={"Location": "https://b.example/2"})
+    respx.get("https://b.example/2").respond(302, headers={"Location": "/3"})
+    respx.get("https://b.example/3").respond(200, html="<p>ok</p>")
+    page = await fetcher.fetch("https://a.example/1", timeout_s=5, on_redirect=hook)
+    assert page.final_url == "https://b.example/3"
+    assert log == [
+        "enter https://b.example/2",
+        "exit https://b.example/2",
+        "enter https://b.example/3",
+        "exit https://b.example/3",
+    ]
+
+
+@respx.mock
+async def test_on_redirect_refusal_stops_before_request(fetcher: StaticFetcher) -> None:
+    @asynccontextmanager
+    async def deny(url: str) -> AsyncIterator[None]:
+        raise ServiceError.of(ErrorCode.ROBOTS_DISALLOWED, "no", retryable=False)
+        yield  # pragma: no cover
+
+    respx.get("https://a.example/1").respond(302, headers={"Location": "https://b.example/2"})
+    hop = respx.get("https://b.example/2").respond(200, html="<p>x</p>")
+    with pytest.raises(ServiceError) as ei:
+        await fetcher.fetch("https://a.example/1", timeout_s=5, on_redirect=deny)
+    assert ei.value.detail.code is ErrorCode.ROBOTS_DISALLOWED and not hop.called

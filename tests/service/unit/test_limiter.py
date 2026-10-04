@@ -102,3 +102,18 @@ async def test_idn_host_shares_key_with_punycode() -> None:
             starts.append(time.monotonic())
     assert starts[1] - starts[0] >= 0.045
     assert lim.tracked_domains == 1
+
+
+async def test_injected_clock_and_sleep() -> None:
+    now = [100.0]
+    slept: list[float] = []
+
+    async def fake_sleep(s: float) -> None:
+        slept.append(s)
+        now[0] += s
+
+    lim = DomainLimiter(concurrency=1, delay_s=3, clock=lambda: now[0], sleep=fake_sleep)
+    for _ in range(2):
+        async with lim.slot("https://a.example/"):
+            pass
+    assert slept == [3]

@@ -139,11 +139,27 @@ async def test_auth_failure(fetcher: Crawl4AIFetcher, status: int) -> None:
 
 
 @respx.mock
-async def test_timeout(fetcher: Crawl4AIFetcher) -> None:
-    respx.post(f"{BASE}/crawl").mock(side_effect=httpx.ReadTimeout("slow"))
+async def test_timeout_not_retried(fetcher: Crawl4AIFetcher) -> None:
+    route = respx.post(f"{BASE}/crawl").mock(side_effect=httpx.ReadTimeout("slow"))
     with pytest.raises(ServiceError) as ei:
         await fetcher.fetch("https://example.com", timeout_s=30)
     assert ei.value.detail.code is ErrorCode.UPSTREAM_TIMEOUT and ei.value.http_status == 504
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_error_message_sanitised_and_source_is_checked_target(
+    fetcher: Crawl4AIFetcher,
+) -> None:
+    respx.post(f"{BASE}/crawl").respond(
+        json=_one({"success": False, "error_message": "bad\x1b[31m\nthing " + "x" * 1000})
+    )
+    with pytest.raises(ServiceError) as ei:
+        await fetcher.fetch("https://user:pw@example.com/a", timeout_s=30)
+    msg = ei.value.detail.message
+    assert "\x1b" not in msg and "\n" not in msg
+    assert len(msg) <= len("browser fetch failed: ") + 201
+    assert ei.value.detail.source == "https://example.com/a"
 
 
 @respx.mock

@@ -38,3 +38,15 @@ async def test_fetch_requires_api_key(client: httpx.AsyncClient) -> None:
         "/v1/fetch", json={"url": "https://blog.example/post"}, headers={"X-API-Key": "wrong"}
     )
     assert r.status_code == 401
+
+
+async def test_openapi_documents_fetch_errors(client: httpx.AsyncClient) -> None:
+    spec = (await client.get("/openapi.json")).json()
+    responses = spec["paths"]["/v1/fetch"]["post"]["responses"]
+    assert {"403", "413", "415", "502", "504"} <= set(responses)
+    assert "extraction_failed" in responses["502"]["description"]
+
+
+async def test_fetch_unknown_page_is_404_error_not_document(client: httpx.AsyncClient) -> None:
+    r = await client.post("/v1/fetch", json={"url": "https://blog.example/missing"})
+    assert r.status_code == 502 and r.json()["errors"][0]["code"] == ErrorCode.FETCH_FAILED

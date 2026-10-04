@@ -3,7 +3,7 @@
 import asyncio
 import time
 from collections import OrderedDict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import httpx
@@ -42,8 +42,16 @@ class DomainLimiter:
     """State is kept per domain in an LRU capped at ``max_domains`` (idle entries only)."""
 
     def __init__(
-        self, concurrency: int, delay_s: float, max_domains: int = DEFAULT_MAX_DOMAINS
+        self,
+        concurrency: int,
+        delay_s: float,
+        max_domains: int = DEFAULT_MAX_DOMAINS,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
+        self._clock = clock
+        self._sleep = sleep
         self._concurrency = concurrency
         self._default_delay = delay_s
         self._max = max_domains
@@ -88,10 +96,10 @@ class DomainLimiter:
             async with state.sem:
                 async with state.lock:  # serialise the spacing decision per domain
                     delay = self._default_delay if state.delay is None else state.delay
-                    wait = state.last + delay - time.monotonic()
+                    wait = state.last + delay - self._clock()
                     if wait > 0:
-                        await asyncio.sleep(wait)
-                    state.last = time.monotonic()
+                        await self._sleep(wait)
+                    state.last = self._clock()
                 yield
         finally:
             state.active -= 1

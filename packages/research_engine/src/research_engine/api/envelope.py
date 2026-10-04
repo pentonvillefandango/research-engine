@@ -111,7 +111,10 @@ _ERROR_DESCRIPTIONS = {
     415: "Content type not allowed (`content_type_not_allowed`).",
     422: "Invalid request body or parameters (`invalid_request`); the message names the field.",
     500: "Unexpected server error (`internal_error`); details are logged, never returned.",
-    502: "Upstream dependency failed (for example `upstream_error`).",
+    502: (
+        "Upstream dependency or page failed (`upstream_error`, `fetch_failed`, "
+        "`extraction_failed`)."
+    ),
     504: "Upstream dependency timed out (`upstream_timeout`).",
 }
 

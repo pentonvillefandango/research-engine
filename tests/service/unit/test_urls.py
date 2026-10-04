@@ -1,5 +1,5 @@
 import pytest
-from research_engine.pipeline.urls import canonicalize_url, domain_of
+from research_engine.pipeline.urls import canonicalize_url, domain_of, fetch_cache_url
 
 
 @pytest.mark.parametrize(
@@ -43,3 +43,33 @@ def test_hostile_urls_never_raise(raw: str) -> None:
 )
 def test_ipv6_hosts_keep_brackets(raw: str, expected: str) -> None:
     assert canonicalize_url(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("HTTPS://Example.COM:443/Path/?b=2&a=1", "https://example.com/Path/?b=2&a=1"),
+        ("http://example.com:80/docs", "http://example.com/docs"),
+        ("https://example.com:8443/a", "https://example.com:8443/a"),
+        ("https://example.com", "https://example.com/"),
+        ("https://g.example/r?ref=main", "https://g.example/r?ref=main"),
+        ("https://e.example/a?utm_source=x&id=3&UTM_medium=y", "https://e.example/a?id=3"),
+        (
+            "https://e.example/a?gclid=1&fbclid=2&msclkid=3&mc_cid=4&mc_eid=5&igshid=6&yclid=7",
+            "https://e.example/a",
+        ),
+        ("https://e.example/a?x=%2F&y=a+b", "https://e.example/a?x=%2F&y=a+b"),
+        ("https://e.example/a#section", "https://e.example/a"),
+        ("https://e.example/#/pricing", "https://e.example/#/pricing"),
+        ("https://e.example/#!/about", "https://e.example/#!/about"),
+        ("https://[::1]:8080/a", "https://[::1]:8080/a"),
+        ("https://user:pw@e.example/a", "https://e.example/a"),
+    ],
+)
+def test_fetch_cache_url(raw: str, expected: str) -> None:
+    assert fetch_cache_url(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["http://[::1", "http://a:99999/", "", "   "])
+def test_fetch_cache_url_is_total(raw: str) -> None:
+    assert isinstance(fetch_cache_url(raw), str)

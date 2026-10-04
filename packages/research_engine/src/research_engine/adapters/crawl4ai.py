@@ -5,6 +5,7 @@ default ``browser_mode``: the sandboxed browser configuration is owned by the de
 """
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -15,9 +16,19 @@ from research_engine.errors import ServiceError
 from research_engine.retry import retry
 from research_engine.safety.ssrf import SsrfGuard
 
-from .fetch import RawPage
+from .fetch import RawPage, RedirectHook
 
 _SOURCE = "crawl4ai"
+MAX_ERROR_CHARS = 200
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
+
+
+def _clean_error(raw: object) -> str:
+    """Crawl4AI's error text, safe to put in an API error: one line, control chars removed."""
+    text = " ".join(_CONTROL.sub(" ", str(raw or "")).split())
+    if len(text) > MAX_ERROR_CHARS:
+        text = text[: MAX_ERROR_CHARS - 1] + "\u2026"
+    return text or "unknown error"
 
 
 class Crawl4AIFetcher:
@@ -36,10 +47,18 @@ class Crawl4AIFetcher:
         self._guard = guard
         self._sleep = sleep
 
-    async def fetch(self, url: str, *, timeout_s: float) -> RawPage:
+    async def fetch(
+        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+    ) -> RawPage:
+        """``on_redirect`` is not used: Chromium follows redirects inside Crawl4AI. The final
+        URL is SSRF-checked here, and the orchestrator applies robots.txt to it."""
         target = str(await self._guard.check(url))  # send exactly the URL that was checked
         return await retry(
-            lambda: self._crawl(url, target, timeout_s), attempts=2, sleep=self._sleep
+            lambda: self._crawl(url, target, timeout_s),
+            attempts=2,
+            sleep=self._sleep,
+            # a timeout already spent the caller's budget; retrying would double it
+            retry_if=lambda exc: exc.detail.code is not ErrorCode.UPSTREAM_TIMEOUT,
         )
 
     async def _crawl(self, url: str, target: str, timeout_s: float) -> RawPage:
@@ -91,9 +110,9 @@ class Crawl4AIFetcher:
         if not result.get("success"):
             raise ServiceError.of(
                 ErrorCode.FETCH_FAILED,
-                f"browser fetch failed: {result.get('error_message') or 'unknown error'}",
+                f"browser fetch failed: {_clean_error(result.get('error_message'))}",
                 retryable=True,
-                source=url,
+                source=target,
             )
         final = target
         redirected = result.get("redirected_url")
