@@ -13,7 +13,10 @@ def configure_logging(level: str = "INFO") -> None:
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
-            structlog.processors.dict_tracebacks,
+            # Locals are never rendered: frames hold request headers (the API key).
+            structlog.processors.ExceptionRenderer(
+                structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
+            ),
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(level)),

@@ -1,8 +1,9 @@
 """Shared pytest fixtures."""
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
+import httpx
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,3 +30,27 @@ def settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture
+async def app(settings_env: None):
+    from research_engine.app import create_app
+    from research_engine.config import Settings
+    from research_engine.testing import build_test_services
+
+    settings = Settings()  # type: ignore[call-arg]
+    services = build_test_services(settings)
+    application = create_app(settings, services=services)
+    async with application.router.lifespan_context(application):
+        yield application
+
+
+@pytest.fixture
+async def client(app) -> AsyncIterator[httpx.AsyncClient]:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://research.localhost",
+        headers={"X-API-Key": "test-key"},
+    ) as c:
+        yield c
