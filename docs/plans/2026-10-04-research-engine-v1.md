@@ -152,9 +152,9 @@ class SearchProvider(Protocol):
                    html: str | None, markdown: str | None, method: FetchMethod,
                    redirects: list[str])
 class Fetcher(Protocol):
-    async def fetch(self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None) -> RawPage: ...
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage: ...
     async def health(self) -> bool: ...
-# RedirectHook: async callback around each redirect hop (FetchService uses it for per-hop robots + limiter slot)
+# HopHook: async callback around EVERY request the fetcher sends (first request of each attempt and each redirect hop); FetchService uses it for per-hop robots + the single per-stage limiter slot
 # adapters/static_fetch.py: StaticFetcher(client, guard: SsrfGuard, settings)
 # adapters/crawl4ai.py:     Crawl4AIFetcher(base_url, token, client, guard: SsrfGuard)
 
