@@ -16,7 +16,7 @@ import asyncio
 import hashlib
 import json
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Protocol
@@ -62,6 +62,7 @@ STATIC_FLOOR_S = 10.0  # ... but at least this, and never more than two thirds
 BROWSER_RESERVE_SHARE = 0.1  # kept back from the browser for extraction ...
 BROWSER_RESERVE_MAX_S = 2.0  # ... up to this much
 BROWSER_FAILED_PREFIX = "browser escalation failed: "
+GONE_STATUSES = frozenset({404, 410})  # a browser result with these raises like a static one
 # Notes about Trafilatura's markdown, moot once the browser's markdown replaces it.
 _MARKDOWN_ONLY_WARNINGS = ("trafilatura ",)
 
@@ -98,6 +99,29 @@ def _timeout(url: str, why: str) -> ServiceError:
     return ServiceError.of(
         ErrorCode.UPSTREAM_TIMEOUT, f"{why}: {url}", retryable=True, source=url, http_status=504
     )
+
+
+class _HopSlot:
+    """The single DomainLimiter slot a static stage holds; moves with cross-domain hops."""
+
+    def __init__(self, limiter: DomainLimiter) -> None:
+        self._limiter = limiter
+        self._key: str | None = None
+        self._cm: AbstractAsyncContextManager[None] | None = None
+
+    async def move_to(self, url: str) -> None:
+        key = limiter_key(url)
+        if key == self._key:
+            return
+        await self.release()  # never wait for one slot while holding another
+        cm = self._limiter.slot(url)
+        await cm.__aenter__()  # if this is cancelled, the limiter's own cleanup runs
+        self._cm, self._key = cm, key
+
+    async def release(self) -> None:
+        cm, self._cm, self._key = self._cm, None, None
+        if cm is not None:
+            await cm.__aexit__(None, None, None)
 
 
 class RobotsChecker(Protocol):
@@ -211,31 +235,32 @@ class FetchService:
             return static_doc
 
     async def _static_stage(self, req: FetchRequest, em: Emitter, budget: float) -> RawPage:
-        """One politeness slot for the static stage; redirect hops get robots + their own slot."""
-        held = {limiter_key(req.url)}
-        async with self._limiter.slot(req.url):
+        """Politeness for the static stage: exactly one domain slot at a time.
+
+        The slot follows the hops: a cross-domain redirect releases the current slot before
+        waiting for the next one (never hold-and-wait, so crossing redirects can't deadlock);
+        a same-domain hop keeps it. Every exit path (result, error, deadline, cancellation)
+        releases whatever slot is current.
+        """
+        slot = _HopSlot(self._limiter)
+        try:
+            await slot.move_to(req.url)
             try:
                 async with asyncio.timeout(budget):
                     return await self._static.fetch(
-                        req.url, timeout_s=budget, on_redirect=self._hop_hook(em, held)
+                        req.url, timeout_s=budget, on_redirect=self._hop_hook(em, slot)
                     )
             except TimeoutError as exc:
                 raise _timeout(req.url, f"static fetch exceeded {budget:g}s") from exc
+        finally:
+            await slot.release()
 
-    def _hop_hook(self, em: Emitter, held: set[str]) -> RedirectHook:
+    def _hop_hook(self, em: Emitter, slot: "_HopSlot") -> RedirectHook:
         @asynccontextmanager
         async def hook(url: str) -> AsyncIterator[None]:
             await self._robots.check(url, em)  # cached per origin: no refetch on same origin
-            key = limiter_key(url)
-            if key in held:  # this stage already holds that domain's slot
-                yield
-                return
-            held.add(key)
-            try:
-                async with self._limiter.slot(url):
-                    yield
-            finally:
-                held.discard(key)
+            await slot.move_to(url)
+            yield  # the slot stays current after the hop; the stage releases it at the end
 
         return hook
 
@@ -255,6 +280,14 @@ class FetchService:
             reason=reason.value,
         )
         raw = await self._browser_stage(req, deadline)
+        if raw.status in GONE_STATUSES:  # same outcome as a static 404/410
+            raise ServiceError.of(
+                ErrorCode.FETCH_FAILED,
+                f"HTTP {raw.status} from {raw.final_url}",
+                retryable=False,
+                source=raw.final_url,
+                upstream_status=raw.status,
+            )
         if raw.final_url != req.url:  # Chromium followed redirects we could not vet per hop
             await self._robots.check(raw.final_url, em)
         ex = await asyncio.to_thread(self._html.extract, raw.html or "", raw.final_url)
