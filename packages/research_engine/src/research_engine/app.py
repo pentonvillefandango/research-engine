@@ -46,11 +46,12 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.services = services or build_services(settings)
+        owned = services is None
+        app.state.services = build_services(settings) if services is None else services
         try:
             yield
         finally:
-            if app.state.services.http is not None:
+            if owned and app.state.services.http is not None:
                 await app.state.services.http.aclose()
 
     app = FastAPI(title="Research Engine", version=__version__, lifespan=lifespan)

@@ -36,6 +36,10 @@ class EventSubscriber(Protocol):
     def subscribe(self) -> Subscription: ...
 
 
+class EventBus(EventSink, EventSubscriber, Protocol):
+    """Sink plus subscriber: what the service container needs (memory now, SQLite in step 4)."""
+
+
 class Emitter:
     def __init__(self, sink: EventSink, job_id: str | None = None) -> None:
         self._sink = sink

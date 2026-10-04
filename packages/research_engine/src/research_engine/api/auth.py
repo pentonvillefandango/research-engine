@@ -18,13 +18,19 @@ class ApiKeyMiddleware:
         return any(path == p or (p.endswith("/") and path.startswith(p)) for p in OPEN_PATHS)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or self._is_open(scope["path"]):
+        if scope["type"] == "lifespan":
+            await self.app(scope, receive, send)
+            return
+        if scope["type"] == "http" and self._is_open(scope["path"]):
             await self.app(scope, receive, send)
             return
         headers = dict(scope.get("headers") or [])
         supplied = headers.get(b"x-api-key", b"")
         if supplied and hmac.compare_digest(supplied, self._key):
             await self.app(scope, receive, send)
+            return
+        if scope["type"] != "http":  # websocket: refuse before accept (policy violation)
+            await send({"type": "websocket.close", "code": 1008})
             return
         body = json.dumps(
             {

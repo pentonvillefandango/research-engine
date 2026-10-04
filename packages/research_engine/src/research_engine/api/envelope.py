@@ -2,6 +2,7 @@
 
 import time
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 import structlog
@@ -9,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from research_engine_client.models import Envelope, ErrorCode, ErrorDetail, Meta
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from research_engine.errors import ServiceError
@@ -92,9 +94,28 @@ def ok[T](request: Request, data: T, *, cache_hit: bool = False) -> Envelope[T]:
     return Envelope[T](data=data, meta=_meta(request, cache_hit))
 
 
-def error_response(request: Request, status: int, *errors: ErrorDetail) -> JSONResponse:
+def error_response(
+    request: Request, status: int, *errors: ErrorDetail, headers: Mapping[str, str] | None = None
+) -> JSONResponse:
     env = Envelope[None](data=None, meta=_meta(request), errors=list(errors))
-    return JSONResponse(status_code=status, content=env.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=status, content=env.model_dump(mode="json"), headers=dict(headers or {})
+    )
+
+
+_ERROR_DESCRIPTIONS = {
+    401: "Missing or invalid API key (`unauthorized`).",
+    404: "Resource or route not found (`not_found`).",
+    422: "Invalid request body or parameters (`invalid_request`); the message names the field.",
+    500: "Unexpected server error (`internal_error`); details are logged, never returned.",
+    502: "Upstream dependency failed (for example `upstream_error`).",
+    504: "Upstream dependency timed out (`upstream_timeout`).",
+}
+
+
+def error_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    """OpenAPI ``responses=`` entries: every error status is an ``Envelope[None]``."""
+    return {s: {"model": Envelope[None], "description": _ERROR_DESCRIPTIONS[s]} for s in statuses}
 
 
 def install_exception_handlers(app: FastAPI) -> None:
@@ -114,3 +135,9 @@ def install_exception_handlers(app: FastAPI) -> None:
             for e in errs
         ]
         return error_response(request, 422, *details)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:  # pyright: ignore[reportUnusedFunction]
+        code = ErrorCode.NOT_FOUND if exc.status_code == 404 else ErrorCode.INVALID_REQUEST
+        detail = ErrorDetail(code=code, message=str(exc.detail), retryable=False)
+        return error_response(request, exc.status_code, detail, headers=exc.headers)

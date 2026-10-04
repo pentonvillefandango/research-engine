@@ -9,7 +9,7 @@ from fastapi import Request
 from research_engine.cache.base import Cache
 from research_engine.config import Settings
 from research_engine.config_files import IntentRegistry
-from research_engine.events.memory import InMemoryEventBus
+from research_engine.events.base import EventBus
 from research_engine.pipeline.search import SearchService
 
 
@@ -17,7 +17,7 @@ from research_engine.pipeline.search import SearchService
 class Services:
     settings: Settings
     intents: IntentRegistry
-    events: InMemoryEventBus  # replaced by SqliteEventBus in step 4 (same interface)
+    events: EventBus
     cache: Cache
     search: SearchService
     http: httpx.AsyncClient | None = None

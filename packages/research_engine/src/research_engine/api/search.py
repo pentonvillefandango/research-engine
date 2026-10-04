@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Request
+from fastapi.security import APIKeyHeader
 from research_engine_client.models import (
     EngineInfo,
     EnginesResponse,
@@ -13,9 +14,38 @@ from research_engine_client.models import (
 )
 
 from .deps import Services, get_services
-from .envelope import ok
+from .envelope import error_responses, ok
 
-router = APIRouter(prefix="/v1", tags=["search"])
+# Documentation only (drives the OpenAPI security scheme and the /docs "Authorize" button).
+# ApiKeyMiddleware is the enforcer.
+_api_key_doc = APIKeyHeader(name="X-API-Key", auto_error=False, description="Service API key")
+
+router = APIRouter(
+    prefix="/v1",
+    tags=["search"],
+    dependencies=[Depends(_api_key_doc)],
+    responses=error_responses(401, 404, 422, 500, 502, 504),
+)
+
+ENGINES_EXAMPLE = {
+    "data": {
+        "engines": [{"name": "github", "used_by": ["technical", "code"]}],
+        "intents": {
+            "technical": {
+                "categories": ["general", "it"],
+                "engines": ["github", "stackoverflow"],
+                "description": "Developer documentation, Q&A and code.",
+            }
+        },
+    },
+    "meta": {
+        "request_id": "0123456789abcdef0123456789abcdef",
+        "schema_version": "1.0.0",
+        "took_ms": 1,
+        "cache_hit": False,
+    },
+    "errors": [],
+}
 
 SEARCH_EXAMPLE = {
     "query": "compare open-source vector databases",
@@ -35,7 +65,11 @@ async def search(
     return ok(request, resp, cache_hit=hit)
 
 
-@router.get("/engines", response_model=Envelope[EnginesResponse])
+@router.get(
+    "/engines",
+    response_model=Envelope[EnginesResponse],
+    responses={200: {"content": {"application/json": {"example": ENGINES_EXAMPLE}}}},
+)
 async def engines(
     request: Request, services: Annotated[Services, Depends(get_services)]
 ) -> Envelope[EnginesResponse]:
