@@ -113,6 +113,7 @@ class ServiceError(Exception):
     def __init__(self, detail: ErrorDetail, http_status: int = 502) -> None: ...
     detail: ErrorDetail
     http_status: int
+    upstream_status: int | None      # HTTP status from the fetched site, when known (drives escalation)
 
 # events/base.py
 class EventSink(Protocol):
@@ -151,8 +152,9 @@ class SearchProvider(Protocol):
                    html: str | None, markdown: str | None, method: FetchMethod,
                    redirects: list[str])
 class Fetcher(Protocol):
-    async def fetch(self, url: str, *, timeout_s: float) -> RawPage: ...
+    async def fetch(self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None) -> RawPage: ...
     async def health(self) -> bool: ...
+# RedirectHook: async callback around each redirect hop (FetchService uses it for per-hop robots + limiter slot)
 # adapters/static_fetch.py: StaticFetcher(client, guard: SsrfGuard, settings)
 # adapters/crawl4ai.py:     Crawl4AIFetcher(base_url, token, client, guard: SsrfGuard)
 
@@ -167,16 +169,19 @@ class PdfExtractor(Protocol):   def extract(self, body: bytes, url: str) -> Extr
 # safety/ssrf.py
 class SsrfGuard:
     def __init__(self, allow_hosts: frozenset[str], resolver: Resolver | None = None) -> None: ...
-    async def check(self, url: str) -> None: ...   # raises ServiceError(code=ssrf_blocked)
+    async def check(self, url: str) -> httpx.URL: ...   # returns the parsed, userinfo-free URL to request; raises ServiceError(code=ssrf_blocked)
 # safety/robots.py
 class RobotsPolicy:
     async def check(self, url: str, em: Emitter | None = None) -> None: ...   # raises ServiceError(code=robots_disallowed); applies crawl-delay via DomainLimiter.set_delay
 # safety/limiter.py
 class DomainLimiter:
+    def __init__(self, concurrency: int, delay_s: float, *, clock=..., sleep=...) -> None: ...
     def slot(self, url: str) -> AbstractAsyncContextManager[None]: ...  # per-domain semaphore + min interval
 # limiter_key(url) -> str: the slot key = httpx IDNA-2008 punycode host minus "www."; RobotsPolicy sets crawl-delay on the same key
 
-# pipeline/urls.py:   canonicalize_url(url: str) -> str ; domain_of(url: str) -> str
+# pipeline/urls.py:   canonicalize_url(url: str) -> str (search dedupe) ; domain_of(url: str) -> str ;
+#                     fetch_cache_url(url: str) -> str (page cache: keeps ref, #/ and #! fragments, path/query as given)
+# pipeline/fetch.py:  page_cache_key(req: FetchRequest) -> str (formats order-normalised, timeout_s excluded)
 # pipeline/ranking.py: merge_and_score(pages: list[RawSearchPage], max_results: int) -> list[SearchResult]
 # pipeline/search.py: SearchService(provider, intents: IntentRegistry, cache, events: EventSink, settings)
 #                     async def search(self, req: SearchRequest, *, job_id: str | None = None) -> tuple[SearchResponse, bool]  # (response, cache_hit)
