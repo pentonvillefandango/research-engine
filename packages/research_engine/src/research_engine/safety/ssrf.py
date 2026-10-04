@@ -8,15 +8,19 @@ import asyncio
 import ipaddress
 import socket
 from collections.abc import Awaitable, Callable
-from urllib.parse import urlsplit
 
+import httpx
 from research_engine_client.models import ErrorCode
 
 from research_engine.errors import ServiceError
 
 Resolver = Callable[[str], Awaitable[list[str]]]
 
-_EXTRA_BLOCKED = [ipaddress.ip_network("100.64.0.0/10")]
+_EXTRA_BLOCKED = [
+    ipaddress.ip_network("100.64.0.0/10"),  # CGNAT
+    ipaddress.ip_network("fec0::/10"),  # deprecated site-local
+    ipaddress.ip_network("64:ff9b:1::/48"),  # local-use NAT64
+]
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
 
 
@@ -43,18 +47,34 @@ def _is_blocked_ip(raw: str) -> bool:
     )
 
 
+def _host_of(url: httpx.URL) -> str:
+    """The exact host httpx will connect to (IDNA-2008 punycode, lower-case, no brackets/dot)."""
+    return url.raw_host.decode("ascii").lower().rstrip(".")
+
+
 def normalize_host(host: str) -> str:
-    """Lower-case, strip brackets and trailing dot, IDNA-encode. Raises ValueError if invalid."""
-    host = host.strip().lower()
-    if host.startswith("[") and host.endswith("]"):
-        host = host[1:-1]
-    host = host.rstrip(".")
-    if not host or host.isascii():
-        return host
+    """Normalise an allow-list entry with the same parser the fetchers use (httpx.URL).
+
+    Raises ValueError if the entry is not a valid host.
+    """
+    host = host.strip()
+    candidates = [f"http://{host}/"]
+    if ":" in host and not host.startswith("["):
+        candidates.append(f"http://[{host}]/")
+    for candidate in candidates:
+        try:
+            return _host_of(httpx.URL(candidate))
+        except httpx.InvalidURL:
+            continue
+    raise ValueError(f"invalid host {host!r}")
+
+
+def _legacy_ipv4(host: str) -> str | None:
+    """Canonicalise numeric hosts such as 127.1, 0x7f.1, 2130706433 (the resolver would too)."""
     try:
-        return host.encode("idna").decode("ascii")
-    except UnicodeError as exc:
-        raise ValueError(f"invalid host {host!r}") from exc
+        return socket.inet_ntoa(socket.inet_aton(host))
+    except (OSError, ValueError):
+        return None
 
 
 class SsrfGuard:
@@ -69,47 +89,53 @@ class SsrfGuard:
         self._resolve = resolver or _system_resolve
 
     @staticmethod
-    def _blocked(url: str, why: str) -> ServiceError:
+    def _blocked(url: object, why: str) -> ServiceError:
         return ServiceError.of(
             ErrorCode.SSRF_BLOCKED,
             f"blocked: {why}",
             retryable=False,
-            source=url,
+            source=str(url),
             http_status=403,
         )
 
-    async def check(self, url: str) -> None:
+    async def check(self, url: str | httpx.URL) -> httpx.URL:
+        """Validate ``url`` and return the parsed, userinfo-free URL to connect to.
+
+        The returned object must be what the caller requests: the host that was checked is then
+        the host that is connected to (one parser, no differential).
+        """
         try:
-            parts = urlsplit(url)
-            parts.port  # noqa: B018 - validates the port; raises ValueError if malformed
-            scheme = parts.scheme.lower()
-            raw_host = parts.hostname or ""
-        except ValueError as exc:
+            parsed = url if isinstance(url, httpx.URL) else httpx.URL(url)
+            parsed.port  # noqa: B018 - validates the port
+            host = _host_of(parsed)
+        except (httpx.InvalidURL, UnicodeError) as exc:
             raise self._blocked(url, "unparseable URL") from exc
-        if scheme not in ("http", "https"):
-            raise self._blocked(url, f"scheme {parts.scheme!r} not allowed")
-        try:
-            host = normalize_host(raw_host)
-        except ValueError as exc:
-            raise self._blocked(url, "invalid host") from exc
+        if parsed.scheme not in ("http", "https"):
+            raise self._blocked(url, f"scheme {parsed.scheme!r} not allowed")
         if not host:
             raise self._blocked(url, "missing host")
+        safe = parsed.copy_with(userinfo=b"") if parsed.userinfo else parsed
         if host in self._allow:
-            return
+            return safe
         if host == "localhost" or host.endswith(".localhost"):
             raise self._blocked(url, "localhost")
         try:
             addresses = [str(ipaddress.ip_address(host.split("%", 1)[0]))]
         except ValueError:
-            try:
-                addresses = await self._resolve(host)
-            except OSError as exc:
-                raise ServiceError.of(
-                    ErrorCode.FETCH_FAILED,
-                    f"DNS lookup failed for {host}: {exc}",
-                    retryable=True,
-                    source=url,
-                ) from exc
+            legacy = _legacy_ipv4(host)
+            if legacy is not None:
+                addresses = [legacy]
+            else:
+                try:
+                    addresses = await self._resolve(host)
+                except OSError as exc:
+                    raise ServiceError.of(
+                        ErrorCode.FETCH_FAILED,
+                        f"DNS lookup failed for {host}: {exc}",
+                        retryable=True,
+                        source=str(url),
+                    ) from exc
         bad = [a for a in addresses if _is_blocked_ip(a)]
         if bad:
             raise self._blocked(url, f"{host} resolves to non-public address {bad[0]}")
+        return safe

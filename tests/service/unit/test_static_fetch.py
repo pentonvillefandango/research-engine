@@ -1,4 +1,6 @@
+import asyncio
 import gzip
+import time
 from collections.abc import AsyncIterator
 
 import httpx
@@ -6,6 +8,7 @@ import pytest
 import respx
 from research_engine.adapters.static_fetch import StaticFetcher
 from research_engine.errors import ServiceError
+from research_engine.safety.http import make_fetch_client
 from research_engine.safety.ssrf import SsrfGuard
 from research_engine_client.models import ErrorCode, FetchMethod
 
@@ -22,7 +25,7 @@ async def _nosleep(_: float) -> None:
 
 @pytest.fixture
 async def client() -> AsyncIterator[httpx.AsyncClient]:
-    async with httpx.AsyncClient() as c:
+    async with make_fetch_client(UA) as c:
         yield c
 
 
@@ -261,7 +264,7 @@ async def test_status_errors(fetcher: StaticFetcher, status: int, retryable: boo
         await fetcher.fetch("https://a.example/s", timeout_s=5)
     assert ei.value.detail.code is ErrorCode.FETCH_FAILED
     assert ei.value.detail.retryable is retryable
-    assert route.call_count == (3 if retryable else 1)
+    assert route.call_count == (3 if status >= 500 else 1)  # 429 is never retried in-call
 
 
 @respx.mock
@@ -330,3 +333,125 @@ async def test_no_cookies_or_auth_sent_and_fresh_headers(client: httpx.AsyncClie
         assert call.request.method == "GET"
     await f.fetch("https://a.example/2", timeout_s=5)  # later fetch: still no cookie
     assert "cookie" not in second.calls.last.request.headers
+
+
+@respx.mock
+async def test_429_attempted_once_but_flagged_retryable(fetcher: StaticFetcher) -> None:
+    route = respx.get("https://a.example/s").respond(429)
+    with pytest.raises(ServiceError) as ei:
+        await fetcher.fetch("https://a.example/s", timeout_s=5)
+    assert route.call_count == 1
+    assert ei.value.detail.code is ErrorCode.FETCH_FAILED and ei.value.detail.retryable is True
+
+
+@respx.mock
+async def test_total_budget_bounded_across_retries(client: httpx.AsyncClient) -> None:
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.5)
+        return httpx.Response(200, html="<html></html>")
+
+    f = StaticFetcher(
+        client,
+        SsrfGuard(frozenset(), resolver=_resolve),
+        max_bytes=1000,
+        allowed_types=frozenset({"text/html"}),
+        user_agent=UA,
+    )  # real backoff sleeps
+    route = respx.get("https://a.example/t").mock(side_effect=slow)
+    t0 = time.monotonic()
+    with pytest.raises(ServiceError) as ei:
+        await f.fetch("https://a.example/t", timeout_s=0.2)
+    assert time.monotonic() - t0 < 0.35  # one budget, not 3x plus backoff
+    assert ei.value.detail.code is ErrorCode.UPSTREAM_TIMEOUT
+    assert route.call_count <= 2
+
+
+@respx.mock
+async def test_userinfo_stripped_no_basic_auth(fetcher: StaticFetcher) -> None:
+    route = respx.get("https://a.example/p").respond(200, html="<html></html>")
+    page = await fetcher.fetch("https://user:pw@a.example/p", timeout_s=5)
+    req = route.calls.last.request
+    assert "authorization" not in req.headers and b"pw" not in bytes(req.url.raw_path)
+    assert "user" not in page.final_url and "pw" not in page.final_url
+
+
+@respx.mock
+@pytest.mark.parametrize("host", ["straße.example", "ς.example", "faß.de"])
+async def test_idna_hosts_checked_in_2008_form_initial_and_redirect(
+    client: httpx.AsyncClient, host: str
+) -> None:
+    puny = httpx.URL(f"http://{host}/").raw_host.decode()
+    seen: list[str] = []
+
+    async def resolve(h: str) -> list[str]:
+        seen.append(h)
+        return ["10.0.0.9"] if h == puny else ["93.184.216.34"]
+
+    f = StaticFetcher(
+        client,
+        SsrfGuard(frozenset(), resolver=resolve),
+        max_bytes=1000,
+        allowed_types=frozenset({"text/html"}),
+        user_agent=UA,
+        sleep=_nosleep,
+    )
+    with pytest.raises(ServiceError) as ei:  # as the original URL
+        await f.fetch(f"https://{host}/", timeout_s=5)
+    assert ei.value.detail.code is ErrorCode.SSRF_BLOCKED and puny in seen
+    respx.get("https://ok.example/r").respond(
+        302, headers=[(b"location", f"https://{host}/x".encode())]
+    )
+    with pytest.raises(ServiceError) as ei:  # as a redirect Location
+        await f.fetch("https://ok.example/r", timeout_s=5)
+    assert ei.value.detail.code is ErrorCode.SSRF_BLOCKED
+
+
+@respx.mock
+async def test_zwj_host_blocked(fetcher: StaticFetcher) -> None:
+    with pytest.raises(ServiceError) as ei:
+        await fetcher.fetch("https://a\u200db.example/", timeout_s=5)
+    assert ei.value.detail.code is ErrorCode.SSRF_BLOCKED
+    respx.get("https://ok.example/r").respond(
+        302, headers=[(b"location", "https://a\u200db.example/".encode())]
+    )
+    with pytest.raises(ServiceError) as ei:
+        await fetcher.fetch("https://ok.example/r", timeout_s=5)
+    assert ei.value.detail.code in (ErrorCode.SSRF_BLOCKED, ErrorCode.FETCH_FAILED)
+
+
+@respx.mock
+async def test_checked_host_is_connected_host(client: httpx.AsyncClient) -> None:
+    f = StaticFetcher(
+        client,
+        SsrfGuard(frozenset(), resolver=_resolve),
+        max_bytes=1000,
+        allowed_types=frozenset({"text/html"}),
+        user_agent=UA,
+        sleep=_nosleep,
+    )
+    route = respx.get("https://xn--strae-oqa.example/").respond(200, html="<html></html>")
+    page = await f.fetch("https://straße.example/", timeout_s=5)
+    assert route.call_count == 1 and page.status == 200
+
+
+@respx.mock
+async def test_allowed_types_case_insensitive(client: httpx.AsyncClient) -> None:
+    f = StaticFetcher(
+        client,
+        SsrfGuard(frozenset(), resolver=_resolve),
+        max_bytes=1000,
+        allowed_types=frozenset({"Text/HTML"}),
+        user_agent=UA,
+        sleep=_nosleep,
+    )
+    respx.get("https://a.example/").respond(200, html="<html></html>")
+    assert (await f.fetch("https://a.example/", timeout_s=5)).content_type == "text/html"
+
+
+@respx.mock
+async def test_set_cookie_not_retained(fetcher: StaticFetcher, client: httpx.AsyncClient) -> None:
+    respx.get("https://a.example/c").respond(
+        200, html="<html></html>", headers={"set-cookie": "sid=1; Path=/"}
+    )
+    await fetcher.fetch("https://a.example/c", timeout_s=5)
+    assert len(client.cookies) == 0

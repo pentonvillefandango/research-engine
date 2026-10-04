@@ -7,6 +7,7 @@ import pytest
 import respx
 from research_engine.errors import ServiceError
 from research_engine.events.base import Emitter
+from research_engine.safety.http import make_fetch_client
 from research_engine.safety.limiter import DomainLimiter
 from research_engine.safety.robots import MAX_ROBOTS_BYTES, RobotsPolicy
 from research_engine.safety.ssrf import SsrfGuard
@@ -41,7 +42,7 @@ class Clock:
 
 @pytest.fixture
 async def client() -> AsyncIterator[httpx.AsyncClient]:
-    async with httpx.AsyncClient() as c:
+    async with make_fetch_client(UA) as c:
         yield c
 
 
@@ -248,3 +249,49 @@ async def test_cache_is_bounded(client: httpx.AsyncClient) -> None:
     for i in range(10):
         await pol.check(f"https://h{i}.example/")
     assert pol.cached_origins <= 3
+
+
+async def test_locks_do_not_leak_on_failed_fetches(client: httpx.AsyncClient) -> None:
+    async def nx(host: str) -> list[str]:
+        raise OSError("NXDOMAIN")
+
+    pol = RobotsPolicy(client, UA, DomainLimiter(1, 0), SsrfGuard(frozenset(), resolver=nx))
+    for i in range(50):
+        with pytest.raises(ServiceError):
+            await pol.check(f"https://h{i}.example/")
+    assert pol.tracked_locks == 0
+    # concurrent failures too
+    await asyncio.gather(
+        *(pol.check(f"https://c{i % 5}.example/") for i in range(20)), return_exceptions=True
+    )
+    assert pol.tracked_locks == 0
+
+
+@respx.mock
+async def test_idna_origin_uses_checked_punycode_host(client: httpx.AsyncClient) -> None:
+    seen: list[str] = []
+
+    async def resolve(h: str) -> list[str]:
+        seen.append(h)
+        return ["10.0.0.9"] if h == "xn--strae-oqa.example" else ["93.184.216.34"]
+
+    pol = RobotsPolicy(client, UA, DomainLimiter(1, 0), SsrfGuard(frozenset(), resolver=resolve))
+    with pytest.raises(ServiceError) as ei:
+        await pol.check("https://straße.example/x")
+    assert ei.value.detail.code is ErrorCode.SSRF_BLOCKED and seen == ["xn--strae-oqa.example"]
+
+
+@respx.mock
+async def test_robots_set_cookie_not_retained(policy: Any, client: httpx.AsyncClient) -> None:
+    pol, _ = policy
+    respx.get("https://a.example/robots.txt").respond(200, text="", headers={"set-cookie": "a=b"})
+    await pol.check("https://a.example/")
+    assert len(client.cookies) == 0
+
+
+@respx.mock
+async def test_robots_userinfo_not_sent_as_auth(policy: Any) -> None:
+    pol, _ = policy
+    route = respx.get("https://a.example/robots.txt").respond(200, text="")
+    await pol.check("https://u:p@a.example/")
+    assert "authorization" not in route.calls.last.request.headers

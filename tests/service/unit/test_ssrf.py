@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from research_engine.errors import ServiceError
 from research_engine.safety.ssrf import SsrfGuard
@@ -68,6 +69,16 @@ async def test_public_allowed() -> None:
         "javascript:alert(1)",
         "http:///nohost",
         "http://[::1/",  # unparseable
+        "http://0x7f.1/",  # legacy IPv4 forms: the guard must not rely on the resolver
+        "http://2130706433/",
+        "http://127.1/",
+        "http://0/",
+        "http://0x7f000001/",
+        "http://017700000001/",
+        "http://0xa9.0xfe.0xa9.0xfe/",
+        "http://[fec0::1]/",  # deprecated site-local
+        "http://[64:ff9b:1::1]/",  # local-use NAT64
+        "http://a\u200db.example/",  # invalid IDNA under httpx's parser
     ],
 )
 async def test_blocked(url: str) -> None:
@@ -109,3 +120,74 @@ async def test_dns_failure_is_fetch_failed() -> None:
     with pytest.raises(ServiceError) as ei:
         await GUARD.check("https://nope.example/")
     assert ei.value.detail.code is ErrorCode.FETCH_FAILED and ei.value.detail.retryable
+
+
+# Legacy numeric hosts must be blocked even when the resolver would answer "public".
+LEGACY_GUARD = SsrfGuard(frozenset(), resolver=resolver({}))
+
+
+async def _public_for_anything(host: str) -> list[str]:
+    return ["93.184.216.34"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["http://0x7f.1/", "http://2130706433/", "http://127.1/", "http://0/", "http://0x7f000001/"],
+)
+async def test_legacy_ipv4_blocked_even_with_public_resolver(url: str) -> None:
+    g = SsrfGuard(frozenset(), resolver=_public_for_anything)
+    with pytest.raises(ServiceError) as ei:
+        await g.check(url)
+    assert ei.value.detail.code is ErrorCode.SSRF_BLOCKED
+
+
+# IDNA-2003 (Python codec) vs IDNA-2008 (httpx) differential: the guard must check the very
+# host httpx will connect to.
+@pytest.mark.parametrize(
+    ("host", "puny"),
+    [
+        ("straße.example", "xn--strae-oqa.example"),
+        ("ς.example", "xn--3xa.example"),
+        ("faß.de", "xn--fa-hia.de"),
+    ],
+)
+async def test_resolver_receives_idna2008_host(host: str, puny: str) -> None:
+    seen: list[str] = []
+
+    async def rec(h: str) -> list[str]:
+        seen.append(h)
+        return ["10.0.0.9"]  # only the 2008 form resolves private in this mapping
+
+    g = SsrfGuard(frozenset(), resolver=rec)
+    with pytest.raises(ServiceError) as ei:
+        await g.check(f"http://{host}/")
+    assert ei.value.detail.code is ErrorCode.SSRF_BLOCKED
+    assert seen == [puny]
+
+
+async def test_only_2008_form_private_is_blocked() -> None:
+    table = {
+        "strasse.example": ["93.184.216.34"],  # what the 2003 codec would have looked up
+        "xn--strae-oqa.example": ["10.0.0.9"],  # what httpx connects to
+    }
+    g = SsrfGuard(frozenset(), resolver=resolver(table))
+    with pytest.raises(ServiceError) as ei:
+        await g.check("http://straße.example/")
+    assert ei.value.detail.code is ErrorCode.SSRF_BLOCKED
+
+
+async def test_check_returns_the_url_that_is_connected_to() -> None:
+    g = SsrfGuard(frozenset(), resolver=resolver({"xn--strae-oqa.example": ["93.184.216.34"]}))
+    u = await g.check("http://u:p@straße.example:8080/a?b=1#f")
+    assert isinstance(u, httpx.URL)
+    assert u.raw_host == b"xn--strae-oqa.example" and u.port == 8080
+    assert u.userinfo == b""  # userinfo stripped so httpx cannot turn it into Basic auth
+
+
+async def test_allow_list_uses_same_parser() -> None:
+    g = SsrfGuard(frozenset({"straße.example"}), resolver=resolver({}))
+    await g.check("http://xn--strae-oqa.example/")
+    await g.check("http://straße.example/")
+    g2 = SsrfGuard(frozenset({"strasse.example"}), resolver=resolver({}))
+    with pytest.raises(ServiceError):  # 2003 folding must not make this match
+        await g2.check("http://straße.example/")

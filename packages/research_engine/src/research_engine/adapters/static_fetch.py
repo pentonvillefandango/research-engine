@@ -8,10 +8,9 @@ decompression bomb is bounded by one chunk's expansion (about 1000x of <=64 KiB)
 import asyncio
 import re
 from collections.abc import Awaitable, Callable
-from urllib.parse import urldefrag, urljoin
 
 import httpx
-from research_engine_client.models import ErrorCode, FetchMethod
+from research_engine_client.models import ErrorCode, ErrorDetail, FetchMethod
 
 from research_engine.errors import ServiceError
 from research_engine.retry import retry
@@ -49,6 +48,10 @@ def _media_type(resp: httpx.Response) -> str:
     return resp.headers.get("content-type", "").split(";", 1)[0].strip().lower()
 
 
+class _NoRetry(ServiceError):
+    """Flagged retryable for callers (later), but never retried inside ``fetch`` (V1: 429)."""
+
+
 class StaticFetcher:
     def __init__(
         self,
@@ -63,21 +66,39 @@ class StaticFetcher:
         self._client = client
         self._guard = guard
         self._max = max_bytes
-        self._allowed = allowed_types
+        self._allowed = frozenset(t.strip().lower() for t in allowed_types)
         self._ua = user_agent
         self._sleep = sleep
 
     async def fetch(self, url: str, *, timeout_s: float) -> RawPage:
-        return await retry(lambda: self._fetch_once(url, timeout_s), attempts=3, sleep=self._sleep)
+        try:
+            async with asyncio.timeout(timeout_s):  # one budget for all attempts and backoffs
+                return await retry(
+                    lambda: self._fetch_once(url, timeout_s),
+                    attempts=3,
+                    sleep=self._sleep,
+                    retry_if=lambda exc: not isinstance(exc, _NoRetry),
+                )
+        except TimeoutError as exc:
+            raise ServiceError.of(
+                ErrorCode.UPSTREAM_TIMEOUT,
+                f"timed out fetching {url} (budget {timeout_s}s)",
+                retryable=True,
+                source=url,
+                http_status=504,
+            ) from exc
 
     async def _fetch_once(self, url: str, timeout_s: float) -> RawPage:
-        current = url
+        current: httpx.URL | str = url
+        where = url  # printable form of the hop in flight, for error messages
         hops: list[str] = []
-        seen = {urldefrag(url)[0]}
+        seen: set[str] = set()
         try:
             async with asyncio.timeout(timeout_s):  # whole attempt, so slow-drip bodies are cut
                 for _ in range(MAX_REDIRECTS + 1):
-                    await self._guard.check(current)
+                    current = await self._guard.check(current)  # the URL we then connect to
+                    where = str(current)
+                    seen.add(str(current.copy_with(fragment=None)))
                     request = build_clean_request(
                         current, {"User-Agent": self._ua, "Accept": _ACCEPT}, timeout_s
                     )
@@ -86,44 +107,43 @@ class StaticFetcher:
                     )
                     try:
                         if resp.is_redirect and "location" in resp.headers:
-                            hops.append(current)
-                            current = urljoin(current, resp.headers["location"].strip())
-                            if urldefrag(current)[0] in seen:
+                            hops.append(str(current))
+                            current = current.join(resp.headers["location"].strip())
+                            if str(current.copy_with(fragment=None)) in seen:
                                 raise ServiceError.of(
                                     ErrorCode.FETCH_FAILED,
                                     f"redirect loop fetching {url}",
                                     retryable=False,
                                     source=url,
                                 )
-                            seen.add(urldefrag(current)[0])
                             continue
-                        self._check_status(resp, current)
-                        ctype = self._check_declared_type(resp, current)
-                        body = await self._read_capped(resp, current)
-                        return self._build(url, current, resp, ctype, body, hops)
+                        self._check_status(resp, where)
+                        ctype = self._check_declared_type(resp, where)
+                        body = await self._read_capped(resp, where)
+                        return self._build(url, where, resp, ctype, body, hops)
                     finally:
                         await resp.aclose()
         except (httpx.TimeoutException, TimeoutError) as exc:
             raise ServiceError.of(
                 ErrorCode.UPSTREAM_TIMEOUT,
-                f"timed out fetching {current}",
+                f"timed out fetching {where}",
                 retryable=True,
-                source=current,
+                source=where,
                 http_status=504,
             ) from exc
         except httpx.InvalidURL as exc:  # e.g. a hostile Location header httpx cannot parse
             raise ServiceError.of(
                 ErrorCode.FETCH_FAILED,
-                f"invalid URL while fetching {current}: {exc}",
+                f"invalid URL while fetching {where}: {exc}",
                 retryable=False,
-                source=current,
+                source=where,
             ) from exc
         except httpx.HTTPError as exc:
             raise ServiceError.of(
                 ErrorCode.FETCH_FAILED,
-                f"network error fetching {current}: {exc}",
+                f"network error fetching {where}: {exc}",
                 retryable=True,
-                source=current,
+                source=where,
             ) from exc
         raise ServiceError.of(
             ErrorCode.FETCH_FAILED,
@@ -137,11 +157,14 @@ class StaticFetcher:
         if resp.status_code < 300:
             return
         retryable = resp.status_code == 429 or resp.status_code >= 500
-        raise ServiceError.of(
-            ErrorCode.FETCH_FAILED,
-            f"HTTP {resp.status_code} from {url}",
-            retryable=retryable,
-            source=url,
+        cls = _NoRetry if resp.status_code == 429 else ServiceError
+        raise cls(
+            ErrorDetail(
+                code=ErrorCode.FETCH_FAILED,
+                message=f"HTTP {resp.status_code} from {url}",
+                retryable=retryable,
+                source=url,
+            )
         )
 
     def _not_allowed(self, ctype: str, url: str) -> ServiceError:

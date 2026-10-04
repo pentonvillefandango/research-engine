@@ -119,3 +119,16 @@ async def test_cancellation_during_backoff_sleep_propagates_immediately() -> Non
     with pytest.raises(asyncio.CancelledError):
         await task
     assert calls == 1
+
+
+async def test_retry_if_veto_stops_retrying() -> None:
+    calls = 0
+
+    async def bad() -> None:
+        nonlocal calls
+        calls += 1
+        raise _retryable()
+
+    with pytest.raises(ServiceError):
+        await retry(bad, attempts=3, sleep=_nosleep, retry_if=lambda _e: False)
+    assert calls == 1

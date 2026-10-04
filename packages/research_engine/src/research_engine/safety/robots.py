@@ -7,7 +7,6 @@ treats a redirect as allow-all (and never follows it). See ADR-0026.
 import asyncio
 import time
 from collections.abc import Callable
-from urllib.parse import urlsplit
 
 import httpx
 from protego import Protego
@@ -31,20 +30,30 @@ DEFAULT_MAX_ORIGINS = 10_000
 
 
 def _origin_of(url: str) -> str:
-    """Normalised origin (lower-case scheme/host, no userinfo, no default port)."""
+    """Origin from httpx's parser (IDNA-2008 punycode host), the same one the guard checks."""
     try:
-        parts = urlsplit(url)
-        host = (parts.hostname or "").lower().rstrip(".")
-        port = parts.port
-    except ValueError as exc:
+        u = httpx.URL(url)
+        host = u.raw_host.decode("ascii").lower().rstrip(".")
+        port = u.port
+    except (httpx.InvalidURL, UnicodeError) as exc:
         raise ServiceError.of(
-            ErrorCode.FETCH_FAILED, f"unparseable URL {url!r}", retryable=False, source=url
+            ErrorCode.SSRF_BLOCKED,
+            "blocked: unparseable URL",
+            retryable=False,
+            source=url,
+            http_status=403,
         ) from exc
-    scheme = parts.scheme.lower()
     if ":" in host:
         host = f"[{host}]"
-    default = {"http": 80, "https": 443}.get(scheme)
-    return f"{scheme}://{host}" + (f":{port}" if port not in (None, default) else "")
+    return f"{u.scheme}://{host}" + (f":{port}" if port is not None else "")
+
+
+class _OriginLock:
+    __slots__ = ("lock", "users")
+
+    def __init__(self) -> None:
+        self.lock = asyncio.Lock()
+        self.users = 0  # callers holding or waiting; the entry is dropped at zero uncached
 
 
 class RobotsPolicy:
@@ -70,7 +79,11 @@ class RobotsPolicy:
         self._max_origins = max_origins
         self._clock = clock
         self._cache: dict[str, tuple[float, Protego]] = {}
-        self._locks: dict[str, asyncio.Lock] = {}
+        self._locks: dict[str, _OriginLock] = {}
+
+    @property
+    def tracked_locks(self) -> int:
+        return len(self._locks)
 
     @property
     def cached_origins(self) -> int:
@@ -92,39 +105,48 @@ class RobotsPolicy:
             )
 
     async def _rules(self, origin: str, em: Emitter | None) -> Protego:
-        lock = self._locks.setdefault(origin, asyncio.Lock())
-        async with lock:  # one fetch per origin, however many callers are waiting
-            cached = self._cache.get(origin)
-            if cached and cached[0] > self._clock():
-                return cached[1]
-            rules, ttl, status = await self._fetch(origin)
-            self._cache.pop(origin, None)
-            self._cache[origin] = (self._clock() + ttl, rules)
-            self._evict()
-            delay = rules.crawl_delay(self._token)
-            if delay:
-                self._limiter.set_delay(domain_of(origin), float(delay))
-            if em:
-                await em.debug(
-                    EventKind.ROBOTS_FETCHED,
-                    f"robots.txt for {origin}: {status}",
-                    origin=origin,
-                    status=status,
-                )
-            return rules
+        entry = self._locks.setdefault(origin, _OriginLock())
+        entry.users += 1
+        try:
+            async with entry.lock:  # one fetch per origin, however many callers are waiting
+                return await self._rules_locked(origin, em)
+        finally:
+            entry.users -= 1
+            if entry.users == 0 and origin not in self._cache:
+                self._locks.pop(origin, None)  # failed fetch cached nothing: don't leak the lock
+
+    async def _rules_locked(self, origin: str, em: Emitter | None) -> Protego:
+        cached = self._cache.get(origin)
+        if cached and cached[0] > self._clock():
+            return cached[1]
+        rules, ttl, status = await self._fetch(origin)
+        self._cache.pop(origin, None)
+        self._cache[origin] = (self._clock() + ttl, rules)
+        self._evict()
+        delay = rules.crawl_delay(self._token)
+        if delay:
+            self._limiter.set_delay(domain_of(origin), float(delay))
+        if em:
+            await em.debug(
+                EventKind.ROBOTS_FETCHED,
+                f"robots.txt for {origin}: {status}",
+                origin=origin,
+                status=status,
+            )
+        return rules
 
     def _evict(self) -> None:
         while len(self._cache) > self._max_origins:
             oldest = next(iter(self._cache))
             del self._cache[oldest]
-            lock = self._locks.get(oldest)
-            if lock is not None and not lock.locked():
+            entry = self._locks.get(oldest)
+            if entry is not None and entry.users == 0:
                 del self._locks[oldest]
 
     async def _fetch(self, origin: str) -> tuple[Protego, int, str]:
         robots_url = f"{origin}/robots.txt"
-        await self._guard.check(robots_url)
-        request = build_clean_request(robots_url, {"User-Agent": self._ua}, self._timeout)
+        target = await self._guard.check(robots_url)  # request exactly the URL that was checked
+        request = build_clean_request(target, {"User-Agent": self._ua}, self._timeout)
         try:
             async with asyncio.timeout(self._timeout):
                 resp = await self._client.send(

@@ -15,3 +15,11 @@ The SSRF guard resolves the host and rejects loopback, private, link-local (incl
 ## Consequences
 
 Residual risk: DNS can change between the check and the connection (rebinding). This is mitigated by the per-hop checks and by Crawl4AI's own internal-URL block, and accepted for V1. A future option is to pin the connection to the resolved IP. The app trusts forwarded headers from any source (`--forwarded-allow-ips '*'`), which is acceptable only because it publishes no port and only Caddy reaches it.
+
+## Implementation notes
+
+- **One parser.** The guard parses with `httpx.URL` (IDNA-2008) and checks `raw_host`, the exact host httpx connects to. An earlier version used Python's IDNA-2003 codec, so `straße.example` was checked as `strasse.example` while httpx connected to `xn--strae-oqa.example`. `SsrfGuard.check` now returns the parsed, userinfo-free `httpx.URL`, and `StaticFetcher` and `RobotsPolicy` request exactly that object. Redirects are resolved with `httpx.URL.join`. The allow-list is normalised the same way. Invalid IDNA (for example a ZWJ) is blocked.
+- **Legacy numeric hosts** (`127.1`, `0x7f.1`, `2130706433`, `0`) are canonicalised with `inet_aton` inside the guard, so safety never depends on the resolver. Also blocked: `fec0::/10` and `64:ff9b:1::/48`, plus NAT64 `64:ff9b::/96` mapped to its embedded IPv4.
+- **Cookie-rejecting fetch client.** `make_fetch_client()` (`safety/http.py`) returns a client with a cookie policy that accepts no domains, `follow_redirects=False` and `trust_env=False`. Requests are built bare, so no cookies, auth or client default headers reach the target. Userinfo in a URL is stripped and never becomes Basic auth.
+- **429 is not retried** inside `fetch`. It is `fetch_failed` with `retryable=true`, so the caller may retry later. 5xx and network errors are retried (3 attempts), all inside one `timeout_s` budget; expiry raises `upstream_timeout`.
+- **Unchanged:** the DNS-rebinding window between check and connect remains.
