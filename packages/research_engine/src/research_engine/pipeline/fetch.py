@@ -4,8 +4,9 @@ cache -> robots -> [slot: static fetch] -> extract -> ([slot: browser]) -> Docum
 ``timeout_s`` budget (static gets a share in auto mode, the browser the remainder).
 
 - Robots and the per-domain slot apply to the requested URL before any network fetch; every
-  static redirect hop is robots-checked too and takes the new domain's slot. The browser's
-  final URL is robots-checked after the fact (Chromium follows redirects internally).
+  static request (redirect hops, retries) is robots-checked and sent under its domain's slot.
+  The browser's final URL is robots-checked after the fact (Chromium follows redirects
+  internally).
 - The slot is released after the static stage and re-acquired for the browser stage, so the
   browser request is spaced by the crawl-delay.
 - Each fetcher SSRF-checks every hop itself.
@@ -35,7 +36,7 @@ from research_engine_client.models import (
 )
 
 from research_engine.adapters.extract import Extracted, HtmlExtractor, PdfExtractor
-from research_engine.adapters.fetch import Fetcher, RawPage, RedirectHook
+from research_engine.adapters.fetch import Fetcher, HopHook, RawPage
 from research_engine.cache.base import Cache, cache_key
 from research_engine.config import Settings
 from research_engine.errors import ServiceError
@@ -237,10 +238,12 @@ class FetchService:
     async def _static_stage(self, req: FetchRequest, em: Emitter, budget: float) -> RawPage:
         """Politeness for the static stage: exactly one domain slot at a time.
 
-        The slot follows the hops: a cross-domain redirect releases the current slot before
-        waiting for the next one (never hold-and-wait, so crossing redirects can't deadlock);
-        a same-domain hop keeps it. Every exit path (result, error, deadline, cancellation)
-        releases whatever slot is current.
+        The fetcher calls the hop hook around every request it sends (each redirect hop and
+        the first request of each retry attempt), so each request goes out holding its own
+        domain's slot. The slot follows the requests: a cross-domain move releases the current
+        slot before waiting for the next one (never hold-and-wait, so crossing redirects can't
+        deadlock); a same-domain request keeps it. Every exit path (result, error, deadline,
+        cancellation) releases whatever slot is current.
         """
         slot = _HopSlot(self._limiter)
         try:
@@ -248,14 +251,14 @@ class FetchService:
             try:
                 async with asyncio.timeout(budget):
                     return await self._static.fetch(
-                        req.url, timeout_s=budget, on_redirect=self._hop_hook(em, slot)
+                        req.url, timeout_s=budget, on_hop=self._hop_hook(em, slot)
                     )
             except TimeoutError as exc:
                 raise _timeout(req.url, f"static fetch exceeded {budget:g}s") from exc
         finally:
             await slot.release()
 
-    def _hop_hook(self, em: Emitter, slot: "_HopSlot") -> RedirectHook:
+    def _hop_hook(self, em: Emitter, slot: "_HopSlot") -> HopHook:
         @asynccontextmanager
         async def hook(url: str) -> AsyncIterator[None]:
             await self._robots.check(url, em)  # cached per origin: no refetch on same origin

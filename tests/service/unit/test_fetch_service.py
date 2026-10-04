@@ -9,7 +9,7 @@ import httpx
 import pytest
 import respx
 from research_engine.adapters.extract import Extracted
-from research_engine.adapters.fetch import RawPage, RedirectHook
+from research_engine.adapters.fetch import HopHook, RawPage
 from research_engine.adapters.html_extract import DefaultHtmlExtractor
 from research_engine.adapters.pdf_extract import PypdfExtractor
 from research_engine.adapters.static_fetch import StaticFetcher
@@ -43,9 +43,7 @@ class FakeFetcher:
         self.calls: list[str] = []
         self.timeouts: list[float] = []
 
-    async def fetch(
-        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
-    ) -> RawPage:
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage:
         self.calls.append(url)
         self.timeouts.append(timeout_s)
         out = self.pages[url]
@@ -326,7 +324,7 @@ async def test_robots_and_slot_on_original_url_before_fetch(settings: Settings) 
 
     class LogFetcher(FakeFetcher):
         async def fetch(
-            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+            self, url: str, *, timeout_s: float, on_hop: HopHook | None = None
         ) -> RawPage:
             log.append(f"fetch:{url}")
             return await super().fetch(url, timeout_s=timeout_s)
@@ -439,17 +437,13 @@ async def test_extraction_off_loop(settings: Settings) -> None:
 class AnyPage(FakeFetcher):
     """Serves article.html for any URL."""
 
-    async def fetch(
-        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
-    ) -> RawPage:
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage:
         self.calls.append(url)
         return html_page(url, "article.html", self.method)
 
 
 class Slow(FakeFetcher):
-    async def fetch(
-        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
-    ) -> RawPage:
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage:
         self.calls.append(url)
         self.timeouts.append(timeout_s)
         await asyncio.sleep(100)
@@ -634,7 +628,7 @@ async def test_browser_stage_respaced_by_crawl_delay(settings: Settings) -> None
 
     class Stamp(FakeFetcher):
         async def fetch(
-            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+            self, url: str, *, timeout_s: float, on_hop: HopHook | None = None
         ) -> RawPage:
             starts[self.method.value] = clock.now
             return await super().fetch(url, timeout_s=timeout_s)
@@ -732,10 +726,10 @@ async def test_same_origin_redirect_path_disallowed(settings: Settings) -> None:
 
     class Redirecting(FakeFetcher):
         async def fetch(
-            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+            self, url: str, *, timeout_s: float, on_hop: HopHook | None = None
         ) -> RawPage:
-            assert on_redirect is not None
-            async with on_redirect("https://a.example/private"):
+            assert on_hop is not None
+            async with on_hop("https://a.example/private"):
                 raise AssertionError("must not fetch the disallowed hop")
 
     svc, _, _, _ = make({}, {}, settings, robots=PathRobots())
@@ -808,13 +802,13 @@ async def test_redirect_hop_never_holds_two_slots(settings: Settings) -> None:
 
     class Hopper(FakeFetcher):
         async def fetch(
-            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+            self, url: str, *, timeout_s: float, on_hop: HopHook | None = None
         ) -> RawPage:
-            assert on_redirect is not None
-            async with on_redirect("https://b.example/y"):
+            assert on_hop is not None
+            async with on_hop("https://b.example/y"):
                 states = limiter._states
                 seen.append((states["a.example"].active, states["b.example"].active))
-                async with on_redirect("https://b.example/z"):  # same domain: keep the slot
+                async with on_hop("https://b.example/z"):  # same domain: keep the slot
                     seen.append((states["a.example"].active, states["b.example"].active))
             return html_page("https://b.example/z", "article.html")
 
@@ -833,10 +827,10 @@ async def test_same_domain_hop_does_not_rewait_crawl_delay(settings: Settings) -
 
     class SameHost(FakeFetcher):
         async def fetch(
-            self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
+            self, url: str, *, timeout_s: float, on_hop: HopHook | None = None
         ) -> RawPage:
-            assert on_redirect is not None
-            async with on_redirect("https://a.example/z"):
+            assert on_hop is not None
+            async with on_hop("https://a.example/z"):
                 return html_page("https://a.example/z", "article.html")
 
     svc, _, _, _ = make({}, {}, settings, limiter=limiter)
@@ -853,11 +847,9 @@ class _HangInHop(FakeFetcher):
         super().__init__(FetchMethod.STATIC, {})
         self.in_hop = asyncio.Event()
 
-    async def fetch(
-        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
-    ) -> RawPage:
-        assert on_redirect is not None
-        async with on_redirect("https://b.example/y"):
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage:
+        assert on_hop is not None
+        async with on_hop("https://b.example/y"):
             self.in_hop.set()
             await asyncio.sleep(100)
         raise AssertionError("unreachable")
@@ -929,3 +921,73 @@ async def test_escalated_browser_404_keeps_static_doc(settings: Settings) -> Non
     doc, _ = await svc.fetch(FetchRequest(url=url))
     assert doc.provenance.method is FetchMethod.STATIC
     assert any(w.startswith("browser escalation failed: HTTP 404") for w in doc.warnings)
+
+
+# --- Fix round 3 ------------------------------------------------------------------------------
+
+
+def _retry_after_cross_hop(limiter: DomainLimiter, log: list[tuple[str, dict[str, int]]]):
+    """a.example/x -> 302 b.example/y; b answers 503 once (StaticFetcher retries), then 200."""
+    b_calls = 0
+
+    async def handler(req: httpx.Request) -> httpx.Response:
+        nonlocal b_calls
+        log.append((req.url.host, {k: s.active for k, s in limiter._states.items()}))
+        if req.url.host == "a.example":
+            return httpx.Response(302, headers={"Location": "https://b.example/y"})
+        b_calls += 1
+        return httpx.Response(503) if b_calls == 1 else httpx.Response(200, html=_ARTICLE)
+
+    return httpx.MockTransport(handler)
+
+
+async def _nosleep(_s: float) -> None:
+    return None
+
+
+def _real_static_nosleep(client: httpx.AsyncClient, guard: SsrfGuard) -> StaticFetcher:
+    return StaticFetcher(
+        client,
+        guard,
+        max_bytes=1_000_000,
+        allowed_types=frozenset({"text/html"}),
+        user_agent=UA,
+        sleep=_nosleep,
+    )
+
+
+async def test_every_request_sent_under_its_own_domain_slot(settings: Settings) -> None:
+    limiter = DomainLimiter(1, 0)
+    log: list[tuple[str, dict[str, int]]] = []
+    guard = SsrfGuard(frozenset(), resolver=_public)
+    async with httpx.AsyncClient(transport=_retry_after_cross_hop(limiter, log)) as client:
+        svc, _, _, _ = make({}, {}, settings, limiter=limiter)
+        svc._static = _real_static_nosleep(client, guard)
+        doc, _ = await svc.fetch(
+            FetchRequest(url="https://a.example/x", mode=FetchMode.STATIC, timeout_s=5)
+        )
+    assert doc.final_url == "https://b.example/y"
+    assert [host for host, _ in log] == ["a.example", "b.example", "a.example", "b.example"]
+    for host, active in log:  # the request's own domain slot is held, and only that one
+        assert active.get(host) == 1 and sum(active.values()) == 1, log
+    _assert_no_slot_held(limiter)
+
+
+async def test_retry_back_to_origin_respects_its_crawl_delay(settings: Settings) -> None:
+    clock = Clock()
+    limiter = DomainLimiter(1, 0, clock=clock, sleep=clock.sleep)
+    limiter.set_delay("a.example", 3)
+    sent: list[tuple[str, float]] = []
+    inner = _retry_after_cross_hop(limiter, [])
+
+    async def handler(req: httpx.Request) -> httpx.Response:
+        sent.append((req.url.host, clock.now))
+        return await inner.handle_async_request(req)
+
+    guard = SsrfGuard(frozenset(), resolver=_public)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        svc, _, _, _ = make({}, {}, settings, limiter=limiter)
+        svc._static = _real_static_nosleep(client, guard)
+        await svc.fetch(FetchRequest(url="https://a.example/x", mode=FetchMode.STATIC))
+    a_times = [t for host, t in sent if host == "a.example"]
+    assert len(a_times) == 2 and a_times[1] - a_times[0] >= 3

@@ -16,7 +16,7 @@ from research_engine.errors import ServiceError
 from research_engine.retry import retry
 from research_engine.safety.ssrf import SsrfGuard
 
-from .fetch import RawPage, RedirectHook
+from .fetch import HopHook, RawPage
 
 _SOURCE = "crawl4ai"
 MAX_ERROR_CHARS = 200
@@ -47,10 +47,8 @@ class Crawl4AIFetcher:
         self._guard = guard
         self._sleep = sleep
 
-    async def fetch(
-        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
-    ) -> RawPage:
-        """``on_redirect`` is not used: Chromium follows redirects inside Crawl4AI. The final
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage:
+        """``on_hop`` is not used: Chromium follows redirects inside Crawl4AI. The final
         URL is SSRF-checked here, and the orchestrator applies robots.txt to it."""
         target = str(await self._guard.check(url))  # send exactly the URL that was checked
         return await retry(

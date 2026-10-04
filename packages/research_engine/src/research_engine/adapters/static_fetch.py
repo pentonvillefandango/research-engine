@@ -18,7 +18,7 @@ from research_engine.retry import retry
 from research_engine.safety.http import build_clean_request
 from research_engine.safety.ssrf import SsrfGuard
 
-from .fetch import RawPage, RedirectHook
+from .fetch import HopHook, RawPage
 
 MAX_REDIRECTS = 5
 _ACCEPT = "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5"
@@ -71,14 +71,13 @@ class StaticFetcher:
         self._ua = user_agent
         self._sleep = sleep
 
-    async def fetch(
-        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
-    ) -> RawPage:
-        """``on_redirect`` wraps each redirect hop after the SSRF check, before its request."""
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage:
+        """``on_hop`` wraps every request (the first of each retry attempt and each redirect
+        hop), entered after that URL's SSRF check and before it is sent."""
         try:
             async with asyncio.timeout(timeout_s):  # one budget for all attempts and backoffs
                 return await retry(
-                    lambda: self._fetch_once(url, timeout_s, on_redirect),
+                    lambda: self._fetch_once(url, timeout_s, on_hop),
                     attempts=3,
                     sleep=self._sleep,
                     retry_if=lambda exc: not isinstance(exc, _NoRetry),
@@ -92,21 +91,19 @@ class StaticFetcher:
                 http_status=504,
             ) from exc
 
-    async def _fetch_once(
-        self, url: str, timeout_s: float, on_redirect: RedirectHook | None
-    ) -> RawPage:
+    async def _fetch_once(self, url: str, timeout_s: float, on_hop: HopHook | None) -> RawPage:
         current: httpx.URL | str = url
         where = url  # printable form of the hop in flight, for error messages
         hops: list[str] = []
         seen: set[str] = set()
         try:
             async with asyncio.timeout(timeout_s):  # whole attempt, so slow-drip bodies are cut
-                for i in range(MAX_REDIRECTS + 1):
+                for _ in range(MAX_REDIRECTS + 1):
                     current = await self._guard.check(current)  # the URL we then connect to
                     where = str(current)
                     seen.add(str(current.copy_with(fragment=None)))
                     hop: AbstractAsyncContextManager[None] = (
-                        on_redirect(where) if i and on_redirect is not None else nullcontext()
+                        on_hop(where) if on_hop is not None else nullcontext()
                     )
                     async with hop:
                         request = build_clean_request(

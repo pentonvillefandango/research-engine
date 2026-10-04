@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 from research_engine_client.models import ErrorCode, FetchMethod, TimeRange
 
-from research_engine.adapters.fetch import RawPage, RedirectHook
+from research_engine.adapters.fetch import HopHook, RawPage
 from research_engine.adapters.html_extract import DefaultHtmlExtractor
 from research_engine.adapters.pdf_extract import PypdfExtractor
 from research_engine.adapters.search import RawHit, RawSearchPage
@@ -72,9 +72,7 @@ class FakePageFetcher:
         self._pages = pages
         self._dir = pages_dir
 
-    async def fetch(
-        self, url: str, *, timeout_s: float, on_redirect: RedirectHook | None = None
-    ) -> RawPage:
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage:
         if httpx.URL(url).host == BLOCKED_HOST:
             raise ServiceError.of(
                 ErrorCode.SSRF_BLOCKED,
