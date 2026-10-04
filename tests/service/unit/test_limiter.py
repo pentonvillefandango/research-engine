@@ -90,3 +90,15 @@ async def test_crawl_delay_survives_while_tracked() -> None:
         pass
     lim.set_delay("a.example", 7)
     assert lim.delay_for("a.example") == 7
+
+
+async def test_idn_host_shares_key_with_punycode() -> None:
+    """robots.txt sets the delay on the punycode host; the slot for the IDN URL must honour it."""
+    lim = DomainLimiter(concurrency=1, delay_s=0)
+    lim.set_delay("xn--bcher-kva.example", 0.05)
+    starts: list[float] = []
+    for _ in range(2):
+        async with lim.slot("https://Bücher.example/x"):
+            starts.append(time.monotonic())
+    assert starts[1] - starts[0] >= 0.045
+    assert lim.tracked_domains == 1

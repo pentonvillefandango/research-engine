@@ -14,10 +14,9 @@ from research_engine_client.models import ErrorCode, EventKind
 
 from research_engine.errors import ServiceError
 from research_engine.events.base import Emitter
-from research_engine.pipeline.urls import domain_of
 
 from .http import build_clean_request
-from .limiter import DomainLimiter
+from .limiter import DomainLimiter, limiter_key
 from .ssrf import SsrfGuard
 
 _ALLOW_ALL = Protego.parse("")
@@ -125,7 +124,7 @@ class RobotsPolicy:
         self._evict()
         delay = rules.crawl_delay(self._token)
         if delay:
-            self._limiter.set_delay(domain_of(origin), float(delay))
+            self._limiter.set_delay(limiter_key(origin), float(delay))
         if em:
             await em.debug(
                 EventKind.ROBOTS_FETCHED,

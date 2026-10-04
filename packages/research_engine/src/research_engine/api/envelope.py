@@ -105,7 +105,10 @@ def error_response(
 
 _ERROR_DESCRIPTIONS = {
     401: "Missing or invalid API key (`unauthorized`).",
+    403: "Blocked by policy (`ssrf_blocked` or `robots_disallowed`).",
     404: "Resource or route not found (`not_found`).",
+    413: "Response exceeds the size limit (`response_too_large`).",
+    415: "Content type not allowed (`content_type_not_allowed`).",
     422: "Invalid request body or parameters (`invalid_request`); the message names the field.",
     500: "Unexpected server error (`internal_error`); details are logged, never returned.",
     502: "Upstream dependency failed (for example `upstream_error`).",

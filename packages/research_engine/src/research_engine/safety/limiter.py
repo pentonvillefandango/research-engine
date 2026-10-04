@@ -6,10 +6,25 @@ from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
+
 from research_engine.pipeline.urls import domain_of
 
 MAX_DELAY_S = 30.0
 DEFAULT_MAX_DOMAINS = 10_000
+
+
+def limiter_key(url: str) -> str:
+    """The per-domain key: the host httpx connects to (IDNA-2008 punycode), minus ``www.``.
+
+    The SSRF guard and robots.txt use the same parser, so a robots crawl-delay set for an IDN
+    host lands on the same slot that fetches it. Falls back to ``domain_of`` if unparseable.
+    """
+    try:
+        host = httpx.URL(url).raw_host.decode("ascii").lower().rstrip(".")
+    except (httpx.InvalidURL, UnicodeError):
+        return domain_of(url)
+    return host.removeprefix("www.")
 
 
 class _DomainState:
@@ -67,8 +82,7 @@ class DomainLimiter:
 
     @asynccontextmanager
     async def slot(self, url: str) -> AsyncIterator[None]:
-        domain = domain_of(url)
-        state = self._state(domain)
+        state = self._state(limiter_key(url))
         state.active += 1
         try:
             async with state.sem:

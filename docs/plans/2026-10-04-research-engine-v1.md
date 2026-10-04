@@ -174,13 +174,15 @@ class RobotsPolicy:
 # safety/limiter.py
 class DomainLimiter:
     def slot(self, url: str) -> AbstractAsyncContextManager[None]: ...  # per-domain semaphore + min interval
+# limiter_key(url) -> str: the slot key = httpx IDNA-2008 punycode host minus "www."; RobotsPolicy sets crawl-delay on the same key
 
 # pipeline/urls.py:   canonicalize_url(url: str) -> str ; domain_of(url: str) -> str
 # pipeline/ranking.py: merge_and_score(pages: list[RawSearchPage], max_results: int) -> list[SearchResult]
 # pipeline/search.py: SearchService(provider, intents: IntentRegistry, cache, events: EventSink, settings)
 #                     async def search(self, req: SearchRequest, *, job_id: str | None = None) -> tuple[SearchResponse, bool]  # (response, cache_hit)
 # pipeline/fetch.py:  FetchService(static: Fetcher, browser: Fetcher, html: HtmlExtractor, pdf: PdfExtractor,
-#                                  robots: RobotsPolicy, limiter: DomainLimiter, cache, events: EventSink, settings)
+#                                  robots: RobotsChecker, limiter: DomainLimiter, cache, events: EventSink, settings)
+#                     (RobotsChecker: Protocol in pipeline/fetch.py with RobotsPolicy.check's signature; RobotsPolicy implements it)
 #                     async def fetch(self, req: FetchRequest, *, job_id: str | None = None) -> tuple[Document, bool]
 # pipeline/search_read.py (step 5): run_search_read(...), run_batch_fetch(...)
 
@@ -193,13 +195,15 @@ class DomainLimiter:
 
 # api/deps.py: Services dataclass on app.state.services, get_services() dependency.
 #   Fields grow per step (step 2: settings, intents, events, cache, search; step 3: fetch; step 4: engine, jobs, job_store;
-#   step 5: health_checks, health_timeout_s). Required fields always precede defaulted ones (http, extra, health_timeout_s).
+#   step 5: health_checks, health_timeout_s). Required fields always precede defaulted ones (http, fetch_http, extra, health_timeout_s).
+#   http: app client for internal services (SearXNG, Crawl4AI); fetch_http: safety.http.make_fetch_client (robots + static fetcher).
 #   testing.build_test_services(settings) mirrors build_services with fakes + ':memory:' SQLite and is updated in the same task.
 # api/envelope.py: ok(request: Request, data, *, cache_hit=False) -> Envelope  (request_id + start time set on request.state by RequestContextMiddleware); error envelopes via exception handlers
 # api/auth.py: ApiKeyMiddleware(app, api_key)  -> step 6: ApiKeyMiddleware(app, api_key, codec: SessionCodec, site_host)
 #   (pure ASGI; X-API-Key header OR signed re_session cookie + Origin check; GUI paths redirect to /login)
 # config_files.py: IntentRegistry.load(path) -> IntentRegistry; .get(intent) -> IntentPreset; .all() -> dict[SearchIntent, IntentPreset]
 # app.py: create_app(settings: Settings | None = None, *, services: Services | None = None) -> FastAPI
+#         build_fetch_service(settings, *, http, fetch_http, cache, events) -> FetchService  (also used by the live tests)
 ```
 
 ### Error codes (`ErrorCode`)

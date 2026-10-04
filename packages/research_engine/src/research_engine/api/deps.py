@@ -10,6 +10,7 @@ from research_engine.cache.base import Cache
 from research_engine.config import Settings
 from research_engine.config_files import IntentRegistry
 from research_engine.events.base import EventBus
+from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
 
 
@@ -20,7 +21,11 @@ class Services:
     events: EventBus
     cache: Cache
     search: SearchService
+    fetch: FetchService
     http: httpx.AsyncClient | None = None
+    """App-wide client for internal services (SearXNG, Crawl4AI)."""
+    fetch_http: httpx.AsyncClient | None = None
+    """Cookie-less, no-redirect client for third-party pages (robots + static fetcher)."""
     extra: dict[str, Any] = field(default_factory=dict[str, Any])
 
 
