@@ -1,0 +1,59 @@
+[project]
+name = "research-engine-workspace"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Workspace root for the Research Engine"
+license = "MIT"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+research-engine = { workspace = true }
+research-engine-client = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "research-engine",
+  "research-engine-client",
+  "pytest>=9.1.1",
+  "pytest-asyncio>=1.4.0",
+  "pytest-cov>=7.1.0",
+  "respx>=0.23.1",
+  "ruff>=0.16.10",
+  "pyright>=1.1.414",
+  "jsonschema>=4.26.0",
+  "pre-commit>=4.6.2",
+]
+
+[tool.pytest]
+minversion = "9.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["integration: needs the live compose stack (run with -m integration)"]
+addopts = ["-m", "not integration", "--strict-markers", "-ra"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# docs/ holds plan/ADR markdown with illustrative snippets, not project source
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "ASYNC", "S", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+"scripts/**" = ["S603", "S607"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["packages", "tests", "scripts", "examples"]
+venvPath = "."
+venv = ".venv"
+strict = ["packages/research_engine_client/src"]
