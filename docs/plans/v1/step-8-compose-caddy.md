@@ -220,6 +220,17 @@ def test_hardening() -> None:
     assert app["depends_on"]["crawl4ai"]["condition"] == "service_healthy"
 
 
+def test_crawl4ai_sandbox_protections_present() -> None:
+    """ADR-0022: the sandbox depends on these three things; a compose rewrite must never drop them."""
+    c4 = SERVICES["crawl4ai"]
+    assert "seccomp=./deploy/crawl4ai/seccomp-chromium.json" in c4["security_opt"]
+    assert "./deploy/crawl4ai/addon:/opt/re-addon:ro" in c4["volumes"]
+    assert c4["environment"]["PYTHONPATH"] == "/opt/re-addon"
+    assert c4["environment"]["CRAWL4AI_CHROMIUM_SANDBOX"] == "true"
+    assert set(c4.get("cap_add", [])) <= {"CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"}, \
+        "only documented entrypoint capabilities may be added back; never SYS_ADMIN"
+
+
 def test_networks() -> None:
     assert COMPOSE["networks"]["proxy"] == {"external": True, "name": "proxy"}
     on_proxy = [n for n, s in SERVICES.items() if "proxy" in (s.get("networks") or {})]
@@ -314,11 +325,17 @@ services:
     image: unclecode/crawl4ai:0.9.4
     restart: unless-stopped
     shm_size: 1gb
-    security_opt: ["no-new-privileges:true"]   # plus seccomp profile if Task 3.0 needed it
-    cap_drop: [ALL]
+    # Chromium sandbox stays ON (ADR-0022): custom seccomp profile + read-only add-on. Never remove these.
+    security_opt:
+      - "no-new-privileges:true"
+      - "seccomp=./deploy/crawl4ai/seccomp-chromium.json"
+    cap_drop: [ALL]   # add back only named capabilities the entrypoint needs (see below), documented
     environment:
       CRAWL4AI_API_TOKEN: ${CRAWL4AI_API_TOKEN:?set CRAWL4AI_API_TOKEN}
       CRAWL4AI_CHROMIUM_SANDBOX: "true"
+      PYTHONPATH: /opt/re-addon
+    volumes:
+      - ./deploy/crawl4ai/addon:/opt/re-addon:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:11235/health || exit 1"]
       interval: 20s
@@ -354,7 +371,9 @@ volumes:
 
 The policy test strips comments before matching, so the commented V2 stub (which mentions `NET_ADMIN`) doesn't trip it.
 
-Merge the step-3 crawl4ai settings (the seccomp `security_opt` and the `config.yml` mount, if Task 3.0 used them). If Crawl4AI's image can't run `read_only`, leave it off and record why in ADR-0022. The policy test requires `read_only` for `app` only.
+The crawl4ai block above already carries the step-3 sandbox settings (seccomp profile, read-only add-on mount via `PYTHONPATH`, `CRAWL4AI_CHROMIUM_SANDBOX`). Keep them exactly; `test_crawl4ai_sandbox_protections_present` enforces them. If Crawl4AI's image can't run `read_only`, leave it off and record why in ADR-0022. The policy test requires `read_only` for `app` only.
+
+**After any change to the crawl4ai service, re-run `scripts/check_sandbox.sh` and require `"sandbox":"on"` with `default_ok`, `builtin_ok` and `addon_active` true.** In step 3 a throwaway test showed the container went unhealthy under `cap_drop: [ALL]` before any browser started; the cause is unknown. Read the container logs to find it before adding anything back.
 
 **Crawl4AI's internal Redis** must be able to write. If `cap_drop: [ALL]` breaks the image's entrypoint (for example, it needs `SETUID`/`SETGID` to drop to `appuser`), add back only the named capabilities it needs. Find them by reading the entrypoint, not by trial and error, and document them in a comment.
 
