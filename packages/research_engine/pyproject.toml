@@ -5,6 +5,7 @@ description = "Self-hosted web search and scraping service for research agents"
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
+    "httpx>=0.28.1",
     "pydantic-settings>=2.15.0",
     "pyyaml>=6.0.3",
     "research-engine-client",

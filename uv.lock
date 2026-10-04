@@ -582,6 +582,7 @@ name = "research-engine"
 version = "0.1.0"
 source = { editable = "packages/research_engine" }
 dependencies = [
+    { name = "httpx" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
     { name = "research-engine-client" },
@@ -590,6 +591,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "research-engine-client", editable = "packages/research_engine_client" },
