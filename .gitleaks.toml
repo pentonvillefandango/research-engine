@@ -4,4 +4,3 @@ useDefault = true
 [allowlist]
 description = "Documented placeholders only"
 regexes = ['''change-me''']
-paths = ['''\.env\.example$''']

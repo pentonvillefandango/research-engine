@@ -1,22 +1,27 @@
 {
   "permissions": {
     "ask": [
-      "Bash(make deploy:*)",
-      "Bash(make rollback:*)",
-      "Bash(make restore:*)",
-      "Bash(make bootstrap:*)",
-      "Bash(./ops/deploy.sh:*)",
-      "Bash(./ops/rollback.sh:*)",
-      "Bash(./ops/restore.sh:*)",
-      "Bash(./ops/bootstrap.sh:*)"
+      "Bash(make*deploy*)",
+      "Bash(make*rollback*)",
+      "Bash(make*restore*)",
+      "Bash(make*bootstrap*)",
+      "Bash(*ops/deploy.sh*)",
+      "Bash(*ops/rollback.sh*)",
+      "Bash(*ops/restore.sh*)",
+      "Bash(*ops/bootstrap.sh*)"
     ],
     "deny": [
-      "Bash(docker compose down -v:*)",
-      "Bash(docker compose down --volumes:*)",
-      "Bash(docker volume rm:*)",
-      "Bash(docker system prune:*)",
-      "Bash(git push --force:*)",
-      "Bash(git push -f:*)"
+      "Bash(git *push *--force*)",
+      "Bash(git *push * -f*)",
+      "Bash(git *push -f*)",
+      "Bash(git *push +*)",
+      "Bash(git *push * +*)",
+      "Bash(docker*compose*down*-v*)",
+      "Bash(docker*compose*down*--volumes*)",
+      "Bash(docker*volume* rm*)",
+      "Bash(docker*volume* remove*)",
+      "Bash(docker*volume* prune*)",
+      "Bash(docker*system* prune*)"
     ]
   }
 }
