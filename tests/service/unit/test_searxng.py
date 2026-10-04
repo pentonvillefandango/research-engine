@@ -175,3 +175,49 @@ async def test_health(provider: SearxngProvider) -> None:
     assert await provider.health() is True
     respx.get(f"{BASE}/healthz").mock(side_effect=httpx.ConnectError("down"))
     assert await provider.health() is False
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    "resp",
+    [
+        httpx.Response(200, text="<html>captcha</html>"),
+        httpx.Response(200, json=[1, 2]),
+        httpx.Response(200, json={"results": "nope"}),
+    ],
+)
+async def test_malformed_body_is_typed_error(
+    provider: SearxngProvider, resp: httpx.Response
+) -> None:
+    respx.get(f"{BASE}/search").mock(return_value=resp)
+    with pytest.raises(ServiceError) as ei:
+        await _search(provider)
+    d = ei.value.detail
+    assert d.code is ErrorCode.UPSTREAM_ERROR and d.retryable is False and d.source == "searxng"
+    assert d.message.startswith("invalid SearXNG response")
+
+
+@respx.mock
+async def test_malformed_items_are_skipped(provider: SearxngProvider) -> None:
+    body = {
+        "results": [
+            "not a dict",
+            {"url": "https://bad1.example/", "engines": ["x"], "positions": ["a"]},
+            {"url": "https://bad2.example/", "engines": ["x"], "positions": 5},
+            {"url": 5, "engines": ["x"]},
+            {"url": "https://ok.example/", "engines": ["x"], "positions": [2]},
+        ],
+        "infoboxes": [
+            "junk",
+            {"infobox": ["not", "str"], "urls": "x"},
+            {"infobox": "Good", "urls": [{"url": "https://w.example/"}, "junk"]},
+        ],
+        "unresponsive_engines": [["bing"], "junk", ["ddg", "timeout"]],
+        "suggestions": "nope",
+    }
+    respx.get(f"{BASE}/search").respond(json=body)
+    page = await _search(provider)
+    assert [h.url for h in page.hits] == ["https://ok.example/"]
+    assert [i.title for i in page.infoboxes] == ["Good"]
+    assert [u.engine for u in page.unresponsive] == ["ddg"]
+    assert page.suggestions == []

@@ -92,9 +92,10 @@ class SearchService:
             infoboxes=[i for p in pages for i in p.infoboxes],
             unresponsive_engines=unresponsive,
         )
-        await self._cache.set(
-            key, resp.model_dump_json().encode(), self._settings.cache_ttl_search_s
-        )
+        if not failures:  # never cache a degraded response for the full TTL
+            await self._cache.set(
+                key, resp.model_dump_json().encode(), self._settings.cache_ttl_search_s
+            )
         await em.info(
             EventKind.SEARCH_DONE,
             f"{len(results)} results for: {req.query}",

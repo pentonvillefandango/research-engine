@@ -25,3 +25,21 @@ def test_canonicalize(raw: str, expected: str) -> None:
 
 def test_domain_of_strips_www() -> None:
     assert domain_of("https://WWW.Example.com/x") == "example.com"
+
+
+@pytest.mark.parametrize("raw", ["http://[::1", "http://a:99999/", "http://a:abc/", "", "   "])
+def test_hostile_urls_never_raise(raw: str) -> None:
+    assert canonicalize_url(raw) == raw.strip()
+    assert domain_of(raw) == ""
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("http://[::1]:80/x", "http://[::1]/x"),
+        ("http://[::1]:8080/x", "http://[::1]:8080/x"),
+        ("https://[2001:DB8::1]/", "https://[2001:db8::1]/"),
+    ],
+)
+def test_ipv6_hosts_keep_brackets(raw: str, expected: str) -> None:
+    assert canonicalize_url(raw) == expected

@@ -1,6 +1,7 @@
 from research_engine.cache.base import cache_key
 from research_engine.cache.memory import InMemoryCache
 from research_engine_client.models import SearchRequest
+from research_engine_client.models.jobs import FetchRequestOptions, SearchReadRequest
 
 
 class Clock:
@@ -34,3 +35,18 @@ def test_cache_key_ignores_use_cache_flag() -> None:
     assert cache_key("search", SearchRequest(query="x", use_cache=False)) == cache_key(
         "search", SearchRequest(query="x", use_cache=True)
     )
+
+
+def test_cache_key_ignores_nested_use_cache() -> None:
+    def key(flag: bool) -> str:
+        return cache_key(
+            "search_read",
+            SearchReadRequest(
+                search=SearchRequest(query="x", use_cache=flag),
+                fetch=FetchRequestOptions(use_cache=flag),
+            ),
+        )
+
+    assert key(True) == key(False)
+    other = SearchReadRequest(search=SearchRequest(query="y"))
+    assert cache_key("search_read", other) != key(True)

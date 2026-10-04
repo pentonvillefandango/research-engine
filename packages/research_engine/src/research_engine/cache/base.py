@@ -1,8 +1,9 @@
 """Cache seam (V1-10). Keys are sha256 of kind + canonical request JSON."""
 
 import hashlib
+import json
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel
 
@@ -24,10 +25,20 @@ class Cache(Protocol):
     def stats(self) -> CacheStats: ...
 
 
+def _drop_use_cache(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _drop_use_cache(v) for k, v in value.items() if k != "use_cache"}
+    if isinstance(value, list):
+        return [_drop_use_cache(v) for v in value]
+    return value
+
+
 def cache_key(kind: str, payload: BaseModel | str) -> str:
-    body = (
-        payload.model_dump_json(exclude={"use_cache"})
-        if isinstance(payload, BaseModel)
-        else payload
-    )
+    """sha256 of kind + canonical JSON; ``use_cache`` is dropped at every depth."""
+    if isinstance(payload, BaseModel):
+        body = json.dumps(
+            _drop_use_cache(payload.model_dump(mode="json")), sort_keys=True, separators=(",", ":")
+        )
+    else:
+        body = payload
     return hashlib.sha256(f"{kind}\x00{body}".encode()).hexdigest()

@@ -110,4 +110,34 @@ async def test_events_are_logged_as_json(capsys: pytest.CaptureFixture[str]) -> 
         "jl",
         "warning",
     )
-    assert rec["engine"] == "bing"
+    assert rec["data"] == {"engine": "bing"}
+
+
+async def test_subscribe_registers_immediately() -> None:
+    bus = InMemoryEventBus()
+    it = bus.subscribe()
+    assert bus.subscriber_count == 1
+    await Emitter(bus).info(EventKind.SYSTEM_HEALTH, "early")
+    assert (await asyncio.wait_for(anext(it), 1)).message == "early"
+    await it.aclose()
+    assert bus.subscriber_count == 0
+
+
+async def test_aclose_before_first_iteration_deregisters() -> None:
+    bus = InMemoryEventBus()
+    it = bus.subscribe()
+    assert bus.subscriber_count == 1
+    await it.aclose()
+    assert bus.subscriber_count == 0
+    await it.aclose()  # idempotent
+    with pytest.raises(StopAsyncIteration):
+        await anext(it)
+
+
+async def test_emitter_data_keys_do_not_collide_with_log_fields() -> None:
+    bus = InMemoryEventBus()
+    it = bus.subscribe()
+    await Emitter(bus, job_id="j").info(EventKind.SYSTEM_HEALTH, "m", event="x", level="y")
+    ev = await asyncio.wait_for(anext(it), 1)
+    assert ev.data == {"event": "x", "level": "y"} and ev.level is EventLevel.INFO
+    await it.aclose()

@@ -178,3 +178,13 @@ async def test_cache_hit_and_bypass(svc_parts: Parts) -> None:
     assert EventKind.CACHE_HIT in [e.kind for e in sink.events]
     _, hit2 = await svc.search(req.model_copy(update={"use_cache": False}))
     assert not hit2 and len(provider.calls) == n + 1
+
+
+async def test_degraded_response_is_not_cached(svc_parts: Parts) -> None:
+    provider, _, _, svc = svc_parts
+    provider.fail_pages = {2}
+    req = SearchRequest(query="q", depth=SearchDepth.STANDARD)
+    await svc.search(req)
+    n = len(provider.calls)
+    _, hit = await svc.search(req)
+    assert not hit and len(provider.calls) == 2 * n

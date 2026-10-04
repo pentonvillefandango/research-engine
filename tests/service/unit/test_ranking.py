@@ -1,3 +1,4 @@
+import pytest
 from research_engine.adapters.search import RawHit, RawSearchPage
 from research_engine.pipeline.ranking import merge_and_score
 
@@ -52,3 +53,19 @@ def test_ties_break_on_min_position_then_url() -> None:
         [page(hit("https://b.example/", ["a"], [1]), hit("https://a.example/", ["a"], [1]))], 10
     )
     assert [r.domain for r in res] == ["a.example", "b.example"]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "http://[::1",
+        "http://a:99999/",
+        "ftp://x.example/f",
+        "javascript:alert(1)",
+        "",
+        "https:///p",
+    ],
+)
+def test_unusable_urls_are_skipped(bad: str) -> None:
+    res = merge_and_score([page(hit(bad, ["a"], [1]), hit("https://ok.example/", ["a"], [2]))], 10)
+    assert [r.domain for r in res] == ["ok.example"] and res[0].rank == 1

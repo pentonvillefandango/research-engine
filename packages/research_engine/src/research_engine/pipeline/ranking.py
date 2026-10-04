@@ -7,7 +7,7 @@ from research_engine_client.models import SearchResult
 
 from research_engine.adapters.search import RawSearchPage
 
-from .urls import canonicalize_url, domain_of
+from .urls import canonicalize_url, domain_of, is_http_url
 
 RRF_K = 60
 AGREEMENT_BONUS = 0.1
@@ -27,6 +27,8 @@ def merge_and_score(pages: list[RawSearchPage], max_results: int) -> list[Search
     acc: dict[str, _Acc] = {}
     for page in pages:
         for h in page.hits:
+            if not is_http_url(h.url):
+                continue
             canon = canonicalize_url(h.url)
             a = acc.setdefault(canon, _Acc(url=h.url))
             a.title = a.title or h.title

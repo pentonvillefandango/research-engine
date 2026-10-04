@@ -49,7 +49,10 @@ class Emitter:
         )
         getattr(_log, _LOG_METHODS[level])(
             message,
-            **{**data, "event_kind": kind.value, "job_id": self.job_id, "level": level.value},
+            event_kind=kind.value,
+            job_id=self.job_id,
+            level=level.value,
+            data=data,
         )
         await self._sink.emit(event)
 
