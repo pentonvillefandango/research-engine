@@ -1,10 +1,11 @@
 import asyncio
+import gc
 import json
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
 import structlog
-from research_engine.events.base import Emitter
+from research_engine.events.base import Emitter, EventSink, EventSubscriber
 from research_engine.events.memory import InMemoryEventBus
 from research_engine_client.models import Event, EventKind, EventLevel
 
@@ -141,3 +142,18 @@ async def test_emitter_data_keys_do_not_collide_with_log_fields() -> None:
     ev = await asyncio.wait_for(anext(it), 1)
     assert ev.data == {"event": "x", "level": "y"} and ev.level is EventLevel.INFO
     await it.aclose()
+
+
+async def test_dropped_unclosed_subscription_is_collected() -> None:
+    bus = InMemoryEventBus()
+    it = bus.subscribe()
+    assert bus.subscriber_count == 1
+    del it
+    gc.collect()
+    assert bus.subscriber_count == 0
+
+
+def test_bus_satisfies_protocols() -> None:
+    sub: EventSubscriber = InMemoryEventBus()
+    sink: EventSink = InMemoryEventBus()
+    assert sub is not None and sink is not None

@@ -1,6 +1,7 @@
 """In-process pub/sub with bounded, drop-oldest subscriber queues."""
 
 import asyncio
+import weakref
 from typing import Self
 
 from research_engine_client.models import Event
@@ -12,7 +13,7 @@ class _Subscription:
     It is registered with the bus on construction, so events emitted before the
     first ``__anext__`` are not lost. It deregisters on ``aclose()``, on any
     exception (including cancellation) raised while waiting, and on garbage
-    collection, so abandoning it never leaks a queue.
+    collection (the bus holds it weakly), so abandoning it never leaks a queue.
     """
 
     def __init__(self, bus: "InMemoryEventBus", max_queue: int) -> None:
@@ -48,14 +49,11 @@ class _Subscription:
             self.queue.get_nowait()
         self.queue.put_nowait(None)  # wake any pending reader
 
-    def __del__(self) -> None:
-        self._bus._subs.discard(self)
-
 
 class InMemoryEventBus:
     def __init__(self, max_queue: int = 1000) -> None:
         self._max = max_queue
-        self._subs: set[_Subscription] = set()
+        self._subs: weakref.WeakSet[_Subscription] = weakref.WeakSet()
 
     @property
     def subscriber_count(self) -> int:
