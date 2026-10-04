@@ -3,19 +3,23 @@
 use_default_settings:
   engines:
     keep_only:
-      # general web
+      # general web (all measured 2026-10-04 from the deployment VM; see config/intents.yaml)
       - duckduckgo
-      - brave
       - bing
-      - qwant
+      - yep
+      - yahoo
+      - mwmbl
+      - brave        # rate-limited from a single IP; kept for category searches only
+      - qwant        # CAPTCHA from a single IP; kept for category searches only
       - wikipedia
       # technical
       - github
       - stackoverflow
       - mdn
-      - pypi
-      - npm
+      - microsoft learn
       - docker hub
+      - npm
+      - crates.io
       # academic
       - arxiv
       - google scholar
@@ -24,12 +28,18 @@ use_default_settings:
       # news
       - bing news
       - duckduckgo news
-  # Some of these are disabled by default in SearXNG; enable them explicitly.
+# Some of these are disabled by default in SearXNG; enable them explicitly.
+# (startpage and mojeek are inactive upstream: proof-of-work captcha.)
 engines:
   - {name: bing, disabled: false}
   - {name: qwant, disabled: false}
   - {name: npm, disabled: false}
   - {name: crossref, disabled: false}
+  - {name: yahoo, disabled: false}
+  - {name: yep, disabled: false}
+  - {name: mwmbl, disabled: false}
+  - {name: microsoft learn, disabled: false}
+  - {name: crates.io, disabled: false}
 general:
   instance_name: "research-engine-searxng"
 server:

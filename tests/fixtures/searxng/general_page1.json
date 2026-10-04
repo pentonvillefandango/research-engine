@@ -6,111 +6,16 @@
   "results": [
     {
       "category": "general",
-      "content": "Use Compare the Market to find a better deal on your insurance, household bills and finances. Plus, get a year of fantastic rewards, \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.comparethemarket.com",
-        "/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        1
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 1.0,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Compare the Market | The simples way to save",
-      "url": "https://www.comparethemarket.com/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "Compare 10 open-source vector database options by product type, use case, trade-off, and license. Build a shortlist and test it against your workload.",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
-      "parsed_url": [
-        "https",
-        "www.designveloper.com",
-        "/blog/best-open-source-vector-database/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        1
-      ],
-      "priority": "",
-      "pubdate": "",
-      "publishedDate": null,
-      "score": 1.0,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Best Open-Source Vector Database In 2026: 10 Options Compared",
-      "url": "https://www.designveloper.com/blog/best-open-source-vector-database/",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "Looking for insurance? Visit Go.Compare and see if you can save today! Compare quotes and find our best deals. Our customers \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.gocompare.com",
-        "/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        2
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.5,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Go.Compare\u2122 Official Site | Quick and Easy Quotes in Minutes",
-      "url": "https://www.gocompare.com/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
       "content": "Open source vector databases come in two flavors: specialized tools that handle vectors and nothing else, or unified platforms that combine vector search with operational data and caching. Many teams end up managing three systems: a vector database, a cache, and an operational store. Redis combines all three in a single real-time data platform with a memory-first architecture. This comparison ...",
-      "engine": "duckduckgo",
+      "engine": "bing",
       "engines": [
+        "bing",
+        "yahoo",
+        "yep",
         "duckduckgo"
       ],
-      "iframe_src": "",
+      "iframe_src": null,
       "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "redis.io",
@@ -120,61 +25,62 @@
         ""
       ],
       "positions": [
-        2
+        2,
+        1,
+        1,
+        1
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
-      "score": 0.5,
+      "score": 14.0,
       "template": "default.html",
       "thumbnail": "",
       "title": "Comparing the best open source vector databases (2026) - Redis",
-      "url": "https://redis.io/blog/best-open-source-vector-databases-comparison/",
-      "views": ""
+      "url": "https://redis.io/blog/best-open-source-vector-databases-comparison/"
     },
     {
       "category": "general",
-      "content": "2 days ago \u00b7 One of the best ways to get the lowest prices and best deals on your household bills is to compare quotes from different \u2026",
+      "content": "5 days ago \u00b7 Compare 10 open-source vector database options by product type, use case, trade-off, and license. Build a shortlist and test it against your workload.",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
       "parsed_url": [
         "https",
-        "www.moneysupermarket.com",
-        "/",
+        "www.designveloper.com",
+        "/blog/best-open-source-vector-database/",
         "",
-        "msockid=17e7d09a0e4662262a6bc7720f0e6370",
+        "",
         ""
       ],
       "positions": [
-        3
+        1,
+        2,
+        2
       ],
       "priority": "",
       "publishedDate": null,
-      "score": 0.3333333333333333,
+      "score": 6.0,
       "template": "default.html",
       "thumbnail": "",
-      "title": "MoneySuperMarket | Where better off begins",
-      "url": "https://www.moneysupermarket.com/?msockid=17e7d09a0e4662262a6bc7720f0e6370"
+      "title": "Best Open-Source Vector Database In 2026: 10 Options Compared",
+      "url": "https://www.designveloper.com/blog/best-open-source-vector-database/"
     },
     {
-      "audio_src": "",
-      "author": "",
       "category": "general",
-      "close_group": false,
-      "content": "Compare the best open-source vector databases in 2026, including Qdrant, pgvector, Weaviate, Milvus, Chroma, LanceDB, and OpenSearch.",
-      "engine": "duckduckgo",
+      "content": "Jul 29, 2026 \u00b7 Compare seven genuinely open-source vector databases by license, architecture, deployment model, hybrid search, scalability, and best use case. Qdrant is the best balanced open-source vector database for most teams starting a dedicated retrieval service in 2026.",
+      "engine": "bing",
       "engines": [
+        "bing",
+        "yahoo",
         "duckduckgo"
       ],
-      "iframe_src": "",
+      "iframe_src": null,
       "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "krunalkanojiya.com",
@@ -184,61 +90,29 @@
         ""
       ],
       "positions": [
+        3,
+        3,
         3
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
-      "score": 0.3333333333333333,
+      "score": 3.0,
       "template": "default.html",
       "thumbnail": "",
       "title": "7 Best Open-Source Vector Databases in 2026",
-      "url": "https://krunalkanojiya.com/blog/best-open-source-vector-databases",
-      "views": ""
+      "url": "https://krunalkanojiya.com/blog/best-open-source-vector-databases"
     },
     {
       "category": "general",
-      "content": "Compare energy prices from British Gas, E.ON and other trusted suppliers. See how much you could save by switching today.",
+      "content": "Aug 24, 2026 \u00b7 This guide compares the leading open source vector database tools across dedicated vector search, hybrid retrieval, scalability, and different deployment approaches.",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.comparethemarket.com",
-        "/energy/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        4
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.25,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Energy comparison | Gas & electricity | Compare the Market",
-      "url": "https://www.comparethemarket.com/energy/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "Compare 8 open source vector database tools for storing, indexing, and searching embeddings for AI, semantic search, and RAG applications.",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "www.datastackhub.com",
@@ -248,54 +122,59 @@
         ""
       ],
       "positions": [
+        4,
+        4,
         4
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
-      "score": 0.25,
+      "score": 2.25,
       "template": "default.html",
       "thumbnail": "",
       "title": "8 Best Open Source Vector Database Tools for 2026",
-      "url": "https://www.datastackhub.com/top-tools/open-source-vector-database-tools/",
-      "views": ""
+      "url": "https://www.datastackhub.com/top-tools/open-source-vector-database-tools/"
     },
     {
       "category": "general",
-      "content": "Compare text, files, and code (e.g. json, xml) to find differences with Diffchecker online for free! Use our desktop app for private, \u2026",
+      "content": "Aug 19, 2026 \u00b7 Vector databases went from a niche to a default dependency of anything doing retrieval. The choice comes down to one question asked early: do you want to run it, or have it run for you.",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
       "parsed_url": [
         "https",
-        "www.diffchecker.com",
-        "/",
+        "toolradar.com",
+        "/blog/best-vector-databases",
         "",
         "",
         ""
       ],
       "positions": [
+        7,
+        6,
         5
       ],
       "priority": "",
       "publishedDate": null,
-      "score": 0.2,
+      "score": 1.5285714285714285,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Compare text and find differences online or offline - Diffchecker",
-      "url": "https://www.diffchecker.com/"
+      "title": "Best Vector Databases in 2026 (Open Source and Managed, Compared)",
+      "url": "https://toolradar.com/blog/best-vector-databases"
     },
     {
       "audio_src": "",
       "author": "",
       "category": "general",
       "close_group": false,
-      "content": "Compare 20 vector databases with real performance benchmarks, honest trade-offs, and decision frameworks for choosing by scale, use case, and infrastructure.",
-      "engine": "duckduckgo",
+      "content": "1 day ago \u00b7 Compare vector databases ranked by GitHub stars, AI adoption, and search performance. What is a Vector Database? A vector database stores, indexes, and searches high-dimensional vector embeddings, the numerical representations of data generated by AI models.",
+      "engine": "yahoo",
       "engines": [
+        "yahoo",
         "duckduckgo"
       ],
       "iframe_src": "",
@@ -303,6 +182,38 @@
       "length": null,
       "metadata": "",
       "open_group": false,
+      "parsed_url": [
+        "https",
+        "1bench.dev",
+        "/databases/vector",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        5,
+        6
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.7333333333333334,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "35+ Vector Databases Ranked & Compared (Oct 2026)",
+      "url": "https://1bench.dev/databases/vector",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "Compare 20 vector databases with real performance benchmarks, honest trade-offs, and decision frameworks for choosing by scale, use case, and infrastructure.",
+      "engine": "bing",
+      "engines": [
+        "bing",
+        "duckduckgo"
+      ],
+      "iframe_src": null,
+      "img_src": "",
       "parsed_url": [
         "https",
         "www.firecrawl.dev",
@@ -312,6 +223,247 @@
         ""
       ],
       "positions": [
+        5,
+        8
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.65,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Vector Databases in 2026: A Complete Comparison Guide",
+      "url": "https://www.firecrawl.dev/blog/best-vector-databases"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Compare 47+ vector databases across features, performance, and adoption. Filter by license, languages, index types. Data sourced from VectorHub.",
+      "engine": "yahoo",
+      "engines": [
+        "yahoo",
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "superlinked.com",
+        "/vector-db-comparison",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        7,
+        7
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.5714285714285714,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Vector Database Comparison | Superlinked",
+      "url": "https://superlinked.com/vector-db-comparison",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "In this article, we will compare how Qdrant performs against the other vector search engines.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "qdrant.tech",
+        "/benchmarks/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        2
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.5,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Vector Search Benchmarks - Qdrant",
+      "url": "https://qdrant.tech/benchmarks/",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "Compare open source vector databases for production AI. Redis delivers sub-millisecond vector search + 73% LLM cost cuts with semantic cachin",
+      "engine": "bing",
+      "engines": [
+        "bing",
+        "duckduckgo"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "redis.io",
+        "/blog/top-pinecone-alternatives-for-vector-search/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        9,
+        10
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.4222222222222222,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Open Source Vector Databases 2026 & Comparison - Redis",
+      "url": "https://redis.io/blog/top-pinecone-alternatives-for-vector-search/"
+    },
+    {
+      "category": "general",
+      "content": "We benchmarked seven open-source, self-hosted vector databases as the retrieval layer of a RAG pipeline, each run one at a time on identical bge-m3 embeddings and real medical and technical queries, so the database index was the sole variable. The workload spanned MedRAG-50k, TechQA-28k, and a 2.25M-vector corpus across eight dimensions, from accuracy and retrieval quality through speed ...",
+      "engine": "bing",
+      "engines": [
+        "bing",
+        "duckduckgo"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "aimultiple.com",
+        "/open-source-vector-databases",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        10,
+        9
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.4222222222222222,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Vector Database Benchmark: 7 Open-Source Engines for RAG",
+      "url": "https://aimultiple.com/open-source-vector-databases"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Comprehensive comparison of Milvus, Qdrant, Weaviate, Chroma, and FAISS vector databases with Python examples, detailed pros/cons, and ideal use cases.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "medium.com",
+        "/@michael.hannecke/comparison-of-5-open-source-vector-databases-89fcce12578f",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        3
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.3333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Comparison of 5 Open Source Vector Databases",
+      "url": "https://medium.com/@michael.hannecke/comparison-of-5-open-source-vector-databases-89fcce12578f",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "vector database\u00a0\u2026 vector store\u00a0\u2026 vector search engine is a\u00a0\u2026 that stores and retrieves\u00a0\u2026 of data in vector space\u00a0\u2026 Vector databases typically implement approximate nearest nei",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "en.wikipedia.org",
+        "/wiki/Vector_database",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        4
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.25,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Vector database",
+      "url": "https://en.wikipedia.org/wiki/Vector_database",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "In this blog post, we\u2019ll compare Qdrant versus Postgres with the pgvector and pgvectorscale extensions , two of the most popular open-source vector databases for developing AI applications.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.tigerdata.com",
+        "/blog/pgvector-vs-qdrant",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
         5
       ],
       "priority": "",
@@ -320,53 +472,19 @@
       "score": 0.2,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Best Vector Databases in 2026: A Complete Comparison Guide",
-      "url": "https://www.firecrawl.dev/blog/best-vector-databases",
+      "title": "Pgvector vs. Qdrant",
+      "url": "https://www.tigerdata.com/blog/pgvector-vs-qdrant",
       "views": ""
     },
     {
       "category": "general",
-      "content": "A complete list of all the products offered by Go.Compare.",
+      "content": "Compare the best vector databases in 2026: pgvector, Pinecone, Qdrant, Weaviate, Milvus, Chroma, and LanceDB. Features, \u2026",
       "engine": "bing",
       "engines": [
         "bing"
       ],
       "iframe_src": null,
       "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.gocompare.com",
-        "/all-products/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        6
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.16666666666666666,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "View all products - GoCompare",
-      "url": "https://www.gocompare.com/all-products/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "Compare the best vector databases in 2026: pgvector, Pinecone, Qdrant, Weaviate, Milvus, Chroma, and LanceDB. Features, performance, pricing, and which one to choose ...",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "encore.dev",
@@ -379,52 +497,22 @@
         6
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
       "score": 0.16666666666666666,
       "template": "default.html",
       "thumbnail": "",
       "title": "Best Vector Databases in 2026: Complete Comparison Guide",
-      "url": "https://encore.dev/articles/best-vector-databases",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "2 days ago \u00b7 One of the best ways to get the lowest prices and best deals is to compare quotes from different companies. We do the \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.moneysupermarket.com",
-        "/gas-and-electricity/",
-        "",
-        "msockid=17e7d09a0e4662262a6bc7720f0e6370",
-        ""
-      ],
-      "positions": [
-        7
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.14285714285714285,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Compare Energy Prices - October 2026 - MoneySuperMarket",
-      "url": "https://www.moneysupermarket.com/gas-and-electricity/?msockid=17e7d09a0e4662262a6bc7720f0e6370"
+      "url": "https://encore.dev/articles/best-vector-databases"
     },
     {
       "audio_src": "",
       "author": "",
       "category": "general",
       "close_group": false,
-      "content": "Home Blog Best Vector Databases in 2026 (Open Source and Managed, Compared) Toolradar data: we track 18 tools in this category, 15 of which offer a free tier, and 12 entered our catalog during 2026.",
-      "engine": "duckduckgo",
+      "content": "RSVP now Why Developers Prefer Milvus for Vector Databases Scale as needed Scale elastically to support tens of billions of vectors with a fully distributed Blazing fast Retrieve data quickly and accurately with Global Index\u00a0\u2026",
+      "engine": "yep",
       "engines": [
-        "duckduckgo"
+        "yep"
       ],
       "iframe_src": "",
       "img_src": "",
@@ -433,68 +521,70 @@
       "open_group": false,
       "parsed_url": [
         "https",
-        "toolradar.com",
-        "/blog/best-vector-databases",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        7
-      ],
-      "priority": "",
-      "pubdate": "",
-      "publishedDate": null,
-      "score": 0.14285714285714285,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Best Vector Databases in 2026 (Open Source and Managed, Compared)",
-      "url": "https://toolradar.com/blog/best-vector-databases",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "Versus is a comparison platform with over 100 categories. Compare anything side-by-side with detailed specifications, filters, and \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "versus.com",
+        "milvus.io",
         "/",
         "",
         "",
         ""
       ],
       "positions": [
-        8
+        6
       ],
       "priority": "",
+      "pubdate": "",
       "publishedDate": null,
-      "score": 0.125,
+      "score": 0.16666666666666666,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Versus | Compare everything",
-      "url": "https://versus.com/"
+      "title": "Milvus | High-Performance Vector Database Built for Scale",
+      "url": "https://milvus.io/",
+      "views": ""
     },
     {
       "audio_src": "",
       "author": "",
       "category": "general",
       "close_group": false,
-      "content": "Best Open-Source Vector Database 2026: Qdrant vs Milvus vs Weaviate vs pgvector Photo by Teemu on Unsplash Quick Answer: For most teams in 2026, the answer is boring and correct: use pgvector if you're already on Postgres and have under ~5-10M vectors; you skip an entire service and get transactions for free. Above that, Qdrant is the best standalone pick for high-QPS filtered search on ...",
-      "engine": "duckduckgo",
+      "content": "Top 10 open source vector databases\u00a0\u2026 In my experience, here are tips that can help you better utilize open-source vector databases:",
+      "engine": "yep",
       "engines": [
-        "duckduckgo"
+        "yep"
       ],
       "iframe_src": "",
       "img_src": "",
       "length": null,
       "metadata": "",
       "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.instaclustr.com",
+        "/education/vector-database/top-10-open-source-vector-databases/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        7
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.14285714285714285,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "What Is a Vector Database? Top 10 Open Source Options",
+      "url": "https://www.instaclustr.com/education/vector-database/top-10-open-source-vector-databases/",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "Jun 24, 2026 \u00b7 Best Open-Source Vector Database 2026: Qdrant vs Milvus vs Weaviate vs pgvector Photo by Teemu on Unsplash \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
       "parsed_url": [
         "https",
         "www.misar.blog",
@@ -507,52 +597,22 @@
         8
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
       "score": 0.125,
       "template": "default.html",
       "thumbnail": "",
       "title": "Best Open-Source Vector Database 2026: Full Comparison",
-      "url": "https://www.misar.blog/@synor/articles/best-open-source-vector-database",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "COMPARE definition: 1. to examine or look for the difference between two or more things: 2. to judge, suggest, or\u2026. Learn more.",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "dictionary.cambridge.org",
-        "/dictionary/english/compare",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        9
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.1111111111111111,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "COMPARE | English meaning - Cambridge Dictionary",
-      "url": "https://dictionary.cambridge.org/dictionary/english/compare"
+      "url": "https://www.misar.blog/@synor/articles/best-open-source-vector-database"
     },
     {
       "audio_src": "",
       "author": "",
       "category": "general",
       "close_group": false,
-      "content": "Compare open source vector databases for production AI. Redis delivers sub-millisecond vector search + 73% LLM cost cuts with semantic cachin",
-      "engine": "duckduckgo",
+      "content": "Vector Databases have become the go-to place for storing and indexing the representations of unstructured and structured data.\u00a0\u2026 Comparison of Vector Databases",
+      "engine": "yep",
       "engines": [
-        "duckduckgo"
+        "yep"
       ],
       "iframe_src": "",
       "img_src": "",
@@ -561,8 +621,44 @@
       "open_group": false,
       "parsed_url": [
         "https",
-        "redis.io",
-        "/blog/top-pinecone-alternatives-for-vector-search/",
+        "medium.com",
+        "/the-ai-forum/which-vector-database-should-you-use-choosing-the-best-one-for-your-needs-5108ec7ba133",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        8
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.125,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Which Vector Database Should You Use? Choosing the Best One for Your Needs",
+      "url": "https://medium.com/the-ai-forum/which-vector-database-should-you-use-choosing-the-best-one-for-your-needs-5108ec7ba133",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "is a high-performance vector database built for scale.\u00a0\u2026 users can use the simple wrapper code to transform unstructured data into vector embeddings and leverage reranking models for optimized search results.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "github.com",
+        "/milvus-io/milvus",
         "",
         "",
         ""
@@ -576,47 +672,19 @@
       "score": 0.1111111111111111,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Best Open Source Vector Databases 2026 & Comparison - Redis",
-      "url": "https://redis.io/blog/top-pinecone-alternatives-for-vector-search/",
+      "title": "GitHub - milvus-io/milvus: Milvus is a high-performance, cloud-native vector database built for scalable vector ANN search",
+      "url": "https://github.com/milvus-io/milvus",
       "views": ""
-    },
-    {
-      "category": "general",
-      "content": "How is Compare different to normal Quidco? The general premise is basically the same. You buy great products and services. And \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.quidco.com",
-        "/compare/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        10
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.1,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Compare, save and get cashback on insurance and energy | Quidco",
-      "url": "https://www.quidco.com/compare/"
     },
     {
       "audio_src": "",
       "author": "",
       "category": "general",
       "close_group": false,
-      "content": "We benchmarked seven open-source, self-hosted vector databases as the retrieval layer of a RAG pipeline, each run one at a time on identical bge-m3 embeddings and real medical and technical queries, so the database index was the sole variable. The workload spanned MedRAG-50k, TechQA-28k, and a 2.25M-vector corpus across eight dimensions, from accuracy and retrieval quality through speed ...",
-      "engine": "duckduckgo",
+      "content": "relational databases Schema-agnostic databases Vector database \"NoSQL DEFINITION: Next Generation Databases mostly addressing some of the points \u00a0\u2026",
+      "engine": "yep",
       "engines": [
-        "duckduckgo"
+        "yep"
       ],
       "iframe_src": "",
       "img_src": "",
@@ -625,8 +693,8 @@
       "open_group": false,
       "parsed_url": [
         "https",
-        "aimultiple.com",
-        "/open-source-vector-databases",
+        "en.wikipedia.org",
+        "/wiki/NoSQL",
         "",
         "",
         ""
@@ -640,8 +708,368 @@
       "score": 0.1,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Vector Database Benchmark: 7 Open-Source Engines for RAG",
-      "url": "https://aimultiple.com/open-source-vector-databases",
+      "title": "NoSQL - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/NoSQL",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Top vector databases comparison: Milvus vs Weaviate vs Qdrant vs Faiss",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "medium.com",
+        "/@fendylike/top-5-open-source-vector-search-engines-a-comprehensive-comparison-guide-for-2025-e10110b47aa3",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        11
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.09090909090909091,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Top 5 Open Source Vector Databases for 2025 (Milvus vs. Qdrant. vs Weaviate vs Faiss. etc.)",
+      "url": "https://medium.com/@fendylike/top-5-open-source-vector-search-engines-a-comprehensive-comparison-guide-for-2025-e10110b47aa3",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Vector Search Engine for the next generation of AI applications\u00a0\u2026 ) is a vector similarity search engine and vector database.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "github.com",
+        "/qdrant/qdrant",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        12
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.08333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "GitHub - qdrant/qdrant: Qdrant - High-performance, massive-scale Vector Database and Vector Search Engine for the next generation of AI. Also available in the cloud https://cloud.qdrant.io/",
+      "url": "https://github.com/qdrant/qdrant",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Fast, serverless, and scalable infrastructure supporting vector, full-text, regex, and metadata search.Built on object storage and trusted by millions of developers.Open-source Apache 2.0.15M+ monthly downloads Apache 2.0 27k Github stars Low latency search\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.trychroma.com",
+        "/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        13
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.07692307692307693,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Chroma - open-source search infrastructure for AI",
+      "url": "https://www.trychroma.com/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "2 Graph databases are commonly referred to as a NoSQL database. Graph databases are similar to 1970s network model databases in that both represent general graphs\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "en.wikipedia.org",
+        "/wiki/Graph_database",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        14
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.07142857142857142,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Graph database",
+      "url": "https://en.wikipedia.org/wiki/Graph_database",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Explore the best 17 vector databases for 2026. Read an in-depth review outlining each database's key features & problems it tackles.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "lakefs.io",
+        "/blog/best-vector-databases/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        15
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.06666666666666667,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best 17 Vector Databases for 2026 [Top Picks]",
+      "url": "https://lakefs.io/blog/best-vector-databases/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Vector databases handle a mix of vector and non-vector data types in the same table. Full vector databases include pgvector + pgvectorscale (PostgreSQL-based)\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.tigerdata.com",
+        "/learn/vector-store-vs-vector-database",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        16
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.0625,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Vector Store vs. Vector Database",
+      "url": "https://www.tigerdata.com/learn/vector-store-vs-vector-database",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Airbyte is the open-source data movement platform. Run ELT pipelines across 700+ connectors to any warehouse, lake, vector database, or AI agent.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "airbyte.com",
+        "/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        17
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.058823529411764705,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Data Movement for Analytics and AI Agents",
+      "url": "https://airbyte.com/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "To understand vector databases, you need to first understand the vector.In math and physics, a vector is a quantity that has both magnitude (or size) and direction.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.mongodb.com",
+        "/resources/basics/databases/vector-databases",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        18
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.05555555555555555,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "What Are Vector Databases?",
+      "url": "https://www.mongodb.com/resources/basics/databases/vector-databases",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "VectorDBBench is an open-source benchmarking tool designed to evaluate and compare the performance of mainstream vector databases such as Milvus and Zilliz Cloud using their own datasets.It also helps developers choose the most suitable vector database for\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "milvus.io",
+        "/blog/what-is-a-vector-database.md",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        19
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.05263157894736842,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "What Exactly is a Vector Database and How Does It Work - Milvus Blog",
+      "url": "https://milvus.io/blog/what-is-a-vector-database.md",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": ":\u00a0\u2026 accommodating anything from small datasets to collections exceeding 10 billion vectors.To compare between Milvus and Pinecone, two vector database solutions\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "milvus.io",
+        "/docs/comparison.md",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        20
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.05,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Comparison | Milvus Documentation",
+      "url": "https://milvus.io/docs/comparison.md",
       "views": ""
     }
   ],
@@ -650,6 +1078,10 @@
     [
       "brave",
       "Suspended: too many requests"
+    ],
+    [
+      "mwmbl",
+      "timeout"
     ],
     [
       "qwant",

@@ -4,6 +4,7 @@
     "bing",
     "bing news",
     "brave",
+    "crates.io",
     "crossref",
     "docker hub",
     "duckduckgo",
@@ -11,11 +12,14 @@
     "github",
     "google scholar",
     "mdn",
+    "microsoft learn",
+    "mwmbl",
     "npm",
-    "pypi",
     "qwant",
     "semantic scholar",
     "stackoverflow",
-    "wikipedia"
+    "wikipedia",
+    "yahoo",
+    "yep"
   ]
 }

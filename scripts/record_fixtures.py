@@ -24,7 +24,7 @@ def record_searxng() -> None:
         for name, params in {
             "technical_page1": {
                 "q": "python asyncio TaskGroup exception handling",
-                "engines": "github,stackoverflow,mdn,duckduckgo,brave,bing",
+                "engines": "stackoverflow,mdn,microsoft learn,github,duckduckgo,bing,yep,yahoo",
             },
             "general_page1": {"q": "compare open-source vector databases", "categories": "general"},
         }.items():

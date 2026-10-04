@@ -8,19 +8,7 @@ from research_engine.config_files import IntentRegistry
 from research_engine_client.models import SearchIntent
 
 ROOT = Path(__file__).resolve().parents[3]
-COMPOSE_ONLY = {
-    "SEARXNG_SECRET",
-    "LAB_SUBNET",
-    "APP_PORT",
-    "OPENAI_API_KEY",
-    "APP_MEM_LIMIT",
-    "APP_CPUS",
-    "SEARXNG_MEM_LIMIT",
-    "SEARXNG_CPUS",
-    "CRAWL4AI_MEM_LIMIT",
-    "CRAWL4AI_CPUS",
-    "BACKUP_RETENTION_DAYS",
-}
+COMPOSE_ONLY = {"SEARXNG_SECRET", "LAB_SUBNET"}
 
 
 def test_requires_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,3 +69,25 @@ def test_intents_reject_missing(tmp_path: Path) -> None:
     bad.write_text("intents:\n  general: {categories: [general], engines: [], description: x}\n")
     with pytest.raises(ValueError, match="missing"):
         IntentRegistry.load(bad)
+
+
+@pytest.fixture
+def ambient_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SITE_HOST", "ambient.example")
+    monkeypatch.setenv("SEARCH_MIN_RESULTS", "99")
+    monkeypatch.setenv("THIN_WORD_THRESHOLD", "1")
+
+
+def test_settings_env_isolated_from_ambient(ambient_env: None, settings_env: None) -> None:
+    s = Settings()  # type: ignore[call-arg]
+    assert s.site_host == "research.localhost"
+    assert s.search_min_results == 10 and s.thin_word_threshold == 150
+
+
+def test_settings_ignores_dotenv_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / ".env").write_text("API_KEY=x\nSESSION_SECRET=y\nCRAWL4AI_API_TOKEN=z\n")
+    monkeypatch.chdir(tmp_path)
+    for k in ("API_KEY", "SESSION_SECRET", "CRAWL4AI_API_TOKEN"):
+        monkeypatch.delenv(k, raising=False)
+    with pytest.raises(ValidationError):
+        Settings()  # type: ignore[call-arg]

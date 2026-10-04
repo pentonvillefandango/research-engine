@@ -6,47 +6,15 @@
   "results": [
     {
       "category": "general",
-      "content": "Experienced programmers in any other language can pick up Python very quickly, and beginners find the clean syntax and \u2026",
+      "content": "Jul 23, 2025 \u00b7 In this article, we will see the use of Task Groups with asyncIO in Python. What is a Task group? Task groups are introduced in Python 3.11 along with Exception Groups and as the name suggests it groups similar or different tasks together.",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.python.org",
-        "/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        1
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 1.0,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Welcome to Python.org",
-      "url": "https://www.python.org/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "Prerequisite Exception Handling Asyncio Exception Groups in Python NOTE: Task group is the latest feature available in Python 3.11, so if the user doesn't have Python 3.11 installed this will not work. Let's understand using the Coding process:",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "www.geeksforgeeks.org",
@@ -56,61 +24,29 @@
         ""
       ],
       "positions": [
+        1,
+        1,
         1
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
-      "score": 1.0,
+      "score": 9.0,
       "template": "default.html",
       "thumbnail": "",
       "title": "Python Taskgroups with asyncIO - GeeksforGeeks",
-      "url": "https://www.geeksforgeeks.org/python/python-taskgroups-with-asyncio/",
-      "views": ""
+      "url": "https://www.geeksforgeeks.org/python/python-taskgroups-with-asyncio/"
     },
     {
       "category": "general",
-      "content": "Python, which was initially developed by Guido van Rossum and made available to the public in 1991, is currently one of the most \u2026",
+      "content": "Oct 21, 2025 \u00b7 Solution Only access task.result () after a successful async with TaskGroup () exit. If you need results even when some tasks fail, you'll need to handle the results and exceptions inside the worker coroutines or use an alternative like asyncio.gather (..., return_exceptions=True).",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.online-python.com",
-        "/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        2
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.5,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Online Python - IDE, Editor, Compiler, Interpreter",
-      "url": "https://www.online-python.com/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "Before Task Groups (Python < 3.11), or when you need different exception handling behavior, you might use asyncio.gather is the traditional way to run multiple coroutines concurrently and await their results as a list.",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "runebook.dev",
@@ -120,61 +56,61 @@
         ""
       ],
       "positions": [
+        2,
+        2,
         2
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
-      "score": 0.5,
+      "score": 4.5,
       "template": "default.html",
       "thumbnail": "",
       "title": "Task Group Trouble: Exception Handling in Python Asyncio (3.11+)",
-      "url": "https://runebook.dev/en/docs/python/library/asyncio-task/task-groups",
-      "views": ""
+      "url": "https://runebook.dev/en/docs/python/library/asyncio-task/task-groups"
     },
     {
       "category": "general",
-      "content": "Python was created in the early 1990s by Guido van Rossum at Stichting Mathematisch Centrum in the Netherlands as a successor \u2026",
+      "content": "Note asyncio.TaskGroup.create_task () is a new alternative leveraging structural concurrency; it allows for waiting for a group of related tasks with strong safety guarantees.",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yep",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
       "parsed_url": [
         "https",
-        "www.python.org",
-        "/downloads/",
+        "docs.python.org",
+        "/3/library/asyncio-task.html",
         "",
-        "Python",
+        "",
         ""
       ],
       "positions": [
-        3
+        5,
+        1,
+        5
       ],
       "priority": "",
       "publishedDate": null,
-      "score": 0.3333333333333333,
+      "score": 4.2,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Download Python | Python.org",
-      "url": "https://www.python.org/downloads/?Python"
+      "title": "Coroutines and tasks \u2014 Python 3.14.8 documentation",
+      "url": "https://docs.python.org/3/library/asyncio-task.html"
     },
     {
-      "audio_src": "",
-      "author": "",
       "category": "general",
-      "close_group": false,
       "content": "An asyncio task may fail with an unhandled exception. The exception will unwind the task, although may not impact other tasks or the broader asyncio program. As such, we need a way of checking if a task has failed and of retrieving any unhandled exceptions in the task, if they occurred. In this tutorial, you will discover exception handling in asyncio tasks. After completing this tutorial, you ...",
-      "engine": "duckduckgo",
+      "engine": "bing",
       "engines": [
+        "bing",
+        "yahoo",
         "duckduckgo"
       ],
-      "iframe_src": "",
+      "iframe_src": null,
       "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "superfastpython.com",
@@ -184,61 +120,29 @@
         ""
       ],
       "positions": [
+        3,
+        3,
         3
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
-      "score": 0.3333333333333333,
+      "score": 3.0,
       "template": "default.html",
       "thumbnail": "",
-      "title": "How to Handle Asyncio Task Exceptions - SuperFastPython",
-      "url": "https://superfastpython.com/asyncio-task-exceptions/",
-      "views": ""
+      "title": "How to Handle Asyncio Task Exceptions \u2013 SuperFastPython",
+      "url": "https://superfastpython.com/asyncio-task-exceptions/"
     },
     {
       "category": "general",
-      "content": "Python (programming language) ... This article is part of a series on Python show Python frameworks",
+      "content": "Jun 19, 2026 \u00b7 A TaskGroup raises a single ExceptionGroup wrapping every child failure; each except* clause peels off the matching subgroup, and whatever is left over is re-raised automatically.",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
-      "parsed_url": [
-        "https",
-        "en.wikipedia.org",
-        "/wiki/Python_(programming_language)",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        4
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.25,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Python (programming language) - Wikipedia",
-      "url": "https://en.wikipedia.org/wiki/Python_(programming_language)"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "Your try/except around gather stopped catching errors after moving to asyncio.TaskGroup. Handle the ExceptionGroup correctly with except* per type, including timeouts.",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
       "parsed_url": [
         "https",
         "www.async-concurrency.com",
@@ -248,73 +152,149 @@
         ""
       ],
       "positions": [
+        4,
+        4,
         4
       ],
       "priority": "",
-      "pubdate": "",
       "publishedDate": null,
-      "score": 0.25,
+      "score": 2.25,
       "template": "default.html",
       "thumbnail": "",
       "title": "Handling ExceptionGroup from TaskGroup | Python Async",
-      "url": "https://www.async-concurrency.com/resilience-cancellation-error-handling/exception-groups-and-taskgroups/handling-exceptiongroup-from-taskgroup/",
-      "views": ""
+      "url": "https://www.async-concurrency.com/resilience-cancellation-error-handling/exception-groups-and-taskgroups/handling-exceptiongroup-from-taskgroup/"
     },
     {
       "category": "general",
-      "content": "Learn Python Python is a popular programming language. Python can be used on a server to create web applications. Python is \u2026",
+      "content": "Handling ExceptionGroup with except* Use except* whenever a group can fail, which is any time you wrap a TaskGroup. Each clause receives a sub-group containing only the matching exception types and runs at most once. This is the canonical way to react to grouped failures; the dedicated walkthrough is handling ExceptionGroup from TaskGroup.",
       "engine": "bing",
       "engines": [
-        "bing"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
       "parsed_url": [
         "https",
-        "www.w3schools.com",
-        "/python/",
+        "www.async-concurrency.com",
+        "/resilience-cancellation-error-handling/exception-groups-and-taskgroups/",
         "",
         "",
         ""
       ],
       "positions": [
-        5
+        6,
+        7,
+        6
       ],
       "priority": "",
       "publishedDate": null,
-      "score": 0.2,
+      "score": 1.4285714285714286,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Python Tutorial - W3Schools",
-      "url": "https://www.w3schools.com/python/"
+      "title": "Exception Groups & TaskGroups | Python Async",
+      "url": "https://www.async-concurrency.com/resilience-cancellation-error-handling/exception-groups-and-taskgroups/"
     },
     {
-      "category": "it",
-      "content": "[python, python-asyncio, model-context-protocol] Sumit // is answered // score: 4",
-      "engine": "stackoverflow",
+      "category": "general",
+      "content": "Jan 22, 2023 \u00b7 While this isn't necessarily the best, and isn't significantly different from your question/example, this does use asyncio\u2019s TaskGroup to manage multiple asynchronous tasks without needing to extend the TaskGroup class. I thought it would be useful to also show this pattern.",
+      "engine": "bing",
       "engines": [
-        "stackoverflow"
+        "bing",
+        "yahoo",
+        "duckduckgo"
       ],
       "iframe_src": null,
       "img_src": "",
       "parsed_url": [
         "https",
         "stackoverflow.com",
-        "/q/79692462",
+        "/questions/75204560/consuming-taskgroup-response",
         "",
         "",
         ""
       ],
       "positions": [
-        1
+        7,
+        6,
+        7
       ],
       "priority": "",
       "publishedDate": null,
-      "score": 1.0,
+      "score": 1.3571428571428572,
       "template": "default.html",
       "thumbnail": "",
-      "title": "FastMCP client timing out while initializing the session",
-      "url": "https://stackoverflow.com/q/79692462"
+      "title": "python - Consuming TaskGroup response - Stack Overflow",
+      "url": "https://stackoverflow.com/questions/75204560/consuming-taskgroup-response"
+    },
+    {
+      "category": "general",
+      "content": "As other answers have pointed out, TaskGroup s don't currently come with any built-in mechanism like asyncio.gather () 's return_exceptions parameter, to prevent the TaskGroup from cancelling all its tasks when one of them raises an exception.",
+      "engine": "bing",
+      "engines": [
+        "bing",
+        "yahoo",
+        "duckduckgo"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "stackoverflow.com",
+        "/questions/75250788/how-to-prevent-python3-11-taskgroup-from-canceling-all-the-tasks",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        8,
+        5,
+        8
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 1.35,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "python - How to prevent python3.11 TaskGroup from canceling all the ...",
+      "url": "https://stackoverflow.com/questions/75250788/how-to-prevent-python3-11-taskgroup-from-canceling-all-the-tasks"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "r}asyncio.run(asyncio_group_test())This will produce output like this:Wait 1 startingcancel_soon startingWait 1 except:\u00a0\u2026 ExceptionGroup('unhandled errors in a TaskGroup'\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "stackoverflow.com",
+        "/questions/78060510/what-is-the-difference-between-anyio-taskgroup-and-asyncio-taskgroup",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        2
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.5,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "What is the difference between anyio.TaskGroup and asyncio.TaskGroup?",
+      "url": "https://stackoverflow.com/questions/78060510/what-is-the-difference-between-anyio-taskgroup-and-asyncio-taskgroup",
+      "views": ""
     },
     {
       "category": "it",
@@ -346,7 +326,7 @@
     },
     {
       "category": "it",
-      "content": "[python, pytest, python-asyncio, fastapi, asyncpg] Daniel // is answered // score: 4",
+      "content": "[python, python-asyncio, model-context-protocol] Sumit // is answered // score: 4",
       "engine": "stackoverflow",
       "engines": [
         "stackoverflow"
@@ -356,21 +336,57 @@
       "parsed_url": [
         "https",
         "stackoverflow.com",
-        "/q/79764955",
+        "/q/79692462",
         "",
         "",
         ""
       ],
       "positions": [
-        2
+        1
       ],
       "priority": "",
       "publishedDate": null,
-      "score": 0.5,
+      "score": 1.0,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Pytest in FastAPI + Postgres results in: <sys>:0: RuntimeWarning: coroutine 'Connection._cancel' was never awaited",
-      "url": "https://stackoverflow.com/q/79764955"
+      "title": "FastMCP client timing out while initializing the session",
+      "url": "https://stackoverflow.com/q/79692462"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Azure Functions developer reference guide for Python apps Summarize this article for me In this article Azure Functions is a serverless compute service that enables you to run event-driven code without provisioning or managing infrastructure. Don't include Python native libraries (like logging, asyncio, or uuid) in requirements.txt. Azure.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/azure/azure-functions/functions-reference-python",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        1
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 1.0,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python developer reference for Azure Functions",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-functions/functions-reference-python",
+      "views": ""
     },
     {
       "category": "it",
@@ -402,7 +418,7 @@
     },
     {
       "category": "it",
-      "content": "[python, fastapi, httpx, pytest-asyncio, fastapiusers] GADJIIAVOV // is answered // score: 0",
+      "content": "[python, pytest, python-asyncio, fastapi, asyncpg] Daniel // is answered // score: 4",
       "engine": "stackoverflow",
       "engines": [
         "stackoverflow"
@@ -412,21 +428,57 @@
       "parsed_url": [
         "https",
         "stackoverflow.com",
-        "/q/76682245",
+        "/q/79764955",
         "",
         "",
         ""
       ],
       "positions": [
-        3
+        2
       ],
       "priority": "",
       "publishedDate": null,
-      "score": 0.3333333333333333,
+      "score": 0.5,
       "template": "default.html",
       "thumbnail": "",
-      "title": "\"Runtime Error: Event loop is closed\" during testing using Pytest",
-      "url": "https://stackoverflow.com/q/76682245"
+      "title": "Pytest in FastAPI + Postgres results in: <sys>:0: RuntimeWarning: coroutine 'Connection._cancel' was never awaited",
+      "url": "https://stackoverflow.com/q/79764955"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Set up your Python development environment on Windows Summarize this article for me In this article Get your Python environment ready on Windows in minutes \u2014 install from the command line with winget or set it up manually. You'll need the following: Python \u2013 The current stable Python runtime (3.14 or later) Visual Studio Code \u2013 A lightweight,.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/windows/dev-environment/python",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        2
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.5,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python on Windows for beginners",
+      "url": "https://learn.microsoft.com/en-us/windows/dev-environment/python",
+      "views": ""
     },
     {
       "category": "it",
@@ -458,6 +510,382 @@
     },
     {
       "category": "it",
+      "content": "[python, fastapi, httpx, pytest-asyncio, fastapiusers] GADJIIAVOV // is answered // score: 0",
+      "engine": "stackoverflow",
+      "engines": [
+        "stackoverflow"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "stackoverflow.com",
+        "/q/76682245",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        3
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.3333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "\"Runtime Error: Event loop is closed\" during testing using Pytest",
+      "url": "https://stackoverflow.com/q/76682245"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Episode Python for Beginners [2 of 44] Introducing Python Python for Beginners Before you get started on your journey towards learning Python, it's important to know why. We'll talk through what Python is, where you'll use it, and how it can help you problem solve.Full 'Intro to Python' course on Microsoft Learn:\u00a0https://aka.ms/MSLearnPythonSample.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/shows/intro-to-python-development/python-for-beginners-2-of-44-introducing-python",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        3
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.3333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python for Beginners [2 of 44] Introducing Python",
+      "url": "https://learn.microsoft.com/en-us/shows/intro-to-python-development/python-for-beginners-2-of-44-introducing-python",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "The release of Python version 3.11 introduced a new approach to managing multiple coroutines or tasks as a group, called the asyncio.TaskGroup. How to Use asyncio.TaskGroup",
+      "engine": "bing",
+      "engines": [
+        "bing",
+        "duckduckgo"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "superfastpython.com",
+        "/asyncio-taskgroup/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        9,
+        9
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.4444444444444444,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "How to use asyncio.TaskGroup \u2013 SuperFastPython",
+      "url": "https://superfastpython.com/asyncio-taskgroup/"
+    },
+    {
+      "category": "general",
+      "content": "Here's a friendly explanation of the loop.set_exception_handler () method, common issues, and better alternatives, with code examples. The loop.set_exception_handler () method allows you to set a custom function that the event loop calls when an exception occurs in a task and that exception is not retrieved or handled anywhere else.",
+      "engine": "bing",
+      "engines": [
+        "bing",
+        "duckduckgo"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "runebook.dev",
+        "/en/docs/python/library/asyncio-eventloop/asyncio.loop.set_exception_handler",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        10,
+        10
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.4,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Mastering Asyncio Errors: Task Groups vs. Exception Handlers",
+      "url": "https://runebook.dev/en/docs/python/library/asyncio-eventloop/asyncio.loop.set_exception_handler"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Explore how Python asyncio works and when to use it. Follow hands-on examples to build efficient programs with coroutines and awaitable tasks.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "realpython.com",
+        "/async-io-python/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        3
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.3333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python's asyncio: A Hands-On Walkthrough \u2013 Real Python",
+      "url": "https://realpython.com/async-io-python/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "A very important distinction, which is easy to miss, is the default behavior of these two functions, when it comes to exceptions.\u00a0\u2026 Task exception was never retrieved",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "stackoverflow.com",
+        "/questions/42231161/asyncio-gather-vs-asyncio-wait-vs-asyncio-taskgroup",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        4
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.25,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "asyncio.gather vs asyncio.wait (vs asyncio.TaskGroup)",
+      "url": "https://stackoverflow.com/questions/42231161/asyncio-gather-vs-asyncio-wait-vs-asyncio-taskgroup",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Learn how Python async programming works. Write async functions with async and await, and run slow I/O operations concurrently with asyncio.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "realpython.com",
+        "/python-async-features/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        5
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.2,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Async Programming in Python: From Generators to asyncio \u2013 Real Python",
+      "url": "https://realpython.com/python-async-features/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Discover powerful Python exception-handling techniques with this guide. Learn about nested try blocks, re-raising exceptions, custom exceptions, and more.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.honeybadger.io",
+        "/blog/a-guide-to-exception-handling-in-python/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        6
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.16666666666666666,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "The ultimate guide to Python exception handling",
+      "url": "https://www.honeybadger.io/blog/a-guide-to-exception-handling-in-python/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Editor, Pablo Galindo Salgado,. This article explains the new features in Python 3.11, compared to 3.10. Python 3.11 was released on October 24, 2022.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "docs.python.org",
+        "/3/whatsnew/3.11.html",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        7
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.14285714285714285,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "What\u2019s New In Python 3.11",
+      "url": "https://docs.python.org/3/whatsnew/3.11.html",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "In your counter application, you\u2019d want to see a group containing one exception per file that fails to be analyzed, and have a simple way of handling them.It\u2019s time to give the new Python 3.11 TaskGroup a spin!",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "realpython.com",
+        "/python311-exception-groups/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        8
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.125,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python 3.11 Preview: Task and Exception Groups \u2013 Real Python",
+      "url": "https://realpython.com/python311-exception-groups/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Lets assume I have a simple code:\u00a0\u2026 ():\u00a0\u2026 loop = asyncio.get_event_loop()\u00a0\u2026 loop.create_task(exc())\u00a0\u2026 Task exception was never retrieved\u00a0\u2026 > exception=ZeroDivisionError(",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "stackoverflow.com",
+        "/questions/46890646/asyncio-weirdness-of-task-exception-was-never-retrieved",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        9
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.1111111111111111,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Asyncio: Weirdness of Task exception was never retrieved",
+      "url": "https://stackoverflow.com/questions/46890646/asyncio-weirdness-of-task-exception-was-never-retrieved",
+      "views": ""
+    },
+    {
+      "category": "it",
       "content": "The throw_ref exception handling instruction rethrows a previously-thrown exception represented by an exnref value.",
       "engine": "mdn",
       "engines": [
@@ -483,6 +911,42 @@
       "thumbnail": "",
       "title": "throw_ref: Wasm exception handling instruction",
       "url": "https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/Exception_handling/throw_ref"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Microsoft Python Driver for SQL Server - mssql-python Summarize this article for me In this article mssql-python is Microsoft's Python driver for SQL Server, Azure SQL Database, Azure SQL Managed Instance, and SQL database in Microsoft Fabric. Apache Arrow integration: Zero-copy result sets for fast data interchange with pandas, Polars, and.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/sql/connect/python/mssql-python/python-sql-driver-mssql-python",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        4
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.25,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Microsoft Python Driver for SQL Server - mssql-python - Python driver for SQL Server",
+      "url": "https://learn.microsoft.com/en-us/sql/connect/python/mssql-python/python-sql-driver-mssql-python",
+      "views": ""
     },
     {
       "category": "it",
@@ -511,6 +975,42 @@
       "thumbnail": "",
       "title": "Exception",
       "url": "https://developer.mozilla.org/en-US/docs/Glossary/Exception"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Microsoft Authentication Library (MSAL) for Python Summarize this article for me In this article The Microsoft Authentication Library (MSAL) for Python library enables you to sign in users or apps with Microsoft identities (Microsoft Entra ID, Microsoft Accounts, and Microsoft Entra ID accounts). Using MSAL Python, you can acquire tokens from.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/entra/msal/python/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        5
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.2,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Overview of the Microsoft Authentication Library (MSAL) for Python - Microsoft Authentication Library for Python",
+      "url": "https://learn.microsoft.com/en-us/entra/msal/python/",
+      "views": ""
     },
     {
       "category": "it",
@@ -543,12 +1043,12 @@
     {
       "audio_src": "",
       "author": "",
-      "category": "general",
+      "category": "it",
       "close_group": false,
-      "content": "Note asyncio.TaskGroup.create_task () is a new alternative leveraging structural concurrency; it allows for waiting for a group of related tasks with strong safety guarantees.",
-      "engine": "duckduckgo",
+      "content": "Best practices for exceptions Summarize this article for me In this article Proper exception handling is essential for application reliability. This article describes best practices for handling and creating exceptions. Handling exceptions The following best practices concern how you handle exceptions: Use try/catch/finally blocks to recover from.",
+      "engine": "microsoft learn",
       "engines": [
-        "duckduckgo"
+        "microsoft learn"
       ],
       "iframe_src": "",
       "img_src": "",
@@ -557,72 +1057,8 @@
       "open_group": false,
       "parsed_url": [
         "https",
-        "docs.python.org",
-        "/3/library/asyncio-task.html",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        5
-      ],
-      "priority": "",
-      "pubdate": "",
-      "publishedDate": null,
-      "score": 0.2,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Coroutines and tasks \u2014 Python 3.14.8 documentation",
-      "url": "https://docs.python.org/3/library/asyncio-task.html",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "Write and run your code using our online Python compiler (editor). Enjoy additional features like code sharing, dark mode and code \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.programiz.com",
-        "/python-programming/online-compiler/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        6
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.16666666666666666,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Online Python Compiler (Editor) - Programiz",
-      "url": "https://www.programiz.com/python-programming/online-compiler/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "Handling ExceptionGroup with except* Use except* whenever a group can fail, which is any time you wrap a TaskGroup. Each clause receives a sub-group containing only the matching exception types and runs at most once. This is the canonical way to react to grouped failures; the dedicated walkthrough is handling ExceptionGroup from TaskGroup.",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
-      "parsed_url": [
-        "https",
-        "www.async-concurrency.com",
-        "/resilience-cancellation-error-handling/exception-groups-and-taskgroups/",
+        "learn.microsoft.com",
+        "/en-us/dotnet/standard/exceptions/best-practices-for-exceptions",
         "",
         "",
         ""
@@ -636,200 +1072,8 @@
       "score": 0.16666666666666666,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Exception Groups & TaskGroups | Python Async",
-      "url": "https://www.async-concurrency.com/resilience-cancellation-error-handling/exception-groups-and-taskgroups/",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "Python, which was initially developed by Guido van Rossum and made available to the public in 1991, is currently one of the most \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.online-python.com",
-        "/online_python_compiler",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        7
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.14285714285714285,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Online Python Compiler",
-      "url": "https://www.online-python.com/online_python_compiler"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "The task groups were implemented more as a cleaner way to handle task lifetimes and exception handling, enabled greatly by the new exceptions group rework. I think its a popular misconception right now, but the TaskGroup is not a drop in replacement for all of the gather use-cases.",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
-      "parsed_url": [
-        "https",
-        "stackoverflow.com",
-        "/questions/75204560/consuming-taskgroup-response",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        7
-      ],
-      "priority": "",
-      "pubdate": "",
-      "publishedDate": null,
-      "score": 0.14285714285714285,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "python - Consuming TaskGroup response - Stack Overflow",
-      "url": "https://stackoverflow.com/questions/75204560/consuming-taskgroup-response",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "17 hours ago \u00b7 This page is licensed under the Python Software Foundation License Version 2. Examples, recipes, and other code in \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "docs.python.org",
-        "/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        8
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.125,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Python 3.14.8 documentation",
-      "url": "https://docs.python.org/"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "As other answers have pointed out, TaskGroup s don't currently come with any built-in mechanism like asyncio.gather () 's return_exceptions parameter, to prevent the TaskGroup from cancelling all its tasks when one of them raises an exception.",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
-      "parsed_url": [
-        "https",
-        "stackoverflow.com",
-        "/questions/75250788/how-to-prevent-python3-11-taskgroup-from-canceling-all-the-tasks",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        8
-      ],
-      "priority": "",
-      "pubdate": "",
-      "publishedDate": null,
-      "score": 0.125,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "python - How to prevent python3.11 TaskGroup from canceling all the ...",
-      "url": "https://stackoverflow.com/questions/75250788/how-to-prevent-python3-11-taskgroup-from-canceling-all-the-tasks",
-      "views": ""
-    },
-    {
-      "category": "general",
-      "content": "Python has syntax that allows developers to write programs with fewer lines than some other programming languages. Python runs \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "www.w3schools.com",
-        "/python/python_intro.asp",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        9
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.1111111111111111,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "Introduction to Python - W3Schools",
-      "url": "https://www.w3schools.com/python/python_intro.asp"
-    },
-    {
-      "audio_src": "",
-      "author": "",
-      "category": "general",
-      "close_group": false,
-      "content": "The release of Python version 3.11 introduced a new approach to managing multiple coroutines or tasks as a group, called the asyncio.TaskGroup. How to Use asyncio.TaskGroup",
-      "engine": "duckduckgo",
-      "engines": [
-        "duckduckgo"
-      ],
-      "iframe_src": "",
-      "img_src": "",
-      "length": null,
-      "metadata": "",
-      "open_group": false,
-      "parsed_url": [
-        "https",
-        "superfastpython.com",
-        "/asyncio-taskgroup/",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        9
-      ],
-      "priority": "",
-      "pubdate": "",
-      "publishedDate": null,
-      "score": 0.1111111111111111,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "How to use asyncio.TaskGroup - SuperFastPython",
-      "url": "https://superfastpython.com/asyncio-taskgroup/",
+      "title": "Best practices for exceptions - .NET",
+      "url": "https://learn.microsoft.com/en-us/dotnet/standard/exceptions/best-practices-for-exceptions",
       "views": ""
     },
     {
@@ -861,6 +1105,42 @@
       "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Syntax/Error_handling"
     },
     {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Episode Python for Beginners [17 of 44] Error Handling Python for Beginners Things are going to go wrong with your code. Error handling can allow you to log errors and exit gracefully.Full 'Intro to Python' course on Microsoft Learn:\u00a0https://aka.ms/MSLearnPythonSample code:\u00a0https://aka.ms/PythonGettingStartedWatch the entire.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/shows/intro-to-python-development/python-for-beginners-17-of-44-error-handling",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        7
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.14285714285714285,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python for Beginners [17 of 44] Error Handling",
+      "url": "https://learn.microsoft.com/en-us/shows/intro-to-python-development/python-for-beginners-17-of-44-error-handling",
+      "views": ""
+    },
+    {
       "category": "it",
       "content": "The WebAssembly.Exception object represents a runtime exception thrown in a Wasm module.",
       "engine": "mdn",
@@ -887,6 +1167,42 @@
       "thumbnail": "",
       "title": "WebAssembly.Exception",
       "url": "https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/JavaScript_interface/Exception"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Improve throughput performance of Python apps in Azure Functions Summarize this article for me In this article When developing for Azure Functions using Python, you need to understand how your functions perform and how that performance affects the way your function app gets scaled. ...client libraries that have implemented async patterns: aiohttp.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/azure/azure-functions/python-scale-performance-reference",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        8
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.125,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Improve throughput performance of Python apps in Azure Functions",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-functions/python-scale-performance-reference",
+      "views": ""
     },
     {
       "category": "it",
@@ -917,6 +1233,42 @@
       "url": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Server-side/Django"
     },
     {
+      "audio_src": "",
+      "author": "",
+      "category": "it",
+      "close_group": false,
+      "content": "Episode Python for Beginners [18 of 44] Demo: Error Handling Python for Beginners Things are going to go wrong with your code. Error handling can allow you to log errors and exit gracefully.Full 'Intro to Python' course on Microsoft Learn:\u00a0https://aka.ms/MSLearnPythonSample code:\u00a0https://aka.ms/PythonGettingStartedWatch the entire.",
+      "engine": "microsoft learn",
+      "engines": [
+        "microsoft learn"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "learn.microsoft.com",
+        "/en-us/shows/intro-to-python-development/python-for-beginners-18-of-44-demo-error-handling",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        9
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.1111111111111111,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python for Beginners [18 of 44] Demo: Error Handling",
+      "url": "https://learn.microsoft.com/en-us/shows/intro-to-python-development/python-for-beginners-18-of-44-demo-error-handling",
+      "views": ""
+    },
+    {
       "category": "it",
       "content": "JavaScript supports a compact set of statements, specifically control flow statements, that you can use to incorporate a great deal of interactivity in your application. This chapter provides an overview of these statements.",
       "engine": "mdn",
@@ -945,42 +1297,14 @@
       "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Control_flow_and_error_handling"
     },
     {
-      "category": "general",
-      "content": "17 hours ago \u00b7 Python is an easy to learn, powerful programming language. It has efficient high-level data structures and a simple but \u2026",
-      "engine": "bing",
-      "engines": [
-        "bing"
-      ],
-      "iframe_src": null,
-      "img_src": "",
-      "parsed_url": [
-        "https",
-        "docs.python.org",
-        "/3/tutorial/index.html",
-        "",
-        "",
-        ""
-      ],
-      "positions": [
-        10
-      ],
-      "priority": "",
-      "publishedDate": null,
-      "score": 0.1,
-      "template": "default.html",
-      "thumbnail": "",
-      "title": "The Python Tutorial \u2014 Python 3.14.8 documentation",
-      "url": "https://docs.python.org/3/tutorial/index.html"
-    },
-    {
       "audio_src": "",
       "author": "",
-      "category": "general",
+      "category": "it",
       "close_group": false,
-      "content": "Here's a friendly explanation of the loop.set_exception_handler () method, common issues, and better alternatives, with code examples. The loop.set_exception_handler () method allows you to set a custom function that the event loop calls when an exception occurs in a task and that exception is not retrieved or handled anywhere else.",
-      "engine": "duckduckgo",
+      "content": "Async patterns with mssql-python Summarize this article for me In this article The mssql-python driver uses synchronous I/O and doesn't provide native async/await support. Native async is on the driver roadmap. For I/O-bound dat... When to use async patterns The thread-pool approach works well when: Your application already uses asyncio (for.",
+      "engine": "microsoft learn",
       "engines": [
-        "duckduckgo"
+        "microsoft learn"
       ],
       "iframe_src": "",
       "img_src": "",
@@ -989,8 +1313,8 @@
       "open_group": false,
       "parsed_url": [
         "https",
-        "runebook.dev",
-        "/en/docs/python/library/asyncio-eventloop/asyncio.loop.set_exception_handler",
+        "learn.microsoft.com",
+        "/en-us/sql/connect/python/mssql-python/asynchronous-patterns",
         "",
         "",
         ""
@@ -1004,16 +1328,407 @@
       "score": 0.1,
       "template": "default.html",
       "thumbnail": "",
-      "title": "Mastering Asyncio Errors: Task Groups vs. Exception Handlers",
-      "url": "https://runebook.dev/en/docs/python/library/asyncio-eventloop/asyncio.loop.set_exception_handler",
+      "title": "Async Patterns with mssql-python - Python driver for SQL Server",
+      "url": "https://learn.microsoft.com/en-us/sql/connect/python/mssql-python/asynchronous-patterns",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Lib/asyncio/events.py Lib/asyncio/base_events.py The event loop is the core of every asyncio application. in Python 3.16; from there on\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "docs.python.org",
+        "/3/library/asyncio-eventloop.html",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        10
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.1,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Event loop",
+      "url": "https://docs.python.org/3/library/asyncio-eventloop.html",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Old Python logo,\u00a0\u2026 1 and its implementation was started in December 1989 2 by Guido van Rossum at CWI in the Netherlands as a successor to ABC capable of exception handling and interfacing with the Amoeba operating system 3 Van Rossum was Python's principal\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "en.wikipedia.org",
+        "/wiki/History_of_Python",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        11
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.09090909090909091,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "History of Python",
+      "url": "https://en.wikipedia.org/wiki/History_of_Python",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "43 History The designer of Python,\u00a0\u2026 which was inspired by SETL 45 capable of exception handling and interfacing with the Amoeba operating system\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "en.wikipedia.org",
+        "/wiki/Python_(programming_language)",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        12
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.08333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python (programming language)",
+      "url": "https://en.wikipedia.org/wiki/Python_(programming_language)",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "exception handling\u00a0\u2026 an exception breaks the normal flow of execution and executes a pre-registered\u00a0\u2026 An exception handling mechanism allows the procedure to\u00a0\u2026 \"Exception Handling in CLU\"",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "en.wikipedia.org",
+        "/wiki/Exception_handling",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        13
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.07692307692307693,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Exception handling",
+      "url": "https://en.wikipedia.org/wiki/Exception_handling",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "From Wikipedia, the free encyclopedia\u00a0\u2026 , implemented as a Python\u00a0\u2026 sought for the Python binding to be available under the\u00a0\u2026 \"PyQt v4 - Python Bindings for Qt v4\"",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "en.wikipedia.org",
+        "/wiki/PyQt",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        14
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.07142857142857142,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "PyQt - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/PyQt",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "In asyncio there shouldn't be \"\u00a0\u2026 and they should be cancelled immediately.The exception to this is blocking code tacked onto asyncio withrun_in_executor\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "stackoverflow.com",
+        "/questions/60663241/handling-timeouts-with-asyncio",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        15
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.06666666666666667,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Handling Timeouts with asyncio",
+      "url": "https://stackoverflow.com/questions/60663241/handling-timeouts-with-asyncio",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Talking about async/await is not the same thing. The first is a fundamental\u00a0\u2026 Long story short, what remains is a few dozen lines of Exception handling.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "stackoverflow.com",
+        "/questions/49005651/how-does-asyncio-actually-work",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        16
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.0625,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "How does asyncio actually work?",
+      "url": "https://stackoverflow.com/questions/49005651/how-does-asyncio-actually-work",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Python 3.11.9 has been superseded by Python 3.11.16\u00a0\u2026 This is the last bugfix release of the Python 3.11 series This is the ninth (and last) bugfix release of Python 3.11",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.python.org",
+        "/downloads/release/python-3119/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        17
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.058823529411764705,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python Release Python 3.11.9",
+      "url": "https://www.python.org/downloads/release/python-3119/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "This is a backport of the TaskGroup, Runner and timeout code from Python 3.12.8 to Python 3.8, Python 3.9, Python 3.10 and Python 3.11.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "pypi.org",
+        "/project/taskgroup/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        18
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.05555555555555555,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "taskgroup",
+      "url": "https://pypi.org/project/taskgroup/",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Example: Exception Handling Using try...except try: numerator = 10 Also Read: Python built-in Exception Python user-defined Exception Python try\u00a0\u2026",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.programiz.com",
+        "/python-programming/exception-handling",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        19
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.05263157894736842,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Python Exception Handling (With Examples)",
+      "url": "https://www.programiz.com/python-programming/exception-handling",
+      "views": ""
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "is the new concurrency module introduced in Python 3.4.\u00a0\u2026 Using asyncio and aiohttp may not always be in an option especially if you are using older versions of python.",
+      "engine": "yep",
+      "engines": [
+        "yep"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "medium.com",
+        "/velotio-perspectives/an-introduction-to-asynchronous-programming-in-python-af0189a88bbb",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        20
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.05,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "An Introduction to Asynchronous Programming in Python",
+      "url": "https://medium.com/velotio-perspectives/an-introduction-to-asynchronous-programming-in-python-af0189a88bbb",
       "views": ""
     }
   ],
   "suggestions": [],
-  "unresponsive_engines": [
-    [
-      "brave",
-      "too many requests"
-    ]
-  ]
+  "unresponsive_engines": []
 }

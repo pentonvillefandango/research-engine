@@ -20,10 +20,12 @@ TEST_ENV = {
 @pytest.fixture
 def settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.chdir(ROOT)
+    from research_engine.config import Settings, get_settings
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
     for k, v in TEST_ENV.items():
         monkeypatch.setenv(k, v)
-    from research_engine.config import get_settings
-
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
