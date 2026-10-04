@@ -1,0 +1,21 @@
+{
+  "enabled": [
+    "arxiv",
+    "bing",
+    "bing news",
+    "brave",
+    "crossref",
+    "docker hub",
+    "duckduckgo",
+    "duckduckgo news",
+    "github",
+    "google scholar",
+    "mdn",
+    "npm",
+    "pypi",
+    "qwant",
+    "semantic scholar",
+    "stackoverflow",
+    "wikipedia"
+  ]
+}

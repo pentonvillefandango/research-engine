@@ -1,0 +1,7 @@
+# Dev/test override: publish internal services on ephemeral 127.0.0.1 ports so
+# fixture recording and integration tests can reach them. Never used by `make deploy`.
+services:
+  searxng:
+    ports: ["127.0.0.1::8080"]
+  crawl4ai:
+    ports: ["127.0.0.1::11235"]

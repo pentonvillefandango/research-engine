@@ -1,0 +1,659 @@
+{
+  "answers": [],
+  "corrections": [],
+  "infoboxes": [],
+  "query": "compare open-source vector databases",
+  "results": [
+    {
+      "category": "general",
+      "content": "Use Compare the Market to find a better deal on your insurance, household bills and finances. Plus, get a year of fantastic rewards, \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.comparethemarket.com",
+        "/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        1
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 1.0,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Compare the Market | The simples way to save",
+      "url": "https://www.comparethemarket.com/"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Compare 10 open-source vector database options by product type, use case, trade-off, and license. Build a shortlist and test it against your workload.",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.designveloper.com",
+        "/blog/best-open-source-vector-database/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        1
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 1.0,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Open-Source Vector Database In 2026: 10 Options Compared",
+      "url": "https://www.designveloper.com/blog/best-open-source-vector-database/",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "Looking for insurance? Visit Go.Compare and see if you can save today! Compare quotes and find our best deals. Our customers \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.gocompare.com",
+        "/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        2
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.5,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Go.Compare\u2122 Official Site | Quick and Easy Quotes in Minutes",
+      "url": "https://www.gocompare.com/"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Open source vector databases come in two flavors: specialized tools that handle vectors and nothing else, or unified platforms that combine vector search with operational data and caching. Many teams end up managing three systems: a vector database, a cache, and an operational store. Redis combines all three in a single real-time data platform with a memory-first architecture. This comparison ...",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "redis.io",
+        "/blog/best-open-source-vector-databases-comparison/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        2
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.5,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Comparing the best open source vector databases (2026) - Redis",
+      "url": "https://redis.io/blog/best-open-source-vector-databases-comparison/",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "2 days ago \u00b7 One of the best ways to get the lowest prices and best deals on your household bills is to compare quotes from different \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.moneysupermarket.com",
+        "/",
+        "",
+        "msockid=17e7d09a0e4662262a6bc7720f0e6370",
+        ""
+      ],
+      "positions": [
+        3
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.3333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "MoneySuperMarket | Where better off begins",
+      "url": "https://www.moneysupermarket.com/?msockid=17e7d09a0e4662262a6bc7720f0e6370"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Compare the best open-source vector databases in 2026, including Qdrant, pgvector, Weaviate, Milvus, Chroma, LanceDB, and OpenSearch.",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "krunalkanojiya.com",
+        "/blog/best-open-source-vector-databases",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        3
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.3333333333333333,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "7 Best Open-Source Vector Databases in 2026",
+      "url": "https://krunalkanojiya.com/blog/best-open-source-vector-databases",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "Compare energy prices from British Gas, E.ON and other trusted suppliers. See how much you could save by switching today.",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.comparethemarket.com",
+        "/energy/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        4
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.25,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Energy comparison | Gas & electricity | Compare the Market",
+      "url": "https://www.comparethemarket.com/energy/"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Compare 8 open source vector database tools for storing, indexing, and searching embeddings for AI, semantic search, and RAG applications.",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.datastackhub.com",
+        "/top-tools/open-source-vector-database-tools/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        4
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.25,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "8 Best Open Source Vector Database Tools for 2026",
+      "url": "https://www.datastackhub.com/top-tools/open-source-vector-database-tools/",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "Compare text, files, and code (e.g. json, xml) to find differences with Diffchecker online for free! Use our desktop app for private, \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.diffchecker.com",
+        "/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        5
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.2,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Compare text and find differences online or offline - Diffchecker",
+      "url": "https://www.diffchecker.com/"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Compare 20 vector databases with real performance benchmarks, honest trade-offs, and decision frameworks for choosing by scale, use case, and infrastructure.",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.firecrawl.dev",
+        "/blog/best-vector-databases",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        5
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.2,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Vector Databases in 2026: A Complete Comparison Guide",
+      "url": "https://www.firecrawl.dev/blog/best-vector-databases",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "A complete list of all the products offered by Go.Compare.",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.gocompare.com",
+        "/all-products/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        6
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.16666666666666666,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "View all products - GoCompare",
+      "url": "https://www.gocompare.com/all-products/"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Compare the best vector databases in 2026: pgvector, Pinecone, Qdrant, Weaviate, Milvus, Chroma, and LanceDB. Features, performance, pricing, and which one to choose ...",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "encore.dev",
+        "/articles/best-vector-databases",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        6
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.16666666666666666,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Vector Databases in 2026: Complete Comparison Guide",
+      "url": "https://encore.dev/articles/best-vector-databases",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "2 days ago \u00b7 One of the best ways to get the lowest prices and best deals is to compare quotes from different companies. We do the \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.moneysupermarket.com",
+        "/gas-and-electricity/",
+        "",
+        "msockid=17e7d09a0e4662262a6bc7720f0e6370",
+        ""
+      ],
+      "positions": [
+        7
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.14285714285714285,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Compare Energy Prices - October 2026 - MoneySuperMarket",
+      "url": "https://www.moneysupermarket.com/gas-and-electricity/?msockid=17e7d09a0e4662262a6bc7720f0e6370"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Home Blog Best Vector Databases in 2026 (Open Source and Managed, Compared) Toolradar data: we track 18 tools in this category, 15 of which offer a free tier, and 12 entered our catalog during 2026.",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "toolradar.com",
+        "/blog/best-vector-databases",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        7
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.14285714285714285,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Vector Databases in 2026 (Open Source and Managed, Compared)",
+      "url": "https://toolradar.com/blog/best-vector-databases",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "Versus is a comparison platform with over 100 categories. Compare anything side-by-side with detailed specifications, filters, and \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "versus.com",
+        "/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        8
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.125,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Versus | Compare everything",
+      "url": "https://versus.com/"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Best Open-Source Vector Database 2026: Qdrant vs Milvus vs Weaviate vs pgvector Photo by Teemu on Unsplash Quick Answer: For most teams in 2026, the answer is boring and correct: use pgvector if you're already on Postgres and have under ~5-10M vectors; you skip an entire service and get transactions for free. Above that, Qdrant is the best standalone pick for high-QPS filtered search on ...",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "www.misar.blog",
+        "/@synor/articles/best-open-source-vector-database",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        8
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.125,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Open-Source Vector Database 2026: Full Comparison",
+      "url": "https://www.misar.blog/@synor/articles/best-open-source-vector-database",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "COMPARE definition: 1. to examine or look for the difference between two or more things: 2. to judge, suggest, or\u2026. Learn more.",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "dictionary.cambridge.org",
+        "/dictionary/english/compare",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        9
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.1111111111111111,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "COMPARE | English meaning - Cambridge Dictionary",
+      "url": "https://dictionary.cambridge.org/dictionary/english/compare"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "Compare open source vector databases for production AI. Redis delivers sub-millisecond vector search + 73% LLM cost cuts with semantic cachin",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "redis.io",
+        "/blog/top-pinecone-alternatives-for-vector-search/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        9
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.1111111111111111,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Best Open Source Vector Databases 2026 & Comparison - Redis",
+      "url": "https://redis.io/blog/top-pinecone-alternatives-for-vector-search/",
+      "views": ""
+    },
+    {
+      "category": "general",
+      "content": "How is Compare different to normal Quidco? The general premise is basically the same. You buy great products and services. And \u2026",
+      "engine": "bing",
+      "engines": [
+        "bing"
+      ],
+      "iframe_src": null,
+      "img_src": "",
+      "parsed_url": [
+        "https",
+        "www.quidco.com",
+        "/compare/",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        10
+      ],
+      "priority": "",
+      "publishedDate": null,
+      "score": 0.1,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Compare, save and get cashback on insurance and energy | Quidco",
+      "url": "https://www.quidco.com/compare/"
+    },
+    {
+      "audio_src": "",
+      "author": "",
+      "category": "general",
+      "close_group": false,
+      "content": "We benchmarked seven open-source, self-hosted vector databases as the retrieval layer of a RAG pipeline, each run one at a time on identical bge-m3 embeddings and real medical and technical queries, so the database index was the sole variable. The workload spanned MedRAG-50k, TechQA-28k, and a 2.25M-vector corpus across eight dimensions, from accuracy and retrieval quality through speed ...",
+      "engine": "duckduckgo",
+      "engines": [
+        "duckduckgo"
+      ],
+      "iframe_src": "",
+      "img_src": "",
+      "length": null,
+      "metadata": "",
+      "open_group": false,
+      "parsed_url": [
+        "https",
+        "aimultiple.com",
+        "/open-source-vector-databases",
+        "",
+        "",
+        ""
+      ],
+      "positions": [
+        10
+      ],
+      "priority": "",
+      "pubdate": "",
+      "publishedDate": null,
+      "score": 0.1,
+      "template": "default.html",
+      "thumbnail": "",
+      "title": "Vector Database Benchmark: 7 Open-Source Engines for RAG",
+      "url": "https://aimultiple.com/open-source-vector-databases",
+      "views": ""
+    }
+  ],
+  "suggestions": [],
+  "unresponsive_engines": [
+    [
+      "brave",
+      "Suspended: too many requests"
+    ],
+    [
+      "qwant",
+      "CAPTCHA"
+    ]
+  ]
+}
