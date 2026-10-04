@@ -158,7 +158,8 @@ class Fetcher(Protocol):
 
 # adapters/extract.py
 @dataclass Extracted(title, author, published_at, language, markdown, word_count, links: list[Link],
-                     tables: list[Table], structured_data: StructuredData, html_len: int, text_len: int)
+                     tables: list[Table], structured_data: StructuredData, html_len: int, text_len: int,
+                     warnings: list[str] = [])   # truncation/degradation notes; FetchService copies into Document.warnings
 class HtmlExtractor(Protocol):  def extract(self, html: str, base_url: str) -> Extracted: ...   # sync; caller uses to_thread
 class PdfExtractor(Protocol):   def extract(self, body: bytes, url: str) -> Extracted: ...
 # adapters/html_extract.py: DefaultHtmlExtractor   adapters/pdf_extract.py: PypdfExtractor
