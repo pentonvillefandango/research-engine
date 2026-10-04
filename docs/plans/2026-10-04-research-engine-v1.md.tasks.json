@@ -49,7 +49,7 @@
     {
       "id": 4,
       "subject": "Task 0.5: Enable GitHub protections and push (after owner ap",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Turn on secret scanning, push protection and Dependabot alerts and security updates for the public repo, push `main`, and confirm CI goes green.\n\n**Files:** none (repository settings and push only)\n\n**Acceptance Criteria:**\n- [ ] `gh api repos/{owner}/{repo} --jq .security_and_analysis` shows `secret_scanning.status=enabled` and `secret_scanning_push_protection.status=enabled`.\n- [ ] `gh api repos/{owner}/{repo}/vulnerability-alerts -i` returns `HTTP/2 204`.\n- [ ] `gh run list -L 1 --branch main` shows the CI run concluded `success`.\n\n**Verify:** `gh api repos/pentonvillefandango/research-engine --jq '.security_and_analysis | {ss: .secret_scanning.status, pp: .secret_scanning_push_protection.status}'` → `{\"pp\":\"enabled\",\"ss\":\"enabled\"}`\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"gh api repos/pentonvillefandango/research-engine --jq '.security_and_analysis | {ss: .secret_scanning.status, pp: .secret_scanning_push_protection.status}'\", \"acceptanceCriteria\": [\"`gh api repos/{owner}/{repo} --jq .security_and_analysis` shows `secret_scanning.status=enabled` and `secret_scanning_push_protection.status=enabled`.\", \"`gh api repos/{owner}/{repo}/vulnerability-alerts -i` returns `HTTP/2 204`.\", \"`gh run list -L 1 --branch main` shows the CI run concluded `success`.\"], \"modelTier\": \"standard\", \"step\": 0, \"featureRefs\": \"§8 Public repository, V1-19 (workspace skeleton so CI has something to run)\"}\n```",
       "blockedBy": [
         3
@@ -467,5 +467,5 @@
       ]
     }
   ],
-  "lastUpdated": "2026-10-04T17:23:06+00:00"
+  "lastUpdated": "2026-10-04T17:30:39+00:00"
 }
