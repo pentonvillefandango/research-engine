@@ -1,6 +1,6 @@
 """Record real upstream responses as test fixtures. Run against the dev stack:
 
-    source <(scripts/dev_urls.sh) && uv run python scripts/record_fixtures.py searxng
+source <(scripts/dev_urls.sh) && uv run python scripts/record_fixtures.py searxng
 """
 
 import json
@@ -22,11 +22,15 @@ def record_searxng() -> None:
         enabled = sorted(e["name"] for e in cfg["engines"] if e["enabled"])
         (out / "engines_config.json").write_text(json.dumps({"enabled": enabled}, indent=2) + "\n")
         for name, params in {
-            "technical_page1": {"q": "python asyncio TaskGroup exception handling",
-                                "engines": "github,stackoverflow,mdn,duckduckgo,brave,bing"},
+            "technical_page1": {
+                "q": "python asyncio TaskGroup exception handling",
+                "engines": "github,stackoverflow,mdn,duckduckgo,brave,bing",
+            },
             "general_page1": {"q": "compare open-source vector databases", "categories": "general"},
         }.items():
-            r = c.get("/search", params={**params, "format": "json", "language": "en-GB", "pageno": 1})
+            r = c.get(
+                "/search", params={**params, "format": "json", "language": "en-GB", "pageno": 1}
+            )
             r.raise_for_status()
             (out / f"{name}.json").write_text(json.dumps(r.json(), indent=2, sort_keys=True) + "\n")
     print("recorded searxng fixtures in", out)
