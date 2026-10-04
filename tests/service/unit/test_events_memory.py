@@ -1,8 +1,9 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
+import structlog
 from research_engine.events.base import Emitter
 from research_engine.events.memory import InMemoryEventBus
 from research_engine_client.models import Event, EventKind, EventLevel
@@ -88,6 +89,13 @@ async def test_unsubscribe_on_cancel() -> None:
     assert bus.subscriber_count == 0
 
 
+@pytest.fixture
+def _restore_structlog() -> Iterator[None]:
+    yield
+    structlog.reset_defaults()  # configure_logging binds to the (captured) stdout
+
+
+@pytest.mark.usefixtures("_restore_structlog")
 async def test_events_are_logged_as_json(capsys: pytest.CaptureFixture[str]) -> None:
     from research_engine.logging import configure_logging
 
