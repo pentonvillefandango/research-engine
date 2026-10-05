@@ -64,7 +64,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 | `DEMOS_FILE` | `config/demos.yaml` | Demo requests for the test console and `make smoke`. |
 | `SEARCH_MIN_RESULTS` | `10` | If a non-general intent finds fewer results, the search is retried with the general engines. |
 | `SEARCH_TIMEOUT_S` | `30` | Timeout for one search. |
-| `PAGE_TIMEOUT_S` | `60` | Page timeout setting. In V1 each request's `timeout_s` (default 60) is what applies. |
+| `PAGE_TIMEOUT_S` | `60` | Upper bound on any single page fetch, in seconds: each fetch (REST, MCP and job pages) runs for `min(timeout_s, PAGE_TIMEOUT_S)`. |
 | `THIN_WORD_THRESHOLD` | `150` | Pages with fewer words count as thin and, in `auto` mode, escalate to the browser. |
 | `MAX_RESPONSE_BYTES` | `10485760` | Largest page accepted (10 MiB). |
 | `ALLOWED_CONTENT_TYPES` | HTML, XHTML, PDF, plain text | Content types the fetcher accepts. |

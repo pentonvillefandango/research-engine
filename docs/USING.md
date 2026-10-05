@@ -103,7 +103,7 @@ Some web pages contain text written to trick AI agents ("prompt injection"), suc
 
 - **robots.txt is obeyed.** A disallowed page gives `robots_disallowed`. There is no override. If a site's robots.txt can't be fetched (server or network error), the whole site gives `robots_disallowed` for 10 minutes. The `Crawl-delay` rule is honoured (up to 30 seconds).
 - **Per-site pacing:** at most 2 requests at a time to one site, at least 1 second apart (operator defaults). A batch of URLs from one site therefore takes longer.
-- **Timeouts:** 60 seconds per page and 30 seconds per search by default; jobs stop after 15 minutes.
+- **Timeouts:** 60 seconds per page (the operator's cap may shorten `timeout_s`) and 30 seconds per search by default; jobs stop after 15 minutes.
 - **Safety:** private, loopback and other internal addresses are blocked (`ssrf_blocked`). Pages over 10 MiB (`response_too_large`) and file types other than HTML, PDF and plain text (`content_type_not_allowed`) are refused.
 
 ## System-prompt snippet
