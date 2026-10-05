@@ -1,5 +1,6 @@
 """`make backup` and `make restore` (V1-22, §10) against the fake docker from conftest."""
 
+import fcntl
 import os
 import re
 import stat
@@ -41,8 +42,14 @@ def test_backup_copies_out_and_removes_the_container_temp(fake_env: FakeEnv) -> 
     assert m and out.parent == fake_env.repo / "backups"
     assert r.last["bytes"] == out.stat().st_size > 0
     assert mode(out) == 0o600 and mode(out.parent) == 0o700
-    inner = f"/data/.backup-{m.group(1)}.sqlite"
     calls = fake_env.docker_calls()
+    # a per-run temp name (stamp + pid): concurrent runs never share or delete each other's file
+    inner = next(
+        w
+        for c in calls
+        for w in c.split()
+        if re.fullmatch(rf"/data/\.backup-{m.group(1)}-\d+\.sqlite", w)
+    )
     i_backup = next(
         i for i, c in enumerate(calls) if f"research-engine db backup --out {inner}" in c
     )
@@ -52,6 +59,57 @@ def test_backup_copies_out_and_removes_the_container_temp(fake_env: FakeEnv) -> 
     assert all(c.startswith("compose -p research-engine ") for c in calls)
     assert " exec -T app " in f" {calls[i_backup]} "
     assert not list(out.parent.glob("*.part"))
+    # stale temps of killed runs are swept from the volume, after this run's own file is gone
+    i_sweep = next(i for i, c in enumerate(calls) if "sweep-stale-backup-temps" in c)
+    assert i_rm < i_sweep
+
+
+def hold_lock(repo: Path) -> int:
+    (repo / ".deploy").mkdir(exist_ok=True)
+    fd = os.open(repo / ".deploy" / "lock", os.O_WRONLY | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return fd
+
+
+def test_backup_waits_for_the_ops_lock_and_gives_up(fake_env: FakeEnv) -> None:
+    fd = hold_lock(fake_env.repo)
+    try:
+        r = fake_env.run("backup", BACKUP_LOCK_WAIT="0")
+        one_line(r)
+        assert r.code == 2 and "lock" in r.last["error"]
+        assert fake_env.docker_calls() == []
+        # a caller that already holds the lock (restore) says so
+        r = fake_env.run("backup", BACKUP_LOCK_WAIT="0", OPS_LOCK_HELD="1")
+        assert r.code == 0, r.stderr
+    finally:
+        os.close(fd)
+
+
+def test_backup_tag_names_the_file_and_skips_retention(fake_env: FakeEnv) -> None:
+    bdir = fake_env.repo / "backups"
+    (bdir / "research-engine-a.sqlite").write_bytes(b"x")
+    age(bdir / "research-engine-a.sqlite", 30)
+    r = fake_env.run("backup", "--tag", "prerestore")
+    assert r.code == 0, r.stderr
+    assert re.fullmatch(
+        r"research-engine-\d{8}T\d{6}Z-prerestore\.sqlite", Path(str(r.last["file"])).name
+    )
+    assert r.last["pruned"] == [] and (bdir / "research-engine-a.sqlite").exists()
+
+
+@pytest.mark.parametrize("args", [["--tag"], ["--tag", "Bad/Tag"], ["--bogus"]])
+def test_backup_rejects_bad_arguments(fake_env: FakeEnv, args: list[str]) -> None:
+    r = fake_env.run("backup", *args)
+    assert r.code == 2 and r.last["ok"] is False and fake_env.docker_calls() == []
+
+
+def test_backup_same_second_name_clash_is_refused(fake_env: FakeEnv) -> None:
+    first = fake_env.run("backup")
+    assert first.code == 0
+    clash = Path(str(first.last["file"]))
+    r = fake_env.run("backup", BACKUP_TS=clash.name[len("research-engine-") : -len(".sqlite")])
+    assert r.code == 2 and "exists" in r.last["error"]
+    assert clash.exists()
 
 
 def test_backup_creates_a_private_backup_dir(fake_env: FakeEnv, tmp_path: Path) -> None:
@@ -213,10 +271,17 @@ def test_restore_stops_restores_starts_and_checks_health(
     assert r.last["ok"] is True and r.last["restored"] == backup_file.name
     assert r.last["health"]["ok"] is True and r.last["health"]["command"] == "health"
     calls = fake_env.docker_calls()
+    i_check = next(i for i, c in enumerate(calls) if " run " in f" {c} " and "--check" in c)
+    i_safety = next(i for i, c in enumerate(calls) if "research-engine db backup" in c)
     i_stop = next(i for i, c in enumerate(calls) if c.endswith(" stop app"))
-    i_run = next(i for i, c in enumerate(calls) if " run " in f" {c} ")
+    i_run = next(i for i, c in enumerate(calls) if " run " in f" {c} " and "--check" not in c)
     i_start = next(i for i, c in enumerate(calls) if " start " in f" {c} ")
-    assert i_stop < i_run < i_start
+    assert i_check < i_safety < i_stop < i_run < i_start
+    assert calls[i_check].endswith(" app research-engine db restore --check --from /restore.sqlite")
+    # the pre-restore safety backup: retention and restore can find it, owner-only
+    safety = Path(str(r.last["safety_backup"]))
+    assert safety.parent == backup_file.parent and mode(safety) == 0o600
+    assert re.fullmatch(r"research-engine-\d{8}T\d{6}Z-prerestore\.sqlite", safety.name)
     run = calls[i_run]
     assert " run --rm --no-deps -T " in f" {run} "
     assert run.endswith(" app research-engine db restore --from /restore.sqlite")
@@ -224,7 +289,9 @@ def test_restore_stops_restores_starts_and_checks_health(
     assert calls[i_start].endswith(" app")
     # the container user (10001) reads a 644 copy in a 700 staging dir inside BACKUP_DIR;
     # the backup itself stays 600 and the staging dir is gone afterwards
-    mounted, fmode, dmode = Path(f"{fake_env.calls}.run").read_text().split()
+    mounts = {tuple(ln.split()) for ln in Path(f"{fake_env.calls}.run").read_text().splitlines()}
+    assert len(mounts) == 1  # the check and the restore read the same staged copy
+    mounted, fmode, dmode = mounts.pop()
     src = Path(mounted)
     assert (fmode, dmode) == ("644", "700")
     assert src.parent.parent == backup_file.parent and src != backup_file
@@ -240,8 +307,53 @@ def test_restore_cli_failure_restarts_app_and_fails(fake_env: FakeEnv, backup_fi
     one_line(r)
     assert r.code == 1 and r.last["ok"] is False and r.last["restored"] is None
     assert r.last["detail"]["error"] == "missing tables: event"
+    assert "still in place" in r.last["error"]
     assert any(" start " in f" {c} " for c in fake_env.docker_calls())
     assert not list(backup_file.parent.glob(".restore.*"))
+
+
+def test_restore_replaced_but_run_failed_says_so(fake_env: FakeEnv, backup_file: Path) -> None:
+    r = fake_env.run("restore", str(backup_file), FAKE_RUN_EXIT="1")
+    one_line(r)
+    assert r.code == 1 and r.last["ok"] is False
+    assert r.last["restored"] == backup_file.name
+    assert "still in place" not in r.last["error"] and "replaced" in r.last["error"]
+
+
+def test_restore_invalid_backup_never_stops_the_app(fake_env: FakeEnv, backup_file: Path) -> None:
+    r = fake_env.run("restore", str(backup_file), FAKE_CHECK_FAIL="1")
+    one_line(r)
+    assert r.code == 1 and r.last["ok"] is False and r.last["restored"] is None
+    assert r.last["detail"]["error"] == "missing tables: event"
+    calls = fake_env.docker_calls()
+    assert not any(c.endswith(" stop app") or "db backup" in c for c in calls)
+    assert not any(" start " in f" {c} " for c in calls)
+
+
+def test_restore_safety_backup_failure_aborts_before_stopping(
+    fake_env: FakeEnv, backup_file: Path
+) -> None:
+    r = fake_env.run("restore", str(backup_file), FAKE_DB_BACKUP_FAIL="1")
+    one_line(r)
+    assert r.code == 1 and r.last["ok"] is False and r.last["restored"] is None
+    assert "safety backup" in r.last["error"]
+    assert not any(c.endswith(" stop app") for c in fake_env.docker_calls())
+
+
+def test_restore_refuses_a_backup_with_a_wal_file(fake_env: FakeEnv, backup_file: Path) -> None:
+    Path(f"{backup_file}-wal").write_bytes(b"frames")
+    r = fake_env.run("restore", str(backup_file))
+    one_line(r)
+    assert r.code == 2 and "-wal" in r.last["error"] and fake_env.docker_calls() == []
+
+
+def test_restore_holds_the_ops_lock(fake_env: FakeEnv, backup_file: Path) -> None:
+    fd = hold_lock(fake_env.repo)
+    try:
+        r = fake_env.run("restore", str(backup_file))
+    finally:
+        os.close(fd)
+    assert r.code == 2 and "lock" in r.last["error"] and fake_env.docker_calls() == []
 
 
 def test_restore_unhealthy_after_start_fails(fake_env: FakeEnv, backup_file: Path) -> None:
@@ -255,4 +367,4 @@ def test_restore_stop_failure_does_not_restore(fake_env: FakeEnv, backup_file: P
     r = fake_env.run("restore", str(backup_file), FAKE_STOP_FAIL="1")
     one_line(r)
     assert r.code == 1 and r.last["ok"] is False
-    assert not any(" run " in f" {c} " for c in fake_env.docker_calls())
+    assert not any(" run " in f" {c} " and "--check" not in c for c in fake_env.docker_calls())

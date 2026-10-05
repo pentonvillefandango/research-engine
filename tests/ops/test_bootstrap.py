@@ -212,7 +212,7 @@ def test_fresh_run_installs_caddy_backup_dir_and_timer(boot: Boot) -> None:
     svc = (boot.systemd / UNITS[0]).read_text()
     assert "@REPO_DIR@" not in svc and "@USER@" not in svc
     assert f"WorkingDirectory={boot.repo}" in svc
-    assert f"ExecStart=/usr/bin/make -C {boot.repo} backup" in svc
+    assert f"ExecStart={shutil.which('make')} -C {boot.repo} backup" in svc
     assert re.search(r"^User=\S+$", svc, re.M) and "Type=oneshot" in svc
     timer = (boot.systemd / UNITS[1]).read_text()
     assert "OnCalendar=*-*-* 03:30:00" in timer and "Persistent=true" in timer
@@ -362,3 +362,56 @@ def test_timer_disabled_but_units_current_only_enables(installed: Boot) -> None:
         "systemctl daemon-reload",
         "systemctl enable --now research-engine-backup.timer",
     ]
+
+
+# ---- fix round 1 -----------------------------------------------------------------------------
+
+
+def test_fresh_env_never_changes_an_existing_caddy_site_host(installed: Boot) -> None:
+    """A just-created .env holds the example SITE_HOST: it must not replace the real one in the
+    shared Caddy env, nor recreate the co-tenant Caddy."""
+    (installed.repo / ".env").unlink()
+    cenv_before = (installed.caddy / ".env").read_bytes()
+    for args in (("--dry-run",), ()):
+        r = installed.run(*args)
+        assert r.code == 0, r.stderr
+        a = actions(r)
+        assert a["env"]["action"] == "create"
+        assert a["caddy_env"]["action"] == "keep" and a["caddy_env"]["keys"] == []
+        assert "site_host_note" in a["caddy_env"]
+        assert a["caddy"]["action"] == "up"
+    assert (installed.caddy / ".env").read_bytes() == cenv_before
+    assert not any("force-recreate" in c for c in installed.calls(""))
+    # once the owner has set SITE_HOST in the (now pre-existing) .env, it flows to Caddy
+    env = installed.repo / ".env"
+    env.write_text(
+        env.read_text().replace("SITE_HOST=research.localhost", "SITE_HOST=r.example.test")
+    )
+    r = installed.run()
+    assert actions(r)["caddy_env"]["keys"] == ["SITE_HOST"]
+    assert env_values(installed.caddy / ".env")["SITE_HOST"] == "r.example.test"
+
+
+@pytest.mark.parametrize("bad", ["re%po", "re po", "re\npo"])
+def test_repo_dir_unsafe_for_systemd_is_refused(boot: Boot, bad: str) -> None:
+    link = boot.root / bad
+    link.symlink_to(boot.repo)
+    before = snapshot(boot.repo)
+    r = boot.run("--dry-run", LAB_SUBNET=LAB, REPO_DIR=str(link))
+    assert r.code == 2 and "REPO_DIR" in r.last["error"]
+    assert snapshot(boot.repo) == before
+
+
+def test_make_must_exist_for_the_unit(boot: Boot) -> None:
+    r = boot.run("--dry-run", LAB_SUBNET=LAB, MAKE_BIN=str(boot.root / "no-such-make"))
+    assert r.code == 2 and "make" in r.last["error"]
+
+
+def test_unit_uses_the_resolved_make(boot: Boot) -> None:
+    fake_make = boot.root / "bin" / "make"
+    fake_make.write_text("#!/bin/sh\n")
+    fake_make.chmod(0o755)
+    r = boot.run(LAB_SUBNET=LAB)
+    assert r.code == 0, r.stderr
+    svc = (boot.systemd / UNITS[0]).read_text()
+    assert f"ExecStart={fake_make} -C {boot.repo} backup" in svc

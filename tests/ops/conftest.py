@@ -32,11 +32,19 @@ case "$1" in
         printf '%s %s %s\n' "$src" "$(stat -c %a "$src")" "$(stat -c %a "$(dirname "$src")")" \
           >> "$FAKE_CALLS.run"
         cp "$src" "$FAKE_CALLS.run.copy"
-        if [ -n "${FAKE_RESTORE_FAIL:-}" ]; then
-          echo '{"command": "db restore", "error": "missing tables: event", "ok": false}'; exit 1
-        fi
-        printf '%s' '{"bytes": 20, "command": "db restore", "from": "/restore.sqlite", "ok": true,'
-        echo ' "restored": "/data/research-engine.sqlite"}' ;;
+        fail='{"command": "db restore", "error": "missing tables: event", "ok": false,'
+        fail="$fail \"replaced\": false}"
+        case "$args" in
+          *" --check "*)
+            if [ -n "${FAKE_CHECK_FAIL:-}" ]; then echo "$fail"; exit 1; fi
+            echo '{"checked": true, "command": "db restore", "from": "/restore.sqlite", "ok": true}'
+            ;;
+          *)
+            if [ -n "${FAKE_RESTORE_FAIL:-}" ]; then echo "$fail"; exit 1; fi
+            printf '%s' '{"bytes": 20, "command": "db restore", "from": "/restore.sqlite",'
+            echo ' "ok": true, "restored": "/data/research-engine.sqlite"}'
+            exit "${FAKE_RUN_EXIT:-0}" ;;
+        esac ;;
       *" cp app:"*)
         [ -z "${FAKE_CP_FAIL:-}" ] || { echo "fake docker: cp failed" >&2; exit 1; }
         printf 'SQLite format 3 fake backup' > "${*: -1}" ;;
@@ -58,6 +66,7 @@ case "$1" in
             fi
             printf '{"bytes": 27, "command": "db backup", "ok": true, "path": "%s"}\n' "${*: -1}" ;;
           *" rm -f /data/.backup-"*) : ;;
+          *" sweep-stale-backup-temps "*) echo '[]' ;;
           *" caddy reload "*) echo "fake docker: caddy reloaded" >&2 ;;
           *" research-engine smoke "*)
             cat "$F/${FAKE_SMOKE_FILE:-exec_smoke_ok.json}"; exit "${FAKE_SMOKE_EXIT:-0}" ;;

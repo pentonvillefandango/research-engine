@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Restore a backup into the live app (V1-22, §10). Stops the app, so the owner approves every run.
 # Usage: ops/restore.sh FILE   (a research-engine-*.sqlite directly inside $BACKUP_DIR)
+#
+# While the app still runs: validate FILE (check-only CLI run), then take a pre-restore safety
+# backup (research-engine-<ts>-prerestore.sqlite, restorable like any other). Either failing
+# aborts with the app untouched. Only then: stop app, restore, start app, health.
 CMD=restore
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -32,6 +36,10 @@ PY
 )" || fail 2 restore "$reason_or_path"
 src="$reason_or_path"
 name="$(basename "$src")"
+# Only the main file is staged and mounted: a WAL-mode copy's -wal content would be lost.
+if [ -s "$src-wal" ]; then
+  fail 2 restore "$name has a non-empty -wal file beside it; checkpoint it first, or restore a file made by make backup"
+fi
 require_cmd docker
 require_cmd flock
 
@@ -53,26 +61,58 @@ stage="$(mktemp -d "$BACKUP_DIR/.restore.XXXXXX")" || fail 1 restore "cannot cre
 chmod 700 "$stage"
 install -m 644 "$src" "$stage/restore.sqlite" || fail 1 restore "cannot stage $name"
 
-log "stopping app"
-dc stop app >&2 || fail 1 restore "could not stop the app" restored:=null
-APP_STOPPED=1
-
-log "restoring $name"
-code=0
-out="$(dc run --rm --no-deps -T -v "$stage/restore.sqlite:/restore.sqlite:ro" app \
-  research-engine db restore --from /restore.sqlite)" || code=$?
-detail="$(LINE="$(printf '%s\n' "$out" | tail -n 1)" python3 -c '
+# last_json <output>: the output's last line if it is a JSON object, else {"ok": false, ...}
+last_json() {
+  LINE="$(printf '%s\n' "$1" | tail -n 1)" python3 -c '
 import json, os
 try:
     d = json.loads(os.environ["LINE"])
     if not isinstance(d, dict):
         raise ValueError
 except ValueError:
-    d = {"ok": False, "error": "no result line from research-engine db restore"}
-print(json.dumps(d, sort_keys=True))')"
-restored_ok=false
-if [ "$code" -eq 0 ] && [ "$(printf '%s' "$detail" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("ok") is True)')" = True ]; then
-  restored_ok=true
+    d = {"ok": False, "error": "no result line"}
+print(json.dumps(d, sort_keys=True))'
+}
+json_field() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get(sys.argv[1])))' "$2"; }
+restore_cli() { # restore_cli [--check]: the CLI in a one-off app container, the staged copy mounted ro
+  dc run --rm --no-deps -T -v "$stage/restore.sqlite:/restore.sqlite:ro" app \
+    research-engine db restore "$@" --from /restore.sqlite
+}
+
+log "validating $name (the app keeps running)"
+code=0
+out="$(restore_cli --check)" || code=$?
+detail="$(last_json "$out")"
+if [ "$code" -ne 0 ] || [ "$(json_field "$detail" ok)" != true ]; then
+  fail 1 restore "$name failed validation; nothing was changed" restored:=null detail:="$detail"
+fi
+
+log "taking a pre-restore safety backup"
+code=0
+out="$(OPS_LOCK_HELD=1 "${BACKUP_CMD:-$REPO_DIR/ops/backup.sh}" --tag prerestore)" || code=$?
+safety="$(last_json "$out")"
+safety_file="$(json_field "$safety" file)" # JSON: a quoted path, or null
+if [ "$code" -ne 0 ] || [ "$(json_field "$safety" ok)" != true ] || [ "$safety_file" = null ]; then
+  fail 1 restore "pre-restore safety backup failed; nothing was changed" restored:=null \
+    detail:="$safety"
+fi
+
+log "stopping app"
+dc stop app >&2 ||
+  fail 1 restore "could not stop the app" restored:=null safety_backup:="$safety_file"
+APP_STOPPED=1
+
+log "restoring $name"
+code=0
+out="$(restore_cli)" || code=$?
+detail="$(last_json "$out")"
+# The CLI reports replaced=false on every failure (all happen before its final atomic rename).
+if [ "$(json_field "$detail" ok)" = true ]; then
+  replaced=true
+elif [ "$(json_field "$detail" replaced)" = false ]; then
+  replaced=false
+else
+  replaced=unknown
 fi
 
 log "starting app"
@@ -82,22 +122,25 @@ APP_STOPPED=0
 
 hcode=0
 hout="$("$REPO_DIR/ops/health.sh")" || hcode=$?
-health="$(LINE="$(printf '%s\n' "$hout" | tail -n 1)" python3 -c '
-import json, os
-try:
-    d = json.loads(os.environ["LINE"])
-    if not isinstance(d, dict):
-        raise ValueError
-except ValueError:
-    d = {"ok": False, "error": "no result line from health"}
-print(json.dumps(d, sort_keys=True))')"
+health="$(last_json "$hout")"
 log "health: exit $hcode"
 
-if [ "$restored_ok" != true ]; then
-  fail 1 restore "restore failed (exit $code); the previous database is still in place" \
-    restored:=null health:="$health" detail:="$detail"
+common=(health:="$health" safety_backup:="$safety_file" detail:="$detail")
+case "$replaced" in
+  false)
+    fail 1 restore "restore failed (exit $code); the previous database is still in place" \
+      restored:=null "${common[@]}"
+    ;;
+  unknown)
+    fail 1 restore "restore failed (exit $code) without a result; the database may or may not have been replaced: check detail and health, the safety backup is in safety_backup" \
+      restored:=null "${common[@]}"
+    ;;
+esac
+if [ "$code" -ne 0 ]; then
+  fail 1 restore "the database was replaced, but docker compose run exited $code" \
+    restored="$name" "${common[@]}"
 fi
 if [ "$started" != true ] || [ "$hcode" -ne 0 ]; then
-  fail 1 restore "restored, but the app is not healthy" restored="$name" health:="$health"
+  fail 1 restore "restored, but the app is not healthy" restored="$name" "${common[@]}"
 fi
-json_out ok:=true command=restore restored="$name" health:="$health"
+json_out ok:=true command=restore restored="$name" health:="$health" safety_backup:="$safety_file"

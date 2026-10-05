@@ -1,6 +1,7 @@
 # Nightly backup of the research-engine SQLite store (V1-22, §10). Triggered by
-# research-engine-backup.timer. A template: ops/bootstrap.sh installs it with @REPO_DIR@ (e.g.
-# /opt/research-engine) and @USER@ (the user who owns the repo and runs docker) substituted.
+# research-engine-backup.timer. A template: ops/bootstrap.sh installs it with its placeholders
+# filled in: the repo path (e.g. /opt/research-engine), the user who owns the repo and runs
+# docker, and the resolved path of make (e.g. /usr/bin/make).
 [Unit]
 Description=research-engine SQLite backup (make backup)
 Wants=docker.service
@@ -10,4 +11,4 @@ After=docker.service
 Type=oneshot
 User=@USER@
 WorkingDirectory=@REPO_DIR@
-ExecStart=/usr/bin/make -C @REPO_DIR@ backup
+ExecStart=@MAKE@ -C @REPO_DIR@ backup

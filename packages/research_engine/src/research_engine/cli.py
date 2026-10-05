@@ -92,10 +92,19 @@ def _smoke(url: str, timeout_s: float) -> int:
     return 0 if result["ok"] else 1
 
 
-def _db(action: str, path: Path) -> int:
-    """``db backup --out`` / ``db restore --from``: exactly one JSON line; exit 0, 1 or 2."""
+def _db(action: str, path: Path, check: bool = False) -> int:
+    """``db backup --out`` / ``db restore [--check] --from``: one JSON line; exit 0, 1 or 2.
+
+    A failed restore reports ``replaced: false``: every failure happens before the final atomic
+    rename, so the previous database is still in place.
+    """
     from research_engine.config import Settings
-    from research_engine.store.sqlite_backup import DbOpError, backup_db, restore_db
+    from research_engine.store.sqlite_backup import (
+        DbOpError,
+        backup_db,
+        restore_db,
+        validate_source,
+    )
 
     db_path = Path(os.environ.get("DB_PATH") or Settings.model_fields["db_path"].default)
     result: dict[str, Any] = {"command": f"db {action}"}
@@ -103,6 +112,9 @@ def _db(action: str, path: Path) -> int:
     try:
         if action == "backup":
             result |= {"ok": True, "path": str(path), "bytes": backup_db(db_path, path)}
+        elif check:
+            validate_source(path)
+            result |= {"ok": True, "checked": True, "from": str(path)}
         else:
             size = restore_db(path, db_path)
             result |= {"ok": True, "restored": str(db_path), "from": str(path), "bytes": size}
@@ -112,6 +124,8 @@ def _db(action: str, path: Path) -> int:
     except (OSError, sqlite3.Error) as exc:
         result |= {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}
         code = 1
+    if action == "restore" and not result["ok"]:
+        result["replaced"] = False
     print(json.dumps(result, sort_keys=True), flush=True)
     return code
 
@@ -137,9 +151,14 @@ def main(argv: list[str] | None = None) -> int:
     db_restore.add_argument(
         "--from", dest="source", type=Path, required=True, help="backup file to restore"
     )
+    db_restore.add_argument(
+        "--check", action="store_true", help="only validate the source; DB_PATH is not touched"
+    )
     args = parser.parse_args(argv)
     if args.cmd == "db":
-        return _db(args.action, args.out if args.action == "backup" else args.source)
+        if args.action == "backup":
+            return _db("backup", args.out)
+        return _db("restore", args.source, check=args.check)
     if args.cmd == "smoke":
         return _smoke(args.url, args.timeout)
     if args.cmd == "schemas" and args.action == "export":

@@ -60,10 +60,29 @@ def backup_db(db_path: Path, out: Path) -> int:
     return out.stat().st_size
 
 
+def _is_wal_mode(path: Path) -> bool:
+    """Header bytes 18-19 (file format write/read versions) are 2 for a WAL-mode database."""
+    with path.open("rb") as fh:
+        header = fh.read(20)
+    return (
+        len(header) == 20
+        and header.startswith(b"SQLite format 3\x00")
+        and header[18:20] == b"\x02\x02"
+    )
+
+
 def validate_source(src: Path) -> None:
     """Raise unless ``src`` is an intact SQLite database holding the service's tables."""
     if not src.is_file():
         raise DbOpError(f"source not found: {src}", 2)
+    wal = Path(f"{src}-wal")
+    if _is_wal_mode(src) and wal.is_file() and wal.stat().st_size > 0:
+        # The source is opened immutable (it may sit on a read-only mount), which ignores a -wal
+        # file: committed rows in it would be silently lost. Refuse rather than guess.
+        raise DbOpError(
+            f"{src} is a WAL-mode database with a non-empty -wal file beside it; checkpoint it "
+            "first, or use a file made by `research-engine db backup`"
+        )
     # immutable=1: the source may sit on a read-only mount; it is never written
     try:
         with contextlib.closing(sqlite3.connect(_uri(src, "mode=ro&immutable=1"), uri=True)) as c:
@@ -101,9 +120,10 @@ def restore_db(src: Path, db_path: Path) -> int:
             result = _integrity(dst)
         if result != "ok":
             raise DbOpError(f"integrity_check failed on the restored copy: {result}")
+        size = tmp.stat().st_size
         for suffix in ("-wal", "-shm", "-journal"):
             Path(f"{db_path}{suffix}").unlink(missing_ok=True)
-        os.replace(tmp, db_path)
+        os.replace(tmp, db_path)  # the last step: any error above left db_path's data in place
     finally:
         tmp.unlink(missing_ok=True)
-    return db_path.stat().st_size
+    return size

@@ -186,3 +186,50 @@ def test_restore_missing_source_is_a_usage_error(
     code, res = run(capsys, "restore", "--from", str(tmp_path / "nope.sqlite"))
     assert code == 2 and res["ok"] is False
     assert not db.exists()
+
+
+def test_restore_check_validates_without_touching_the_db(
+    db: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    make_db(db, "current")
+    src = tmp_path / "src.sqlite"
+    make_db(src, "restored")
+    before = db.read_bytes()
+    code, res = run(capsys, "restore", "--check", "--from", str(src))
+    assert code == 0 and res["ok"] is True and res["checked"] is True
+    assert db.read_bytes() == before and job_ids(db) == ["current"]
+    bad = tmp_path / "bad.sqlite"
+    bad.write_bytes(b"junk" * 100)
+    code, res = run(capsys, "restore", "--check", "--from", str(bad))
+    assert code == 1 and res["ok"] is False and res["replaced"] is False
+
+
+def test_restore_failure_reports_the_db_was_not_replaced(
+    db: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    make_db(db, "current")
+    src = tmp_path / "junk.sqlite"
+    src.write_bytes(b"junk" * 100)
+    code, res = run(capsys, "restore", "--from", str(src))
+    assert code == 1 and res["replaced"] is False
+
+
+def test_restore_refuses_a_wal_source_with_its_wal_file(
+    db: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A raw copy of a live WAL database: committed rows still live in the -wal file, which an
+    immutable read would silently ignore. Refused with a clear message."""
+    live = tmp_path / "live" / "x.sqlite"
+    live.parent.mkdir()
+    make_db(live, "base")
+    holder = sqlite3.connect(live)  # keeps the WAL from being checkpointed away on close
+    try:
+        holder.execute("PRAGMA wal_autocheckpoint=0")
+        with holder:
+            holder.execute("UPDATE job SET id = 'in-wal'")
+        assert Path(f"{live}-wal").stat().st_size > 0
+        code, res = run(capsys, "restore", "--from", str(live))
+    finally:
+        holder.close()
+    assert code == 1 and res["ok"] is False and "-wal" in str(res["error"])
+    assert not db.exists()

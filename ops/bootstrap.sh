@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Idempotent, non-interactive VM setup (V1-22, §9, §10). Run by the owner: it may call sudo.
+# Idempotent VM setup (V1-22, §9, §10). Run by the owner: it asks no questions itself, but its one
+# sudo step (installing the backup timer) may prompt for the owner's sudo password.
 # Usage: ops/bootstrap.sh [--dry-run]
 #
 # 1. checks docker + docker compose, and that the repo is owned by the current user
@@ -7,13 +8,15 @@
 # 3. creates $BACKUP_DIR (mode 700)
 # 4. syncs deploy/caddy/ into $CADDY_DIR, copying only changed files and never deleting anything
 #    there; $CADDY_DIR/.env is never copied over. Its SITE_HOST is set from the repo .env (the
-#    single source); LAB_SUBNET (and the optional TOOLBOX_HOST) come from the environment only when
+#    single source) - but only from a .env that existed before this run: one just created from
+#    .env.example holds a placeholder and never replaces an existing value. LAB_SUBNET (and the optional TOOLBOX_HOST) come from the environment only when
 #    the Caddy env lacks them. Existing values are never changed, and no value is ever printed.
 # 5. starts Caddy (`docker compose up -d --wait` in $CADDY_DIR, which creates the `proxy` network).
 #    The Caddyfile is a single-file bind mount: if it (or compose.yaml or .env) changed, the
 #    container is recreated; if only sites/ changed, Caddy reloads.
-# 6. installs and enables the nightly backup timer (the script's only sudo use; skipped, without
-#    sudo, when the installed units already match and the timer is enabled and active).
+# 6. installs and enables the nightly backup timer (the script's only sudo use, which may prompt
+#    for the password; skipped, without sudo, when the installed units already match and the
+#    timer is enabled and active). The unit runs `make` at its resolved path (MAKE_BIN overrides).
 # --dry-run validates everything and prints the planned actions; it changes nothing, runs no
 # sudo and no state-changing docker command.
 CMD=bootstrap
@@ -53,7 +56,14 @@ on_exit_hook() { if [ -n "$TMP" ]; then rm -rf -- "$TMP"; fi; }
 command -v docker >/dev/null 2>&1 || die 2 "docker is not installed"
 docker compose version >/dev/null 2>&1 || die 2 "docker compose is not available"
 [ "$(stat -c %u "$REPO_DIR")" = "$(id -u)" ] || die 2 "$REPO_DIR is not owned by $RUN_USER"
-[[ "$REPO_DIR" =~ ^/[^[:space:]]*$ ]] || die 2 "REPO_DIR must be an absolute path without spaces"
+# REPO_DIR and the user land in systemd unit lines: no whitespace and no `%` (a specifier there).
+[[ "$REPO_DIR" =~ ^/[A-Za-z0-9._/-]+$ ]] ||
+  die 2 "REPO_DIR must be an absolute path of letters, digits and . _ / - only (systemd units)"
+[[ "$RUN_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || die 2 "user name $RUN_USER is not usable in a systemd unit"
+MAKE_BIN="${MAKE_BIN:-$(command -v make || true)}"
+[ -n "$MAKE_BIN" ] && [ -x "$MAKE_BIN" ] && [ ! -d "$MAKE_BIN" ] ||
+  die 2 "make is not installed (the backup timer runs make backup)"
+[[ "$MAKE_BIN" =~ ^/[A-Za-z0-9._/-]+$ ]] || die 2 "make must be at an absolute path without spaces or %"
 command -v systemctl >/dev/null 2>&1 || die 2 "systemctl is not available"
 
 # ---- plan (validates every precondition before anything changes) ------------------------------
@@ -95,7 +105,13 @@ if [ ! -e "$cenv" ]; then
   [ -z "${TOOLBOX_HOST:-}" ] || cenv_keys+=(TOOLBOX_HOST)
 else
   [ -r "$cenv" ] || die 2 "$cenv is not readable by $RUN_USER"
-  [ "$(env_get SITE_HOST "$cenv" || true)" = "$site" ] || cenv_keys+=(SITE_HOST)
+  site_note=""
+  if [ "$env_action" = create ]; then
+    # the new .env's SITE_HOST is the .env.example placeholder: never let it replace a real one
+    site_note="SITE_HOST not changed: .env was just created from .env.example; set SITE_HOST in .env and re-run"
+  elif [ "$(env_get SITE_HOST "$cenv" || true)" != "$site" ]; then
+    cenv_keys+=(SITE_HOST)
+  fi
   if [ -z "$(env_get LAB_SUBNET "$cenv" || true)" ]; then
     [ -n "${LAB_SUBNET:-}" ] || die 2 "LAB_SUBNET is empty in $cenv (Caddy would refuse every client): set LAB_SUBNET in the environment and re-run"
     cenv_keys+=(LAB_SUBNET)
@@ -132,10 +148,11 @@ else
 fi
 
 render_unit() { # render_unit name: the unit with REPO_DIR and the user substituted, on stdout
-  python3 - "$UNIT_SRC/$1" "$REPO_DIR" "$RUN_USER" <<'PY'
+  python3 - "$UNIT_SRC/$1" "$REPO_DIR" "$RUN_USER" "$MAKE_BIN" <<'PY'
 import sys
 text = open(sys.argv[1], encoding="utf-8").read()
-sys.stdout.write(text.replace("@REPO_DIR@", sys.argv[2]).replace("@USER@", sys.argv[3]))
+text = text.replace("@REPO_DIR@", sys.argv[2]).replace("@USER@", sys.argv[3])
+sys.stdout.write(text.replace("@MAKE@", sys.argv[4]))
 PY
 }
 units_changed=()
@@ -254,7 +271,11 @@ os.replace(tmp, path)
 PY
     die 1 "could not write $cenv"
 fi
-act step=caddy_env action="$cenv_action" keys:="$(json_list "${cenv_keys[@]}")"
+if [ -n "${site_note:-}" ]; then
+  act step=caddy_env action="$cenv_action" keys:="$(json_list "${cenv_keys[@]}")" site_host_note="$site_note"
+else
+  act step=caddy_env action="$cenv_action" keys:="$(json_list "${cenv_keys[@]}")"
+fi
 
 # 5. Caddy up / recreate / reload
 if [ "$DRY" != true ]; then
