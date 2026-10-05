@@ -1,6 +1,9 @@
 .PHONY: help bootstrap deploy rollback status health smoke logs backup restore version test
 SERVICE ?= app
 SINCE ?= 30m
+FILE ?=
+# Passed to scripts via the environment (never expanded into the recipe text).
+export SERVICE SINCE FILE
 
 help:            ## List ops commands
 	@grep -E '^[a-z]+:.*##' $(MAKEFILE_LIST) | sed -E 's/:[ ]*## /\t/'
@@ -17,11 +20,11 @@ health:          ## /health plus container healthchecks (read-only)
 smoke:           ## Demo set against the live API, <2 min (read-only)
 	@ops/smoke.sh
 logs:            ## Recent logs: make logs SERVICE=app SINCE=30m (read-only)
-	@ops/logs.sh "$(SERVICE)" "$(SINCE)"
+	@ops/logs.sh "$$SERVICE" "$$SINCE"
 backup:          ## Online SQLite backup to backups/ with retention
 	@ops/backup.sh
 restore:         ## Restore a backup: make restore FILE=backups/x.sqlite (approval required)
-	@ops/restore.sh "$(FILE)"
+	@ops/restore.sh "$$FILE"
 version:         ## Running commit, tag and image versions (read-only)
 	@ops/version.sh
 test:            ## Lint, type-check and unit tests

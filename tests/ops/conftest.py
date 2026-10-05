@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+BASH = shutil.which("bash") or "bash"
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parent / "fixtures" / "docker"
 
@@ -19,14 +20,17 @@ FAKE_DOCKER = r"""#!/usr/bin/env bash
 F="$FAKE_FIXTURES"
 printf '%s\n' "$*" >> "$FAKE_CALLS"
 printf '%s\n' "${GIT_SHA-unset}" >> "$FAKE_CALLS.sha"
+if [ -n "${FAKE_FAIL:-}" ]; then echo "fake docker: simulated failure" >&2; exit "$FAKE_FAIL"; fi
 args=" $* "
 case "$1" in
   compose)
     case "$args" in
-      *" ps -q "*) cat "$F/ps_q.txt" ;;
-      *" config --services "*) cat "$F/config_services.txt" ;;
+      *" ps -a -q "*) [ -n "${FAKE_PS_EMPTY:-}" ] || cat "$F/ps_q.txt" ;;
+      *" config --services "*)
+        [ -z "${FAKE_CONFIG_FAIL:-}" ] || exit 1
+        cat "$F/config_services.txt" ;;
       *" images "*) cat "$F/images.json" ;;
-      *" logs "*) cat "$F/logs.txt" ;;
+      *" logs "*) [ -z "${FAKE_LOGS_FAIL:-}" ] || exit 1; cat "$F/${FAKE_LOGS_FILE:-logs.txt}" ;;
       *" exec "*)
         case "$args" in
           *"/health"*) cat "$F/${FAKE_HEALTH_FILE:-exec_health.json}" ;;
@@ -35,7 +39,11 @@ case "$1" in
         esac ;;
       *) echo "fake docker: unhandled: $*" >&2; exit 99 ;;
     esac ;;
-  inspect) cat "$F/${FAKE_INSPECT_FILE:-inspect.json}" ;;
+  inspect)
+    case "$args" in
+      *" --format "*) cat "$F/${FAKE_INSPECT_FILE:-inspect.tsv}" ;;
+      *) cat "$F/inspect_full.json" ;;
+    esac ;;
   stats) cat "$F/stats.ndjson" ;;
   system) cat "$F/df.json" ;;
   *) echo "fake docker: unhandled: $*" >&2; exit 99 ;;
@@ -100,7 +108,7 @@ def fake_env(tmp_path: Path) -> FakeEnv:
             **env,
         }
         p = subprocess.run(
-            ["bash", f"ops/{cmd}.sh", *args],
+            [BASH, f"ops/{cmd}.sh", *args],
             cwd=repo,
             env=full,
             capture_output=True,

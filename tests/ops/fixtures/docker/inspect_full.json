@@ -1,0 +1,1 @@
+[{"Name":"/research-engine-app-1","State":{"Status":"running"},"Config":{"Env":["API_KEY=SEKRIT-API","SEARXNG_SECRET=SEKRIT-SX","ADMIN_TOKEN=SEKRIT-TOK"],"Labels":{"com.docker.compose.service":"app"}}}]

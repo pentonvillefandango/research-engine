@@ -3,7 +3,6 @@
 CMD=version
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_cmd docker
-require_cmd python3
 
 body="$(app_get /version 2>/dev/null || true)"
 images="$(dc images --format json)"
@@ -11,7 +10,7 @@ result="$(BODY="$body" IMAGES="$images" python3 - <<'PY'
 import json, os
 try:
     v = json.loads(os.environ["BODY"])["data"]
-except (ValueError, KeyError):
+except (ValueError, KeyError, TypeError):
     v = {}
 raw = os.environ["IMAGES"].strip()
 rows = json.loads(raw) if raw.startswith("[") else [json.loads(x) for x in raw.splitlines() if x.strip()]
@@ -22,5 +21,5 @@ print(json.dumps({"ok": bool(v), "command": "version", "version": v.get("version
                   "images": images}, sort_keys=True))
 PY
 )"
-printf '%s\n' "$result"
+emit_json_line "$result"
 [ "$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["ok"])')" = "True" ] || exit 1
