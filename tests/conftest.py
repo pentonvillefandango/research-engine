@@ -1,10 +1,13 @@
 """Shared pytest fixtures."""
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 import pytest
+from fastapi import FastAPI
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -45,6 +48,36 @@ def settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     get_settings.cache_clear()
 
 
+@asynccontextmanager
+async def running_lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Run ``application``'s lifespan start to finish in one dedicated task, as uvicorn does.
+
+    pytest-asyncio runs an async-generator fixture's setup and teardown in different tasks,
+    so ``async with lifespan_context(...)`` straight in a fixture would exit the lifespan in
+    another task than it entered it, which anyio's task groups (the MCP session manager's)
+    refuse. A startup error is raised here; a shutdown error on exit.
+    """
+    started = asyncio.Event()
+    stop = asyncio.Event()
+
+    async def run() -> None:
+        async with application.router.lifespan_context(application):
+            started.set()
+            await stop.wait()
+
+    task = asyncio.create_task(run(), name="lifespan")
+    ready = asyncio.create_task(started.wait())
+    await asyncio.wait({task, ready}, return_when=asyncio.FIRST_COMPLETED)
+    if not started.is_set():
+        ready.cancel()
+        await task  # raises the startup error
+    try:
+        yield
+    finally:
+        stop.set()
+        await task
+
+
 @pytest.fixture
 async def app(settings_env: None):
     from research_engine.app import create_app
@@ -54,7 +87,7 @@ async def app(settings_env: None):
     settings = Settings()  # type: ignore[call-arg]
     services = build_test_services(settings)
     application = create_app(settings, services=services)
-    async with application.router.lifespan_context(application):
+    async with running_lifespan(application):
         yield application
 
 

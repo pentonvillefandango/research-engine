@@ -4,7 +4,7 @@ import asyncio
 import threading
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime
 
 import httpx
@@ -44,6 +44,7 @@ from research_engine.jobs.runner import JobRunner
 from research_engine.jobs.store import JobStore
 from research_engine.logging import configure_logging
 from research_engine.maintenance import maintenance_loop
+from research_engine.mcp import build_mcp, mount_mcp
 from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
 from research_engine.pipeline.search_read import run_batch_fetch, run_search_read
@@ -211,6 +212,7 @@ async def _shutdown(
     *,
     close_http: bool,
     started: bool,
+    mcp: AsyncExitStack | None = None,
 ) -> None:
     """Reverse of startup. Every step runs even if an earlier one raises. After a clean
     startup the first error is re-raised afterwards (later ones are logged); after a failed
@@ -233,6 +235,10 @@ async def _shutdown(
                 lambda: _emit_system(services, EventKind.SYSTEM_SHUTDOWN, "service stopping"),
             )
         )
+    if mcp is not None:
+        # Started last, stopped first: cancels any MCP request still in flight before the
+        # services it uses go away.
+        steps.append(("stop mcp session manager", mcp.aclose))
     steps += [
         ("stop maintenance", lambda: _cancel_task(maintenance)),
         ("stop job runner", services.jobs.stop),
@@ -261,19 +267,22 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
         owned = services is None
         svc = app.state.services = build_services(settings) if services is None else services
         maintenance: asyncio.Task[None] | None = None
+        mcp_stack = AsyncExitStack()
         started = False
         try:
             await init_db(svc.engine)
             await svc.jobs.start()
             await _emit_system(svc, EventKind.SYSTEM_STARTUP, "service started")
             maintenance = asyncio.create_task(maintenance_loop(svc), name="maintenance")
+            # The MCP transport's task group (V1-12); a failure entering it is a startup failure.
+            await mcp_stack.enter_async_context(app.state.mcp.session_manager.run())
             started = True
             app.state.shutting_down = False
             # SIGTERM/SIGINT end SSE streams and long-polls at once (see research_engine.shutdown).
             with shutdown_signals(lambda: begin_shutdown(app)):
                 yield
         finally:
-            await _shutdown(svc, maintenance, close_http=owned, started=started)
+            await _shutdown(svc, maintenance, close_http=owned, started=started, mcp=mcp_stack)
 
     # No /docs or /redoc: they run CDN JavaScript without a CSP on the origin holding the GUI
     # session cookie. /openapi.json stays (and stays open).
@@ -293,6 +302,13 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     app.include_router(health_api.schemas_router)
     app.include_router(gui_routes.router)
     app.mount("/static", StaticFiles(directory=GUI_DIR / "static"), name="static")
+    # MCP (V1-12) at /mcp, behind ApiKeyMiddleware like /v1. Built per app: its session
+    # manager runs once, in this app's lifespan.
+    mcp = build_mcp(lambda: app.state.services)
+    mount_mcp(
+        app, mcp, allowed_hosts=[settings.site_host, "localhost", "127.0.0.1", "research.localhost"]
+    )
+    app.state.mcp = mcp
     api_key = settings.api_key.get_secret_value()
     codec = SessionCodec(settings.session_secret.get_secret_value())
     app.state.api_key = api_key.encode()

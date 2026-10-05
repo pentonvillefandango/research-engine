@@ -11,6 +11,8 @@ from pydantic import SecretStr
 from research_engine.app import create_app
 from research_engine.config import Settings
 
+from tests.conftest import running_lifespan
+
 # Read at import: the settings_env fixture replaces CRAWL4AI_API_TOKEN with a test value.
 _LIVE_TOKEN = os.environ.get("CRAWL4AI_API_TOKEN", "")
 
@@ -31,7 +33,7 @@ async def live_app(settings_env: None, tmp_path: Path) -> AsyncIterator[FastAPI]
         }
     )
     application = create_app(settings)
-    async with application.router.lifespan_context(application):
+    async with running_lifespan(application):  # one task, like uvicorn (see tests/conftest.py)
         yield application
 
 

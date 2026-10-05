@@ -28,6 +28,7 @@ dev = [
   "jsonschema>=4.26.0",
   "pre-commit>=4.6.2",
   "types-pyyaml>=6.0.12.20260906",
+  "openai-agents>=0.23.1",
 ]
 
 [tool.pytest]
