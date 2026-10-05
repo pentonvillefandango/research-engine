@@ -5,11 +5,15 @@ import asyncio
 import os
 import signal
 import sys
+import threading
 import time
+from pathlib import Path
 from types import FrameType
 
 import httpx
 import pytest
+import structlog
+import structlog.testing
 from research_engine.events.base import Emitter
 from research_engine.events.memory import InMemoryEventBus
 from research_engine.gui.session import COOKIE, SessionCodec
@@ -165,3 +169,103 @@ async def test_sigterm_with_open_sse_stream_exits_fast() -> None:
         if proc.returncode is None:
             proc.kill()
             await proc.wait()
+
+
+# --- aiosqlite worker threads are joined at shutdown (D9) ---------------------------------------
+
+
+def _sqlite_workers() -> list[threading.Thread]:
+    return [t for t in threading.enumerate() if "_connection_worker_thread" in t.name]
+
+
+async def _lifespan_round(tmp_path: Path, name: str) -> None:
+    from research_engine.app import create_app
+    from research_engine.config import Settings
+    from research_engine.store.db import init_db
+    from research_engine.testing import build_test_services
+
+    settings = Settings(db_path=str(tmp_path / name))  # type: ignore[call-arg]
+    services = build_test_services(settings)
+    application = create_app(settings, services=services)
+    async with application.router.lifespan_context(application):
+        await init_db(services.engine)
+        for _ in range(3):  # a few concurrent sessions -> several pooled connections
+            await asyncio.gather(*(services.events.tail(5) for _ in range(3)))
+
+
+async def test_lifespan_exit_leaves_no_aiosqlite_worker_alive_slow_exit(
+    settings_env: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deterministic version: aiosqlite's worker resolves ``close()``'s future and *then* logs
+    "operation ... completed" before leaving its loop. Slowing that log call widens the real
+    window (``dispose()`` returns while the daemon worker is still running) so that, unjoined,
+    the thread is always alive after the lifespan."""
+    import aiosqlite.core
+
+    real_debug = aiosqlite.core.LOG.debug
+
+    def slow_debug(msg: str, *args: object) -> None:
+        if msg.startswith("operation"):
+            time.sleep(0.1)
+        real_debug(msg, *args)
+
+    monkeypatch.setattr(aiosqlite.core.LOG, "debug", slow_debug)
+    await _lifespan_round(tmp_path, "slow.db")
+    assert _sqlite_workers() == []
+
+
+async def test_lifespan_exit_leaves_no_aiosqlite_worker_alive(
+    settings_env: None, tmp_path: Path
+) -> None:
+    """SQLAlchemy makes aiosqlite's worker a daemon and ``dispose()`` returns before it exits;
+    unjoined it can still be alive at interpreter finalisation (python/cpython#124878). Without
+    the join it is alive right after the lifespan in a few percent of rounds, so repeat."""
+    for i in range(30):
+        await _lifespan_round(tmp_path, f"w{i}.db")
+        assert _sqlite_workers() == [], f"worker alive after lifespan exit (round {i})"
+
+
+async def test_stuck_worker_thread_is_abandoned_after_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from research_engine import app as app_mod
+
+    release = threading.Event()
+    stuck = threading.Thread(
+        target=release.wait, name="Thread-99 (_connection_worker_thread)", daemon=True
+    )
+    stuck.start()
+    monkeypatch.setattr(app_mod, "_sqlite_worker_threads", lambda: [stuck])
+    try:
+        with structlog.testing.capture_logs() as logs:
+            t0 = time.perf_counter()
+            await asyncio.wait_for(app_mod._join_sqlite_workers(0.3), 5.0)
+            elapsed = time.perf_counter() - t0
+        assert 0.25 <= elapsed < 2.0
+        assert stuck.is_alive()  # abandoned, not killed
+        assert any(e["log_level"] == "warning" and "aiosqlite" in e["event"] for e in logs), logs
+    finally:
+        release.set()
+        stuck.join(2)
+
+
+async def test_join_budget_is_total_not_per_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    from research_engine import app as app_mod
+
+    release = threading.Event()
+    threads = [
+        threading.Thread(target=release.wait, name=f"Thread-{i} (_connection_worker_thread)")
+        for i in range(4)
+    ]
+    for t in threads:
+        t.daemon = True
+        t.start()
+    monkeypatch.setattr(app_mod, "_sqlite_worker_threads", lambda: threads)
+    try:
+        t0 = time.perf_counter()
+        await app_mod._join_sqlite_workers(0.4)
+        assert time.perf_counter() - t0 < 1.0
+    finally:
+        release.set()
+        for t in threads:
+            t.join(2)

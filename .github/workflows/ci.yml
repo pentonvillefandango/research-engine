@@ -19,6 +19,8 @@ jobs:
       - run: uv run pyright
       - run: uv run research-engine schemas export --check
       - run: uv run pytest --cov=research_engine --cov=research_engine_client --cov-report=term-missing
+        env:
+          PYTHONFAULTHANDLER: "1"
   gitleaks:
     runs-on: ubuntu-latest
     steps:

@@ -1,6 +1,8 @@
 """Composition root: wires concrete adapters to protocols (Global Constraint 4)."""
 
 import asyncio
+import threading
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -163,6 +165,46 @@ async def _close_http(services: Services) -> None:
             await client.aclose()
 
 
+_SQLITE_JOIN_TIMEOUT_S = 2.0
+
+
+def _sqlite_worker_threads() -> list[threading.Thread]:
+    """Live aiosqlite worker threads. ``aiosqlite.Connection`` starts
+    ``Thread(target=_connection_worker_thread, ...)`` without a name, so Python names it
+    ``Thread-N (_connection_worker_thread)`` (3.10+, from the target's ``__name__``). ``_target``
+    cannot be used: ``Thread.run`` deletes it once the thread has started."""
+    return [t for t in threading.enumerate() if "_connection_worker_thread" in t.name]
+
+
+def _join_threads(threads: list[threading.Thread], timeout_s: float) -> list[threading.Thread]:
+    """Blocking: join with one shared deadline. Returns the threads still alive."""
+    deadline = time.monotonic() + timeout_s
+    for t in threads:
+        t.join(max(0.0, deadline - time.monotonic()))
+    return [t for t in threads if t.is_alive()]
+
+
+async def _join_sqlite_workers(timeout_s: float = _SQLITE_JOIN_TIMEOUT_S) -> None:
+    """Wait (bounded, off the event loop) for aiosqlite's worker threads to exit.
+
+    SQLAlchemy forces those workers to ``daemon=True`` and ``engine.dispose()`` returns as soon
+    as ``close()``'s future resolves, while the worker still has bytecode to run. A daemon thread
+    still running at interpreter finalisation is a known CPython crash class
+    (python/cpython#124878, #140257), so join them. ``timeout_s`` is the *total* budget; a thread
+    still alive after it is logged and abandoned, so shutdown can never hang.
+    """
+    threads = _sqlite_worker_threads()
+    if not threads:
+        return
+    stuck = await asyncio.to_thread(_join_threads, threads, timeout_s)
+    if stuck:
+        _log.warning(
+            "aiosqlite worker threads still alive after join timeout",
+            threads=[t.name for t in stuck],
+            timeout_s=timeout_s,
+        )
+
+
 async def _shutdown(
     services: Services,
     maintenance: asyncio.Task[None] | None,
@@ -198,6 +240,7 @@ async def _shutdown(
     if close_http:
         steps.append(("close http clients", lambda: _close_http(services)))
     steps.append(("dispose engine", services.engine.dispose))
+    steps.append(("join aiosqlite workers", _join_sqlite_workers))
     first: Exception | None = None
     for name, step in steps:
         try:

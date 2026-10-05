@@ -43,6 +43,7 @@ This VM is the live host, and other tools will share it.
 Development:
 - `uv sync`. Run tests with `uv run pytest`; integration tests are deselected by default.
 - `uv run ruff check && uv run ruff format --check && uv run pyright`. Or use `make test`.
+- When diagnosing test crashes, run with `PYTHONFAULTHANDLER=1` and keep the full output (redirect to a file); never pipe it through `| tail`, which discards the fatal-error dump.
 - `uv run research-engine schemas export [--check]` regenerates `schemas/`, and CI checks that it's current.
 - **Integration tests** run against the dev stack, which has no Caddy and uses ephemeral loopback ports:
   1. `docker compose -f compose.yaml -f compose.dev.yaml up -d --wait`
