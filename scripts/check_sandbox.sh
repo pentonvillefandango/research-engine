@@ -119,13 +119,33 @@ path_ok() { # crawl_ok no_sandbox new sandboxed
 # pool signature, so Crawl4AI does a FRESH launch on both paths and the renderers checked are
 # guaranteed new. Pooled browsers would otherwise reuse renderers (Chrome reuses same-site
 # processes). The extra browsers are reaped by Crawl4AI's pool janitor (idle_ttl_sec: 300).
-W=$((1000 + RANDOM % 900))
+# The width must not repeat within the pool lifetime (~345 s): a repeat reuses a pooled entry, and
+# in builtin mode every browser shares CDP port 9222, so the janitor closing any other builtin
+# entry kills the Chrome behind a reused one ("Target page, context or browser has been closed").
+# So W is derived from the epoch seconds, not RANDOM: 2000..7999 repeats only every 6000 s, never
+# collides with the default 1080, and stays inside Chrome's valid viewport range. Runs under 1 s
+# apart would collide; the probe itself takes ~20 s.
+width_at() { echo $((2000 + ($(date +%s) + $1) % 6000)); }
+W=$(width_at 0)
 CFG='"crawler_config":{"type":"CrawlerRunConfig","params":{"cache_mode":"bypass"}}'
 URL='"urls":["https://example.com"]'
+builtin_body() {
+  echo "{$URL,$CFG,\"browser_config\":{\"type\":\"BrowserConfig\",\"params\":{\"browser_mode\":\"builtin\",\"viewport_width\":$1}}}"
+}
 read -r d_crawl d_ns d_new d_sb < <(run_path default \
   "{$URL,$CFG,\"browser_config\":{\"type\":\"BrowserConfig\",\"params\":{\"viewport_width\":$W}}}")
-read -r b_crawl b_ns b_new b_sb < <(run_path builtin \
-  "{$URL,$CFG,\"browser_config\":{\"type\":\"BrowserConfig\",\"params\":{\"browser_mode\":\"builtin\",\"viewport_width\":$W}}}")
+read -r b_crawl b_ns b_new b_sb < <(run_path builtin "$(builtin_body "$W")")
+# Retry the builtin path ONCE, with a new width, only when the crawl itself failed with a
+# browser/target-closed error and no --no-sandbox process was seen (b_ns is exactly 0). A result
+# with b_ns != 0 (unsandboxed, or a probe that never became ready: -1) is never retried, and a
+# retry that fails again is reported as a failure, so this can only turn a lost browser into a
+# second attempt, never an unsandboxed run into a pass.
+builtin_retried=false
+if [ "$b_crawl" != true ] && [ "$b_ns" -eq 0 ] &&
+  grep -qiE '(target|page|context|browser)[^"]{0,40}(has been )?closed' "$out"; then
+  builtin_retried=true
+  read -r b_crawl b_ns b_new b_sb < <(run_path builtin "$(builtin_body "$(width_at 3000)")")
+fi
 default_ok=$(path_ok "$d_crawl" "$d_ns" "$d_new" "$d_sb")
 builtin_ok=$(path_ok "$b_crawl" "$b_ns" "$b_new" "$b_sb")
 
@@ -141,5 +161,5 @@ if [ "$default_ok" = true ] && [ "$builtin_ok" = true ] && [ "$addon_active" = t
   [ "$addon_warnings" -eq 0 ] && [ "$no_sandbox" -eq 0 ]; then
   sandbox=on
 fi
-echo "{\"sandbox\":\"$sandbox\",\"no_sandbox_procs\":$no_sandbox,\"default_ok\":$default_ok,\"default_new_renderers\":$d_new,\"builtin_ok\":$builtin_ok,\"builtin_new_renderers\":$b_new,\"addon_active\":$addon_active,\"addon_warnings\":$addon_warnings,\"crawl_ok\":$crawl_ok}"
+echo "{\"sandbox\":\"$sandbox\",\"no_sandbox_procs\":$no_sandbox,\"default_ok\":$default_ok,\"default_new_renderers\":$d_new,\"builtin_ok\":$builtin_ok,\"builtin_new_renderers\":$b_new,\"addon_active\":$addon_active,\"addon_warnings\":$addon_warnings,\"crawl_ok\":$crawl_ok,\"builtin_retried\":$builtin_retried}"
 [ "$sandbox" = on ] && [ "$crawl_ok" = true ]
