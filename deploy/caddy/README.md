@@ -58,6 +58,14 @@ here: that would make Caddy trust client-supplied forwarded headers.
 Caveat (ADR-0026): any co-tenant container on `proxy` can reach the apps directly, bypassing
 the lab-subnet restriction in the site file. The application's API key still applies.
 
+## Serve at the site root, never under a path prefix
+
+Serve the app at the root of its own hostname, as the site file does. Do not mount it under a
+path prefix (`handle_path /research/*`, `uri strip_prefix`) and never start uvicorn with
+`--root-path`. The auth middleware decides what is open (`/health`, `/version`, `/login`, `/static/` ...),
+API-key-only (`/mcp`) or cookie-or-key (`/v1`) from the raw request path, and the GUI's Origin
+check and redirects assume the app owns `/`. Under a prefix those assumptions break.
+
 ## Plain-HTTP alternative
 
 If you do not want to trust a local CA, serve plain HTTP instead: in the site file use

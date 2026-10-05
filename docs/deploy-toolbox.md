@@ -106,7 +106,9 @@ Commit any change first: `make deploy` refuses a dirty tree.
 make deploy
 ```
 
-It builds the app from the current commit, starts the stack, runs the smoke test and the sandbox check, and rolls back by itself if either fails.
+It builds the app from the current commit, starts the stack, runs the smoke test and the sandbox check, and rolls back by itself if either fails. It refuses (exit 2, nothing changed) while any secret in `.env` is missing, the `.env.example` placeholder or shorter than 32 characters.
+
+Serve the app at the root of its own hostname (`https://<SITE_HOST>/`), as the shipped Caddy site file does. Never put it under a path prefix or run uvicorn with `--root-path`: the auth middleware classifies routes by the raw request path, and the GUI's Origin check and redirects assume the app owns `/` (see `deploy/caddy/README.md`).
 
 ## 9. Verify
 

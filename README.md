@@ -8,7 +8,7 @@ Research quality comes before speed. The reasoning stays in the calling agent: t
 
 ## Status
 
-V1 (search and read, fully observable) is being finished on the `v1` branch and will be tagged `v1.0.0`. V2 and V3 are planned in [REQUIREMENTS.md](REQUIREMENTS.md).
+V1.0.0 (search and read, fully observable) is released: tag `v1.0.0` on `main`. V2 and V3 are planned in [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Features (V1)
 
@@ -175,7 +175,7 @@ Open `https://<SITE_HOST>/` and log in with the API key. The session lasts 12 ho
 ## Security notes
 
 - **API key** on every `/v1` and `/mcp` request; the GUI uses a signed, HTTP-only session cookie with a same-origin check.
-- **SSRF:** fetches to loopback, private, link-local, CGNAT and other internal addresses are blocked, on every redirect hop (ADR-0026). `SSRF_ALLOW_HOSTS` exempts named hosts.
+- **SSRF:** fetches to loopback, private, link-local, CGNAT and other internal addresses are blocked (ADR-0026). `SSRF_ALLOW_HOSTS` exempts named hosts. Static fetches are checked on every redirect hop. Browser fetches are not: the start URL and the final URL are checked, but the redirects Chromium follows in between and the page's subresources (images, scripts, frames, XHR) are not checked by this service, only by Crawl4AI's own internal-URL block. Blocking the browser container's LAN egress at the network layer is planned for V2 (ADR-0022).
 - **robots.txt** is obeyed, with per-domain pacing and `Crawl-delay`.
 - **Browser sandbox:** Chromium runs with its sandbox on, never `--no-sandbox` (ADR-0022).
 - **Untrusted content:** fetched pages are data, not instructions. The GUI renders them safely, and agents should treat them the same way (see the [usage guide](docs/USING.md#fetched-content-is-untrusted)).
