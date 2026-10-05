@@ -107,3 +107,14 @@ def test_sanitizer_layer_keeps_https_link_with_rel() -> None:
     out = sanitize_html('<a href="HTTPS://ok" title="t">x</a>')
     [(_, attrs)] = _elements(out)
     assert attrs == {"href": "HTTPS://ok", "title": "t", "rel": "noopener noreferrer nofollow"}
+
+
+def test_returns_markup_that_jinja_does_not_re_escape() -> None:
+    from jinja2 import Environment
+    from markupsafe import Markup
+
+    out = render_untrusted_markdown("**b** <i>raw</i>")
+    assert isinstance(out, Markup)
+    page = Environment(autoescape=True).from_string("<div>{{ body }}</div>").render(body=out)
+    assert page == f"<div>{out}</div>" and "<strong>b</strong>" in page
+    assert "&lt;i&gt;raw&lt;/i&gt;" in page  # the escaped raw HTML stays escaped once, not twice

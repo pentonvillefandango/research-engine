@@ -1,7 +1,10 @@
 # Vendored front-end assets
 
-Written by `scripts/vendor_assets.sh`, which downloads each npm tarball, verifies it against the
-registry's `dist.integrity` (sha512) before extracting, and copies one file out unchanged.
+Written by `scripts/vendor_assets.sh`, which downloads each npm tarball and copies one file out
+unchanged. The tarball sha512 values below are pinned in the script: the registry's
+`dist.integrity` and the downloaded tarball must both equal the pin before anything is extracted.
+`tests/service/unit/test_vendor.py` checks offline that the pins and the file SRI values here
+match the script and the committed files.
 `scripts/vendor_assets.sh --check` re-downloads, re-verifies and compares the bytes; it exits
 non-zero on any drift. The files are byte-exact copies (no trailing newline), so the pre-commit
 whitespace hooks exclude this directory.

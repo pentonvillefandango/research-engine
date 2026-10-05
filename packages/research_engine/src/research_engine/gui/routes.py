@@ -1,6 +1,5 @@
 """GUI routes (login, logout, layout) and the GUI security-headers middleware (B2)."""
 
-import hmac
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from research_engine.api import auth
 from research_engine.api.auth import is_api_path
 from research_engine.gui.session import (
     COOKIE,
@@ -36,9 +36,6 @@ _SECURITY_HEADERS = (
     (b"referrer-policy", b"same-origin"),
     (b"x-frame-options", b"DENY"),
 )
-# FastAPI's Swagger UI / ReDoc pages need inline scripts and a CDN, so they get every header
-# except the CSP (they show no untrusted content and run with no credentials beyond the key).
-_CSP_EXEMPT = ("/docs", "/redoc")
 
 
 class SecurityHeadersMiddleware:
@@ -55,15 +52,13 @@ class SecurityHeadersMiddleware:
         if scope["type"] != "http" or is_api_path(scope["path"]):
             await self.app(scope, receive, send)
             return
-        path: str = scope["path"]
-        skip_csp = any(path == p or path.startswith(p + "/") for p in _CSP_EXEMPT)
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers") or [])
                 present = {k.lower() for k, _ in headers}
                 for name, value in _SECURITY_HEADERS:
-                    if name in present or (skip_csp and name == b"content-security-policy"):
+                    if name in present:
                         continue
                     headers.append((name, value))
                 message["headers"] = headers
@@ -82,6 +77,7 @@ def _origin_ok(request: Request) -> bool:
     return same_origin(
         request.headers.getlist("origin"),
         request.headers.getlist("referer"),
+        request.url.scheme,
         hosts[0] if len(hosts) == 1 else "",
         request.app.state.site_host,
     )
@@ -125,7 +121,7 @@ async def login(
         response.headers["Retry-After"] = str(limiter.retry_after(client))
         return response
     expected: bytes = request.app.state.api_key
-    if not hmac.compare_digest(api_key.encode(), expected):
+    if not auth.key_matches(api_key, expected):
         limiter.fail(client)
         return _login_page(request, target, "Invalid key", 401)
     limiter.reset(client)

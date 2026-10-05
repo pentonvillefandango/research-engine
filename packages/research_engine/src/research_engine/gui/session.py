@@ -3,6 +3,7 @@
 The cookie value is ``TimestampSigner(session_secret, salt=SALT).sign("gui")``.
 """
 
+import math
 import time
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable
@@ -14,7 +15,11 @@ COOKIE = "re_session"
 MAX_AGE_S = 12 * 3600
 SALT = "research-engine-gui"
 _PAYLOAD = b"gui"
-STATE_CHANGING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+# Allowlist: every other method (POST, PUT, PATCH, DELETE, and anything unknown) is treated as
+# state-changing and Origin-checked, so new routes and MCP verbs fail closed.
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+type Origin = tuple[str, str, int]  # (scheme, lowercase host, effective port)
 
 
 class SessionCodec:
@@ -57,27 +62,46 @@ def cookie_values(headers: Iterable[str], name: str) -> list[str]:
     return found
 
 
-def _source_matches(source: str, host: str, site_host: str) -> bool:
+def _origin_of(scheme: str, netloc: str) -> Origin | None:
+    """Normalise ``scheme`` + ``netloc`` to ``(scheme, host, port)``; ``None`` if unusable.
+
+    Rejects userinfo, empty or trailing-dot hosts, bad ports and non-http(s) schemes. The
+    default port of the scheme is filled in, so ``http://h`` and ``http://h:80`` are equal.
+    """
+    scheme = scheme.lower()
+    if scheme not in _DEFAULT_PORTS or not netloc or "@" in netloc:
+        return None
+    try:
+        parts = urlsplit(f"//{netloc}")
+        host, port = parts.hostname, parts.port
+    except ValueError:
+        return None
+    if not host or host.endswith(".") or parts.path or parts.query or parts.fragment:
+        return None
+    return scheme, host, port if port is not None else _DEFAULT_PORTS[scheme]
+
+
+def _source_origin(source: str) -> Origin | None:
     try:
         parts = urlsplit(source.strip())
-        hostname = parts.hostname
     except ValueError:
-        return False
-    if parts.scheme not in ("http", "https") or not hostname or "@" in parts.netloc:
-        return False
-    netloc = parts.netloc.lower()
-    allowed = {site_host.lower(), host.lower()} - {""}
-    return netloc in allowed or hostname in allowed
+        return None
+    return _origin_of(parts.scheme, parts.netloc)
 
 
-def same_origin(origins: list[str], referers: list[str], host: str, site_host: str) -> bool:
-    """CSRF defence in depth for state-changing requests.
+def same_origin(
+    origins: list[str], referers: list[str], scheme: str, host: str, site_host: str
+) -> bool:
+    """CSRF defence in depth for non-safe requests.
 
-    Uses the ``Origin`` header(s) or, when there is none, the ``Referer``. Every value present
-    must name ``site_host`` or the request ``Host``. With neither header the request is refused.
+    The source is the ``Origin`` header(s) or, when there is none, the ``Referer``. Each value
+    must normalise to exactly ``(scheme, host, port)`` of the request itself (its scheme plus
+    ``Host``) or of ``site_host`` (with the request's scheme, default port unless ``site_host``
+    names one). With neither header the request is refused.
     """
+    allowed = {o for o in (_origin_of(scheme, host), _origin_of(scheme, site_host)) if o}
     sources = origins or referers
-    return bool(sources) and all(_source_matches(s, host, site_host) for s in sources)
+    return bool(sources and allowed) and all(_source_origin(s) in allowed for s in sources)
 
 
 def _bad_path(value: str) -> bool:
@@ -104,9 +128,10 @@ def safe_next(value: str | None) -> str:
 
 
 class LoginRateLimiter:
-    """Failed-login limiter per client IP: ``max_failures`` within ``window_s`` blocks the client
-    until the oldest of those failures leaves the window. Memory is bounded to ``max_clients``
-    (least recently failed client evicted first); checking never allocates."""
+    """Failed-login limiter per client IP with a fixed lockout: the ``max_failures``-th failure
+    within ``window_s`` blocks the client until ``window_s`` after that failure, whatever
+    happens meanwhile. Memory is bounded to ``max_clients`` (least recently failed client
+    evicted first); checking never allocates."""
 
     def __init__(
         self,
@@ -123,42 +148,52 @@ class LoginRateLimiter:
             clock,
         )
         self._fails: OrderedDict[str, deque[float]] = OrderedDict()
+        self._blocked_until: dict[str, float] = {}
 
     def __len__(self) -> int:
-        return len(self._fails)
+        return len(self._fails) + len(self._blocked_until)
 
-    def _recent(self, client: str) -> deque[float] | None:
-        q = self._fails.get(client)
-        if q is None:
+    def _until(self, client: str) -> float | None:
+        until = self._blocked_until.get(client)
+        if until is not None and self._clock() >= until:
+            del self._blocked_until[client]
             return None
-        cutoff = self._clock() - self._window
-        while q and q[0] <= cutoff:
-            q.popleft()
-        if not q:
-            del self._fails[client]
-            return None
-        return q
+        return until
 
     def blocked(self, client: str) -> bool:
-        q = self._recent(client)
-        return q is not None and len(q) >= self._max
+        return self._until(client) is not None
 
     def retry_after(self, client: str) -> int:
         """Whole seconds until ``client`` is unblocked (0 if not blocked)."""
-        q = self._recent(client)
-        if q is None or len(q) < self._max:
-            return 0
-        return max(1, int(q[-self._max] + self._window - self._clock() + 0.999))
+        until = self._until(client)
+        return 0 if until is None else max(1, math.ceil(until - self._clock()))
 
     def fail(self, client: str) -> None:
-        q = self._recent(client)
+        if self.blocked(client):
+            return  # attempts during a lockout neither count nor extend it
+        now = self._clock()
+        q = self._fails.get(client)
         if q is None:
             q = self._fails[client] = deque(maxlen=self._max)
-            while len(self._fails) > self._cap:
-                self._fails.popitem(last=False)
         else:
             self._fails.move_to_end(client)
-        q.append(self._clock())
+        while q and q[0] <= now - self._window:
+            q.popleft()
+        q.append(now)
+        if len(q) >= self._max:
+            del self._fails[client]
+            self._blocked_until[client] = now + self._window
+        while len(self._fails) > self._cap:
+            self._fails.popitem(last=False)
+        self._evict_expired_blocks(now)
+
+    def _evict_expired_blocks(self, now: float) -> None:
+        if len(self._blocked_until) > self._cap:
+            for c in [c for c, until in self._blocked_until.items() if until <= now]:
+                del self._blocked_until[c]
+            while len(self._blocked_until) > self._cap:  # oldest lockouts end first
+                del self._blocked_until[next(iter(self._blocked_until))]
 
     def reset(self, client: str) -> None:
         self._fails.pop(client, None)
+        self._blocked_until.pop(client, None)

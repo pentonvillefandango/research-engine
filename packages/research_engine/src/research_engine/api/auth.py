@@ -3,14 +3,16 @@
 Precedence for every HTTP request:
 1. open path -> pass;
 2. valid ``X-API-Key`` -> pass (no Origin check: not a browser credential);
-3. valid ``re_session`` cookie -> pass, but state-changing methods must also pass the Origin
-   check (``gui.session.same_origin``), else 403 (envelope on /v1 and /mcp, plain page elsewhere);
+3. valid ``re_session`` cookie -> pass, but every method other than GET, HEAD and OPTIONS must
+   also pass the Origin check (``gui.session.same_origin``), else 403 (envelope on /v1 and
+   /mcp, plain page elsewhere);
 4. otherwise 401 envelope on /v1 and /mcp, and 303 to ``/login?next=<path>`` for anything else.
 
 WebSocket connections accept only ``X-API-Key`` and are closed with 1008 otherwise; every other
 scope type except ``lifespan`` fails closed.
 """
 
+import hashlib
 import hmac
 import json
 from urllib.parse import quote
@@ -20,19 +22,32 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from research_engine.gui.session import (
     COOKIE,
-    STATE_CHANGING,
+    SAFE_METHODS,
     SessionCodec,
     cookie_values,
     same_origin,
 )
 
-OPEN_PATHS = ("/health", "/version", "/openapi.json", "/docs", "/redoc", "/login", "/static/")
+OPEN_PATHS = ("/health", "/version", "/openapi.json", "/login", "/static/")
 API_PREFIXES = ("/v1", "/mcp")
 
 
 def is_api_path(path: str) -> bool:
     """``/v1`` and ``/mcp`` (and below) speak envelopes, never HTML or redirects."""
     return any(path == p or path.startswith(p + "/") for p in API_PREFIXES)
+
+
+def key_matches(supplied: bytes | str, expected: bytes) -> bool:
+    """Constant-time API-key check that does not leak the key's length.
+
+    ``hmac.compare_digest`` returns early on a length mismatch, so it compares fixed-length
+    SHA-256 digests of both values instead. Every API-key comparison goes through here.
+    """
+    if isinstance(supplied, str):
+        supplied = supplied.encode()
+    if not supplied:
+        return False
+    return hmac.compare_digest(hashlib.sha256(supplied).digest(), hashlib.sha256(expected).digest())
 
 
 def _header_values(scope: Scope, name: bytes) -> list[str]:
@@ -51,8 +66,7 @@ class ApiKeyMiddleware:
 
     def _has_key(self, scope: Scope) -> bool:
         headers = dict(scope.get("headers") or [])
-        supplied = headers.get(b"x-api-key", b"")
-        return bool(supplied) and hmac.compare_digest(supplied, self._key)
+        return key_matches(headers.get(b"x-api-key", b""), self._key)
 
     def _has_session(self, scope: Scope) -> bool:
         values = cookie_values(_header_values(scope, b"cookie"), COOKIE)
@@ -64,6 +78,7 @@ class ApiKeyMiddleware:
         return same_origin(
             _header_values(scope, b"origin"),
             _header_values(scope, b"referer"),
+            scope.get("scheme", "http"),
             hosts[0] if len(hosts) == 1 else "",
             self._site_host,
         )
@@ -83,7 +98,7 @@ class ApiKeyMiddleware:
             return
         path: str = scope["path"]
         if self._has_session(scope):
-            if scope["method"] not in STATE_CHANGING or self._origin_ok(scope):
+            if scope["method"] in SAFE_METHODS or self._origin_ok(scope):
                 await self.app(scope, receive, send)
                 return
             await self._forbidden(scope, send)

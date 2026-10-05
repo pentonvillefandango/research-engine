@@ -223,7 +223,15 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
         finally:
             await _shutdown(svc, maintenance, close_http=owned, started=started)
 
-    app = FastAPI(title="Research Engine", version=__version__, lifespan=lifespan)
+    # No /docs or /redoc: they run CDN JavaScript without a CSP on the origin holding the GUI
+    # session cookie. /openapi.json stays (and stays open).
+    app = FastAPI(
+        title="Research Engine",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+    )
     install_exception_handlers(app)
     app.include_router(search_api.router)
     app.include_router(fetch_api.router)

@@ -1,3 +1,4 @@
+import hmac
 import re
 import time
 from pathlib import Path
@@ -5,6 +6,7 @@ from pathlib import Path
 import httpx
 import pytest
 from itsdangerous import TimestampSigner
+from research_engine.api import auth as auth_mod
 from research_engine.gui.session import (
     COOKIE,
     MAX_AGE_S,
@@ -12,6 +14,7 @@ from research_engine.gui.session import (
     LoginRateLimiter,
     SessionCodec,
     safe_next,
+    same_origin,
 )
 from research_engine_client.models import ErrorCode
 
@@ -411,11 +414,41 @@ def test_limiter_window_expires() -> None:
         assert not lim.blocked("a")
         lim.fail("a")
     assert lim.blocked("a") and not lim.blocked("b")
-    assert 59 <= lim.retry_after("a") <= 60
+    assert lim.retry_after("a") == 60
     now[0] += 59.0
     assert lim.blocked("a")
     now[0] += 1.5
     assert not lim.blocked("a")
+
+
+def test_lockout_is_fixed_from_the_fifth_failure() -> None:
+    now = [0.0]
+    lim = LoginRateLimiter(max_failures=5, window_s=60.0, clock=lambda: now[0])
+    for t in (0.0, 10.0, 20.0, 30.0, 40.0):  # the 5th failure lands at t=40
+        now[0] = t
+        assert not lim.blocked("a")
+        lim.fail("a")
+    # A sliding window would unblock at t=60 (when the t=0 failure ages out); the fixed
+    # lockout holds until t=40+60.
+    for t in (40.0, 60.5, 75.0, 99.9):
+        now[0] = t
+        assert lim.blocked("a"), t
+    now[0] = 99.0
+    assert lim.retry_after("a") == 1
+    now[0] = 100.0
+    assert not lim.blocked("a") and lim.retry_after("a") == 0
+    # The slate is clean afterwards: one new failure does not re-block.
+    lim.fail("a")
+    assert not lim.blocked("a")
+
+
+def test_failures_outside_window_do_not_accumulate() -> None:
+    now = [0.0]
+    lim = LoginRateLimiter(max_failures=5, window_s=60.0, clock=lambda: now[0])
+    for t in (0.0, 20.0, 40.0, 60.0, 80.0, 100.0):  # never 5 within any 60 s
+        now[0] = t
+        lim.fail("a")
+        assert not lim.blocked("a"), t
 
 
 def test_limiter_is_bounded() -> None:
@@ -472,20 +505,246 @@ async def test_security_headers_everywhere_but_api(app, client: httpx.AsyncClien
 
 
 def test_templates_have_no_inline_script_or_style() -> None:
-    for path in TEMPLATES.glob("*.html"):
+    for path in TEMPLATES.rglob("*.html"):
         text = path.read_text()
         assert "hx-on" not in text, path
         assert not re.search(r"\sstyle\s*=", text), path
         assert "<style" not in text, path
         for m in re.finditer(r"<script\b([^>]*)>(.*?)</script>", text, re.S):
             assert "src=" in m.group(1) and not m.group(2).strip(), path
-        assert "|safe" not in text.replace(" ", ""), path
 
 
-async def test_api_docs_keep_hardening_headers_but_no_csp(app) -> None:
-    # Swagger UI needs inline script and its CDN; it gets every header except the CSP.
+def test_no_template_marks_anything_safe() -> None:
+    paths = list(TEMPLATES.rglob("*"))
+    assert any(p.name == "base.html" for p in paths)
+    for path in paths:
+        if path.is_file():
+            text = path.read_text()
+            assert not re.search(r"\|\s*safe\b", text), path
+            assert not re.search(r"autoescape\s+false", text, re.I), path
+
+
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/docs/oauth2-redirect"])
+async def test_api_docs_disabled(app, client: httpx.AsyncClient, path: str) -> None:
+    r = await client.get(path)
+    assert r.status_code == 404
+    assert r.json()["errors"][0]["code"] == ErrorCode.NOT_FOUND
+    assert r.headers["content-security-policy"] == CSP
+    async with anon(app) as c:  # no longer an open path
+        r = await c.get(path)
+    assert r.status_code == 303 and r.headers["location"].startswith("/login?next=")
+
+
+async def test_openapi_json_stays_open(app) -> None:
     async with anon(app) as c:
-        r = await c.get("/docs")
-    assert r.status_code == 200 and "content-security-policy" not in r.headers
-    assert r.headers["x-content-type-options"] == "nosniff"
-    assert r.headers["x-frame-options"] == "DENY"
+        r = await c.get("/openapi.json")
+    assert r.status_code == 200 and "/v1/search" in r.json()["paths"]
+    assert r.headers["content-security-policy"] == CSP
+
+
+async def test_no_non_api_response_is_csp_exempt(app, client: httpx.AsyncClient) -> None:
+    responses = [
+        await client.get(p)
+        for p in ("/", "/login", "/static/app.css", "/openapi.json", "/health", "/version",
+                  "/docs", "/redoc", "/nope")
+    ]  # fmt: skip
+    async with anon(app) as c:
+        responses += [await c.get("/"), await c.get("/docs"), await c.get("/redoc")]
+    for r in responses:
+        assert r.headers.get("content-security-policy") == CSP, r.request.url
+
+
+# --- Origin normalisation (scheme, host, effective port) ------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("source", "scheme", "host", "site_host", "ok"),
+    [
+        ("http://research.localhost", "http", "research.localhost", "research.localhost", True),
+        (
+            "http://research.localhost:9999",
+            "http",
+            "research.localhost",
+            "research.localhost",
+            False,
+        ),
+        ("https://research.localhost", "http", "research.localhost", "research.localhost", False),
+        ("http://research.localhost", "https", "research.localhost", "research.localhost", False),
+        ("http://research.localhost:80", "http", "research.localhost", "x.example", True),
+        ("http://research.localhost", "http", "research.localhost:80", "x.example", True),
+        ("https://research.localhost:443", "https", "research.localhost", "x.example", True),
+        ("https://research.localhost:80", "https", "research.localhost", "x.example", False),
+        ("HTTP://RESEARCH.LOCALHOST", "http", "Research.Localhost", "x.example", True),
+        ("http://[::1]:8080", "http", "[::1]:8080", "x.example", True),
+        ("http://[::1]:8081", "http", "[::1]:8080", "x.example", False),
+        ("http://[::1]", "http", "[::1]:8080", "x.example", False),
+        # site_host: scheme from the request, default port unless site_host carries one
+        ("http://research.localhost", "http", "proxy.internal:8443", "research.localhost", True),
+        ("https://research.localhost", "https", "proxy.internal", "research.localhost", True),
+        ("http://research.localhost:8443", "http", "proxy.internal", "research.localhost", False),
+        ("http://research.localhost:8443", "http", "proxy", "research.localhost:8443", True),
+        ("http://research.localhost", "http", "proxy", "research.localhost:8443", False),
+        # strictness kept
+        ("null", "http", "research.localhost", "research.localhost", False),
+        ("http://u@research.localhost", "http", "research.localhost", "research.localhost", False),
+        ("http://research.localhost.", "http", "research.localhost", "research.localhost", False),
+        (
+            "http://research.localhost.evil",
+            "http",
+            "research.localhost",
+            "research.localhost",
+            False,
+        ),
+        (
+            "http://evil.research.localhost",
+            "http",
+            "research.localhost",
+            "research.localhost",
+            False,
+        ),
+        ("ftp://research.localhost", "http", "research.localhost", "research.localhost", False),
+        (
+            "http://research.localhost:bad",
+            "http",
+            "research.localhost",
+            "research.localhost",
+            False,
+        ),
+        ("http://[::1", "http", "[::1]", "research.localhost", False),
+        ("http://research.localhost", "http", "research.localhost:bad", "x.example", False),
+    ],
+)
+def test_same_origin_normalised(
+    source: str, scheme: str, host: str, site_host: str, ok: bool
+) -> None:
+    assert same_origin([source], [], scheme, host, site_host) is ok
+    assert same_origin([], [source + "/page?x=1"], scheme, host, site_host) is ok
+
+
+def test_same_origin_origin_wins_over_referer_and_all_must_match() -> None:
+    good, bad = "http://research.localhost", "http://research.localhost:9999"
+    args = ("http", "research.localhost", "research.localhost")
+    assert not same_origin([bad], [good + "/"], *args)
+    assert not same_origin([good, bad], [], *args)
+    assert not same_origin([], [], *args)
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["http://research.localhost:9999", "https://research.localhost", "http://research.localhost."],
+)
+async def test_cookie_post_with_mismatched_origin_rejected(app, origin: str) -> None:
+    cookie = await _cookie(app)
+    async with anon(app) as c:
+        c.cookies.set(COOKIE, cookie)
+        r = await c.post(
+            "/v1/search", json={"query": "x", "depth": "quick"}, headers={"Origin": origin}
+        )
+    assert r.status_code == 403
+
+
+async def test_cookie_post_with_explicit_default_port_allowed(app) -> None:
+    cookie = await _cookie(app)
+    async with anon(app) as c:
+        c.cookies.set(COOKIE, cookie)
+        r = await c.post(
+            "/v1/search",
+            json={"query": "x", "depth": "quick"},
+            headers={"Origin": "http://research.localhost:80"},
+        )
+    assert r.status_code == 200
+
+
+async def test_login_over_ipv6_literal_host(app) -> None:
+    async with anon(app, base_url="http://[::1]:8080") as c:
+        ok = await c.post("/login", data={"api_key": "test-key", "next": "/"},
+                          headers={"Origin": "http://[::1]:8080"})  # fmt: skip
+        bad = await c.post("/login", data={"api_key": "test-key", "next": "/"},
+                           headers={"Origin": "http://[::1]:9999"})  # fmt: skip
+    assert ok.status_code == 303 and bad.status_code == 403
+
+
+async def test_login_post_scheme_mismatch_rejected(app) -> None:
+    async with anon(app, base_url="https://research.localhost") as c:
+        r = await c.post("/login", data={"api_key": "test-key", "next": "/"}, headers=ORIGIN)
+    assert r.status_code == 403
+
+
+# --- safe-method allowlist -------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("method", ["TRACE", "PROPFIND", "MKCOL", "FROB"])
+async def test_cookie_non_safe_methods_are_origin_checked(app, method: str) -> None:
+    cookie = await _cookie(app)
+    async with anon(app) as c:
+        c.cookies.set(COOKIE, cookie)
+        r = await c.request(method, "/v1/search", headers={"Origin": "http://evil.example"})
+        assert r.status_code == 403, method
+        r = await c.request(method, "/mcp", headers={"Origin": "http://evil.example"})
+        assert r.status_code == 403, method
+
+
+@pytest.mark.parametrize("method", ["GET", "HEAD", "OPTIONS"])
+async def test_cookie_safe_methods_skip_origin_check(app, method: str) -> None:
+    cookie = await _cookie(app)
+    async with anon(app) as c:
+        c.cookies.set(COOKIE, cookie)
+        r = await c.request(method, "/v1/engines", headers={"Origin": "http://evil.example"})
+    assert r.status_code != 403 and r.status_code != 401
+
+
+# --- key comparison never leaks length -------------------------------------------------------
+
+
+def test_key_matches() -> None:
+    expected = b"test-key"
+    assert auth_mod.key_matches(b"test-key", expected)
+    for bad in (b"", b"t", b"test-kez", b"test-key-longer", b"x" * 10_000):
+        assert not auth_mod.key_matches(bad, expected)
+    assert auth_mod.key_matches("test-key", expected)  # str form input (the login form)
+
+
+def test_key_matches_compares_fixed_length_digests(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[int, int]] = []
+    real = hmac.compare_digest
+
+    def spy(a: bytes, b: bytes) -> bool:
+        seen.append((len(a), len(b)))
+        return real(a, b)
+
+    monkeypatch.setattr(hmac, "compare_digest", spy)
+    for supplied in (b"", b"t", b"test-key", b"x" * 500):
+        auth_mod.key_matches(supplied, b"test-key")
+    assert seen and all(a == b == 32 for a, b in seen)
+
+
+async def test_every_key_check_uses_the_helper(app, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[bytes] = []
+    real = auth_mod.key_matches
+
+    def spy(supplied: bytes | str, expected: bytes) -> bool:
+        calls.append(supplied if isinstance(supplied, bytes) else supplied.encode())
+        return real(supplied, expected)
+
+    monkeypatch.setattr(auth_mod, "key_matches", spy)
+    async with anon(app) as c:
+        await c.post("/v1/search", json={"query": "x"}, headers={"X-API-Key": "k1"})
+        await c.post("/login", data={"api_key": "k2", "next": "/"}, headers=ORIGIN)
+
+    async def receive() -> dict:
+        return {"type": "websocket.connect"}
+
+    async def send(m: dict) -> None:
+        pass
+
+    await app(
+        {
+            "type": "websocket",
+            "path": "/ws",
+            "headers": [(b"x-api-key", b"k3")],
+            "query_string": b"",
+        },
+        receive,
+        send,
+    )
+    assert {b"k1", b"k2", b"k3"} <= set(calls)
