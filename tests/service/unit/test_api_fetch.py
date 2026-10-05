@@ -50,3 +50,25 @@ async def test_openapi_documents_fetch_errors(client: httpx.AsyncClient) -> None
 async def test_fetch_unknown_page_is_404_error_not_document(client: httpx.AsyncClient) -> None:
     r = await client.post("/v1/fetch", json={"url": "https://blog.example/missing"})
     assert r.status_code == 502 and r.json()["errors"][0]["code"] == ErrorCode.FETCH_FAILED
+
+
+async def test_unavailable_robots_is_403_retryable(app, client: httpx.AsyncClient) -> None:
+    """robots.txt answering 5xx: HTTP 403, ``robots_disallowed``, ``retryable: true``."""
+    from research_engine.safety.limiter import DomainLimiter
+    from research_engine.safety.robots import RobotsPolicy
+    from research_engine.safety.ssrf import SsrfGuard
+
+    async def public(host: str) -> list[str]:
+        return ["93.184.216.34"]
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(503))
+    async with httpx.AsyncClient(transport=transport) as http:
+        guard = SsrfGuard(frozenset(), resolver=public)
+        app.state.services.fetch._robots = RobotsPolicy(http, "UA/1", DomainLimiter(2, 0), guard)
+        r = await client.post("/v1/fetch", json={"url": "https://blog.example/post"})
+    assert r.status_code == 403
+    body = r.json()
+    assert body["data"] is None
+    err = body["errors"][0]
+    assert err["code"] == ErrorCode.ROBOTS_DISALLOWED and err["retryable"] is True
+    assert "unavailable (HTTP 503)" in err["message"] and "retry later" in err["message"]

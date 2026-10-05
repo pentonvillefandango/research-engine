@@ -49,6 +49,13 @@ def _media_type(resp: httpx.Response) -> str:
     return resp.headers.get("content-type", "").split(";", 1)[0].strip().lower()
 
 
+def _should_retry(exc: ServiceError) -> bool:
+    """429 (``_NoRetry``) and robots refusals are never retried here. An unavailable robots.txt
+    gives a *retryable* ``robots_disallowed``, but its answer is cached for 10 minutes, so
+    repeating the attempt would only resend requests to the site for the same refusal."""
+    return not isinstance(exc, _NoRetry) and exc.detail.code is not ErrorCode.ROBOTS_DISALLOWED
+
+
 class _NoRetry(ServiceError):
     """Flagged retryable for callers (later), but never retried inside ``fetch`` (V1: 429)."""
 
@@ -80,7 +87,7 @@ class StaticFetcher:
                     lambda: self._fetch_once(url, timeout_s, on_hop),
                     attempts=3,
                     sleep=self._sleep,
-                    retry_if=lambda exc: not isinstance(exc, _NoRetry),
+                    retry_if=_should_retry,
                 )
         except TimeoutError as exc:
             raise ServiceError.of(

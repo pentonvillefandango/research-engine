@@ -2,11 +2,16 @@
 
 Redirects: following an on-origin redirect is allowed by RFC 9309, but V1 keeps it simple and
 treats a redirect as allow-all (and never follows it). See ADR-0026.
+
+An unavailable robots.txt (5xx, network error, timeout) disallows the whole origin for
+``ERROR_TTL_S``, as RFC 9309 requires; the resulting ``robots_disallowed`` is ``retryable`` and
+says why, while a real ``Disallow`` match is not retryable.
 """
 
 import asyncio
 import time
 from collections.abc import Callable
+from typing import NamedTuple
 
 import httpx
 from protego import Protego
@@ -26,6 +31,11 @@ ERROR_TTL_S = 600
 MAX_ROBOTS_BYTES = 512 * 1024
 ROBOTS_TIMEOUT_S = 15.0
 DEFAULT_MAX_ORIGINS = 10_000
+
+
+class _Rules(NamedTuple):
+    rules: Protego
+    unavailable: str | None = None  # why robots.txt could not be read ("HTTP 503", ...)
 
 
 def _origin_of(url: str) -> str:
@@ -77,7 +87,7 @@ class RobotsPolicy:
         self._timeout = timeout_s
         self._max_origins = max_origins
         self._clock = clock
-        self._cache: dict[str, tuple[float, Protego]] = {}
+        self._cache: dict[str, tuple[float, _Rules]] = {}
         self._locks: dict[str, _OriginLock] = {}
 
     @property
@@ -89,21 +99,30 @@ class RobotsPolicy:
         return len(self._cache)
 
     async def check(self, url: str, em: Emitter | None = None) -> None:
-        rules = await self._rules(_origin_of(url), em)
+        origin = _origin_of(url)
+        rules, unavailable = await self._rules(origin, em)
         if not rules.can_fetch(url, self._token):
-            if em:
-                await em.warning(
-                    EventKind.ROBOTS_DISALLOWED, f"robots.txt disallows {url}", url=url
+            if unavailable is None:
+                message = f"robots.txt disallows {url}"
+            else:
+                message = (
+                    f"robots.txt for {origin} was unavailable ({unavailable}), so the site is "
+                    f"treated as disallowed for up to {ERROR_TTL_S // 60} minutes (RFC 9309); "
+                    f"retry later: {url}"
                 )
+            if em:
+                await em.warning(EventKind.ROBOTS_DISALLOWED, message, url=url)
+            # Always 403: the refusal is this service's policy decision, not an upstream
+            # failure; ``retryable`` tells callers whether waiting can change the answer.
             raise ServiceError.of(
                 ErrorCode.ROBOTS_DISALLOWED,
-                f"robots.txt disallows {url}",
-                retryable=False,
+                message,
+                retryable=unavailable is not None,
                 source=url,
                 http_status=403,
             )
 
-    async def _rules(self, origin: str, em: Emitter | None) -> Protego:
+    async def _rules(self, origin: str, em: Emitter | None) -> _Rules:
         entry = self._locks.setdefault(origin, _OriginLock())
         entry.users += 1
         try:
@@ -114,15 +133,15 @@ class RobotsPolicy:
             if entry.users == 0 and origin not in self._cache:
                 self._locks.pop(origin, None)  # failed fetch cached nothing: don't leak the lock
 
-    async def _rules_locked(self, origin: str, em: Emitter | None) -> Protego:
+    async def _rules_locked(self, origin: str, em: Emitter | None) -> _Rules:
         cached = self._cache.get(origin)
         if cached and cached[0] > self._clock():
             return cached[1]
-        rules, ttl, status = await self._fetch(origin)
+        result, ttl, status = await self._fetch(origin)
         self._cache.pop(origin, None)
-        self._cache[origin] = (self._clock() + ttl, rules)
+        self._cache[origin] = (self._clock() + ttl, result)
         self._evict()
-        delay = rules.crawl_delay(self._token)
+        delay = result.rules.crawl_delay(self._token)
         if delay:
             self._limiter.set_delay(limiter_key(origin), float(delay))
         if em:
@@ -132,7 +151,7 @@ class RobotsPolicy:
                 origin=origin,
                 status=status,
             )
-        return rules
+        return result
 
     def _evict(self) -> None:
         while len(self._cache) > self._max_origins:
@@ -142,7 +161,7 @@ class RobotsPolicy:
             if entry is not None and entry.users == 0:
                 del self._locks[oldest]
 
-    async def _fetch(self, origin: str) -> tuple[Protego, int, str]:
+    async def _fetch(self, origin: str) -> tuple[_Rules, int, str]:
         robots_url = f"{origin}/robots.txt"
         target = await self._guard.check(robots_url)  # request exactly the URL that was checked
         request = build_clean_request(target, {"User-Agent": self._ua}, self._timeout)
@@ -153,20 +172,23 @@ class RobotsPolicy:
                 )
                 try:
                     if resp.is_redirect:
-                        return _ALLOW_ALL, self._ttl, "redirect (treated as allow)"
+                        return _Rules(_ALLOW_ALL), self._ttl, "redirect (treated as allow)"
                     if 200 <= resp.status_code < 300:
                         text = await self._read_capped(resp)
                         rules = await asyncio.to_thread(Protego.parse, text)
-                        return rules, self._ttl, str(resp.status_code)
+                        return _Rules(rules), self._ttl, str(resp.status_code)
                     if 400 <= resp.status_code < 500:
-                        return _ALLOW_ALL, self._ttl, str(resp.status_code)
-                    return _DISALLOW_ALL, ERROR_TTL_S, str(resp.status_code)
+                        return _Rules(_ALLOW_ALL), self._ttl, str(resp.status_code)
+                    why = f"HTTP {resp.status_code}"
+                    return _Rules(_DISALLOW_ALL, why), ERROR_TTL_S, str(resp.status_code)
                 finally:
                     await resp.aclose()
         except httpx.InvalidURL:  # httpx cannot parse a hostile redirect Location: a redirect
-            return _ALLOW_ALL, self._ttl, "redirect (invalid location, treated as allow)"
+            return _Rules(_ALLOW_ALL), self._ttl, "redirect (invalid location, treated as allow)"
         except (httpx.HTTPError, TimeoutError) as exc:
-            return _DISALLOW_ALL, ERROR_TTL_S, f"error {type(exc).__name__}"
+            kind = "timeout" if isinstance(exc, TimeoutError) else type(exc).__name__
+            why = f"network error: {kind}"
+            return _Rules(_DISALLOW_ALL, why), ERROR_TTL_S, f"error {type(exc).__name__}"
 
     @staticmethod
     async def _read_capped(resp: httpx.Response) -> str:

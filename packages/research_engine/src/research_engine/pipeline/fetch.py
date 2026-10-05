@@ -1,7 +1,8 @@
 """Tiered fetch orchestration (V1-04..V1-06, V1-10, V1-11).
 
 cache -> robots -> [slot: static fetch] -> extract -> ([slot: browser]) -> Document, all inside one
-``timeout_s`` budget (static gets a share in auto mode, the browser the remainder).
+budget of ``min(timeout_s, PAGE_TIMEOUT_S)`` (static gets a share in auto mode, the browser the
+remainder).
 
 - Robots and the per-domain slot apply to the requested URL before any network fetch; every
   static request (redirect hops, retries) is robots-checked and sent under its domain's slot.
@@ -160,6 +161,7 @@ class FetchService:
             doc = Document.model_validate_json(cached)
             return doc.model_copy(update={"url": req.url}), True
 
+        req = self._capped(req)
         await em.info(EventKind.FETCH_STARTED, f"fetch {req.url}", url=req.url, mode=req.mode.value)
         deadline = asyncio.get_running_loop().time() + req.timeout_s
         try:
@@ -190,6 +192,12 @@ class FetchService:
             method=method,
         )
         return doc, False
+
+    def _capped(self, req: FetchRequest) -> FetchRequest:
+        """PAGE_TIMEOUT_S is the operator's upper bound on any single page fetch: the
+        effective budget is ``min(req.timeout_s, page_timeout_s)`` (REST and job pages)."""
+        cap = self._settings.page_timeout_s
+        return req if req.timeout_s <= cap else req.model_copy(update={"timeout_s": cap})
 
     async def _run(
         self, req: FetchRequest, em: Emitter, job_id: str | None, deadline: float

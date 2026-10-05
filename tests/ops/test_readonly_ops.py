@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -385,9 +386,56 @@ def test_redact_masks(fake_env: FakeEnv, line: str) -> None:
     assert "with spaces" not in p.stdout and "two" not in p.stdout.split("REDACTED")[-1]
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        # unquoted values continue after a space, up to the end of the line
+        "API_KEY=SEKRIT-1 SEKRIT-2",
+        "PASSWORD=SEKRIT-1 SEKRIT-2 and more",
+        "my_token = SEKRIT-1 SEKRIT-2",
+        # colon form, case-insensitive
+        "password: SEKRIT-1",
+        "Password: SEKRIT-1 SEKRIT-2",
+        "api_key: SEKRIT-1",
+        "API_KEY : SEKRIT-1",
+        "db_secret: 'SEKRIT-1 SEKRIT-2'",
+        'searxng_secret: "SEKRIT-1 SEKRIT-2"',
+        "  crawl4ai_api_token:SEKRIT-1",
+        # cookie headers
+        "Cookie: re_session=SEKRIT-1; other=SEKRIT-2",
+        "cookie: SEKRIT-1",
+        "Set-Cookie: re_session=SEKRIT-1; Path=/; HttpOnly; SameSite=Lax",
+        "< set-cookie: re_session=SEKRIT-1",
+    ],
+)
+def test_redact_masks_spaced_colon_and_cookie_forms(fake_env: FakeEnv, line: str) -> None:
+    p = lib(fake_env, "redact", stdin=line + "\n")
+    assert "SEKRIT" not in p.stdout and "***REDACTED***" in p.stdout, p.stdout
+
+
+def test_redact_colon_form_keeps_the_name(fake_env: FakeEnv) -> None:
+    p = lib(fake_env, "redact", stdin="Set-Cookie: sid=SEKRIT-1\npassword: SEKRIT-2\n")
+    assert p.stdout == "Set-Cookie: ***REDACTED***\npassword: ***REDACTED***\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["a" * 20_000, "key" * 1000, "key=" + " " * 20_000, "x_token: " + "ab " * 7000],
+    ids=["20k-plain", "key-x1000", "key=-20k-spaces", "20k-value"],
+)
+def test_redact_is_fast_on_pathological_lines(fake_env: FakeEnv, line: str) -> None:
+    """No catastrophic backtracking: a long base64 blob or JWT must not stall logs/deploy."""
+    t0 = time.monotonic()
+    p = lib(fake_env, "redact", stdin=line + "\n")
+    assert time.monotonic() - t0 < 1.0
+    assert p.returncode == 0 and p.stdout.endswith("\n")
+
+
 def test_redact_keeps_harmless_lines(fake_env: FakeEnv) -> None:
     msg = '{"level":"info","msg":"fetched https://example.test/a?b=c","status":200}\n'
     assert lib(fake_env, "redact", stdin=msg).stdout == msg
+    plain = "Content-Type: text/html\nstatus: 200\nGET https://example.test/ 200 OK\n"
+    assert lib(fake_env, "redact", stdin=plain).stdout == plain
 
 
 # ---- Makefile --------------------------------------------------------------------------------

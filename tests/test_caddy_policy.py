@@ -79,6 +79,23 @@ def test_caddyfile() -> None:
     assert "file_server" in CADDYFILE
 
 
+def _toolbox_block() -> str:
+    m = re.search(r"\{\$TOOLBOX_HOST:[^}]*\}\s*\{(.*?)^\}", CADDYFILE, re.S | re.M)
+    assert m, "toolbox index site block not found"
+    return m.group(1)
+
+
+def test_toolbox_index_is_lab_only() -> None:
+    """The index page gets the same lab gate as the research site (D15): 403 otherwise."""
+    block = _toolbox_block()
+    assert "@lab remote_ip {$LAB_SUBNET}" in block
+    assert re.search(r"handle @lab\s*\{[^}]*root \* /srv/index[^}]*file_server[^}]*\}", block)
+    after = block.split("handle @lab", 1)[1].split("}", 1)[1]
+    assert re.search(r"^\s*respond 403\s*$", after, re.M)
+    # nothing is served outside the gated handle
+    assert "file_server" not in block.split("handle @lab", 1)[0]
+
+
 def test_site_file() -> None:
     assert "{$SITE_HOST}" in SITE and "tls internal" in SITE
     assert "@lab remote_ip {$LAB_SUBNET}" in SITE

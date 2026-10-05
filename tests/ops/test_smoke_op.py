@@ -40,3 +40,21 @@ def test_smoke_no_json_from_container_fails(fake_env: FakeEnv) -> None:
 def test_smoke_docker_failure_one_json_line(fake_env: FakeEnv) -> None:
     r = fake_env.run("smoke", FAKE_FAIL="125")
     assert r.code == 1 and len(json_lines(r.stdout)) == 1 and r.last["ok"] is False
+
+
+def test_smoke_result_stays_valid_json_when_a_detail_is_redacted(fake_env: FakeEnv) -> None:
+    """Redaction runs on the parsed JSON's string values, never on the serialised line, so a
+    ``name: value``-shaped detail can't swallow the closing quotes (v1.0.1 review finding 2)."""
+    r = fake_env.run("smoke", FAKE_SMOKE_FILE="exec_smoke_colon_detail.json", FAKE_SMOKE_EXIT="1")
+    assert r.code == 1 and len(json_lines(r.stdout)) == 1
+    assert r.last["ok"] is False and r.last["command"] == "smoke" and "error" not in r.last
+    checks = r.last["checks"]
+    assert checks[0] == {
+        "detail": "ValueError: invalid key: ***REDACTED***",
+        "ms": 5,
+        "name": "fetch",
+        "ok": False,
+    }
+    assert checks[1]["detail"] == "upstream said token=***REDACTED***"
+    assert checks[2]["api_key"] == "***REDACTED***"
+    assert "SEKRIT" not in r.stdout + r.stderr

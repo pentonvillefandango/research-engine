@@ -8,7 +8,7 @@ Research quality comes before speed. The reasoning stays in the calling agent: t
 
 ## Status
 
-V1.0.0 (search and read, fully observable) is released: tag `v1.0.0` on `main`. V2 and V3 are planned in [REQUIREMENTS.md](REQUIREMENTS.md).
+V1.0.1 (search and read, fully observable) is released: tag `v1.0.1` on `main` (patch fixes on top of `v1.0.0`). V2 and V3 are planned in [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Features (V1)
 
@@ -64,7 +64,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 | `DEMOS_FILE` | `config/demos.yaml` | Demo requests for the test console and `make smoke`. |
 | `SEARCH_MIN_RESULTS` | `10` | If a non-general intent finds fewer results, the search is retried with the general engines. |
 | `SEARCH_TIMEOUT_S` | `30` | Timeout for one search. |
-| `PAGE_TIMEOUT_S` | `60` | Page timeout setting. In V1 each request's `timeout_s` (default 60) is what applies. |
+| `PAGE_TIMEOUT_S` | `60` | Upper bound on any single page fetch, in seconds: each fetch (REST, MCP and job pages) runs for `min(timeout_s, PAGE_TIMEOUT_S)`. The robots.txt check runs inside that budget, so below 15 s (the robots.txt timeout) a slow robots.txt is cut off every time: nothing is cached and each fetch to that site ends in `upstream_timeout`. |
 | `THIN_WORD_THRESHOLD` | `150` | Pages with fewer words count as thin and, in `auto` mode, escalate to the browser. |
 | `MAX_RESPONSE_BYTES` | `10485760` | Largest page accepted (10 MiB). |
 | `ALLOWED_CONTENT_TYPES` | HTML, XHTML, PDF, plain text | Content types the fetcher accepts. |
@@ -151,7 +151,7 @@ Tool arguments, agent patterns and a system-prompt snippet are in the [agent usa
 `research-engine-client` is a typed async client with the shared Pydantic models. Install it from this repository:
 
 ```bash
-pip install "git+https://github.com/pentonvillefandango/research-engine@v1.0.0#subdirectory=packages/research_engine_client"
+pip install "git+https://github.com/pentonvillefandango/research-engine@v1.0.1#subdirectory=packages/research_engine_client"
 ```
 
 ```python
