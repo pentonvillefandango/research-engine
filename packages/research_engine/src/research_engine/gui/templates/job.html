@@ -12,7 +12,7 @@
   {{ j.tree(job.request) }}
 </section>
 
-{% with job_id=job.id, live=(not terminal), more=more_events, limit=timeline_limit %}{% include "_job_timeline.html" %}{% endwith %}
+{% with job_id=job.id, live=(not terminal), omitted=omitted %}{% include "_job_timeline.html" %}{% endwith %}
 
 <section aria-label="Results">
   <h2>Results</h2>

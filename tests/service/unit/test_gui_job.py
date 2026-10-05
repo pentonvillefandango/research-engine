@@ -319,19 +319,37 @@ async def test_timeline_history_ascending_and_filtered_to_job(app) -> None:
     assert 'class="ev ' in html and "job.queued" in html
 
 
-async def test_timeline_caps_at_500_oldest(app) -> None:
+async def _job_with_events(app, n: int) -> str:
     jid = await run_job(
         app, JobType.FETCH_BATCH, BATCH_REQ, BatchFetchResult(documents=[], failed=[])
     )
     em = Emitter(app.state.services.events, jid)
-    for i in range(520):
+    for i in range(n):
         await em.debug(EventKind.JOB_PROGRESS, f"ev-{i:04d}")
+    return jid
+
+
+async def test_long_timeline_shows_oldest_and_newest_250(app) -> None:
+    # job.queued/started/done are 3 more events: 603 in total, so 103 are omitted.
+    jid = await _job_with_events(app, 600)
     async with logged_in(app) as c:
         html = (await c.get(f"/jobs/{jid}")).text
     assert html.count('class="ev ') == 500
-    assert "showing first 500" in html.lower()
-    assert "ev-0000" in html or "job.queued" in html  # the oldest are kept
-    assert "ev-0519" not in html
+    assert "job.queued" in html and "job.done" in html  # both ends are kept
+    assert "ev-0246" in html and "ev-0247" not in html  # 250 oldest = 3 job events + ev-0000..0246
+    assert "… 103 events omitted …" in html
+    assert html.index("job.queued") < html.index("omitted") < html.index("ev-0599")
+    ids = re.findall(r'data-id="(\d+)"', html)
+    assert ids == sorted(ids, key=int) and len(set(ids)) == len(ids)
+
+
+async def test_short_timeline_has_no_marker_or_duplicates(app) -> None:
+    jid = await _job_with_events(app, 397)  # 400 events with the job's own three
+    async with logged_in(app) as c:
+        html = (await c.get(f"/jobs/{jid}")).text
+    ids = re.findall(r'data-id="(\d+)"', html)
+    assert len(ids) == 400 == len(set(ids))
+    assert "omitted" not in html
 
 
 # --- links and size limits --------------------------------------------------------------------
@@ -399,6 +417,31 @@ async def test_links_tables_and_rows_are_capped(app) -> None:
     assert "lnk049" in html and "lnk050" not in html
     assert html.count('class="doc-table"') == 20
     assert "h&lt;1&gt;" in html and "r199t0<" in html and "r200t0<" not in html
+
+
+async def test_per_item_text_is_clipped(app) -> None:
+    big = "x" * 10_000_000
+    jid = await run_job(
+        app,
+        JobType.SEARCH_READ,
+        SEARCH_REQ,
+        result(
+            tables=[Table(caption=big, headers=[big], rows=[[big]])],
+            warnings=[big],
+            links=[Link(url="https://l.example/", text=big, external=True)],
+        ),
+    )
+    async with logged_in(app) as c:
+        html = (await c.get(f"/jobs/{jid}")).text
+    assert len(html) < 100_000
+    assert "x" * 2001 not in html and "x" * 1990 in html
+
+
+async def test_status_poll_stops_when_job_is_gone(app) -> None:
+    async with logged_in(app) as c:
+        r = await c.get("/gui/partials/job/" + "0" * 32 + "/status?live=1")
+    assert r.status_code == 286  # htmx: swap, then stop polling
+    assert "no longer exists" in r.text and "hx-trigger" not in r.text
 
 
 async def test_json_ld_rendered_as_tree(app) -> None:

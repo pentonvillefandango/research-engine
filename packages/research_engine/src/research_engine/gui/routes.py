@@ -425,8 +425,10 @@ async def health_partial(
 
 # --- job detail ----------------------------------------------------------------------------------
 
-TIMELINE_LIMIT = 500
-"""Oldest job events shown on the detail page (the live stream carries on beyond them)."""
+TIMELINE_HALF = 250
+"""A long job's timeline shows this many oldest and this many newest events."""
+_COUNT_PAGES = 20
+"""Pages of 1000 scanned to count the omitted middle; beyond that the count is a lower bound."""
 MAX_MARKDOWN_CHARS = 200_000
 MAX_LINKS = 50
 MAX_TABLES = 20
@@ -465,6 +467,32 @@ def _job_not_found(request: Request) -> HTMLResponse:
     )
 
 
+async def _timeline_events(services: Services, job_id: str) -> tuple[list[Event | None], int, bool]:
+    """Oldest and newest ``TIMELINE_HALF`` events, ascending, with ``None`` standing for the gap
+    between them; also the number omitted and whether that number is exact."""
+    oldest = await services.events.query(job_id=job_id, newest=False, limit=TIMELINE_HALF)
+    if len(oldest) < TIMELINE_HALF:
+        return list(oldest), 0, True
+    newest = await services.events.query(job_id=job_id, newest=True, limit=TIMELINE_HALF)
+    last_old = oldest[-1].id or 0
+    tail = [e for e in newest if (e.id or 0) > last_old]  # de-dupe: the halves may overlap
+    if len(tail) < len(newest):
+        return [*oldest, *tail], 0, True
+    first_new = tail[0].id or 0
+    omitted, cursor, exact = 0, last_old, False
+    for _ in range(_COUNT_PAGES):
+        page = await services.events.query(job_id=job_id, after_id=cursor, newest=False, limit=1000)
+        between = [e for e in page if (e.id or 0) < first_new]
+        omitted += len(between)
+        if len(between) < len(page) or len(page) < 1000:
+            exact = True
+            break
+        cursor = between[-1].id or 0
+    if omitted == 0:
+        return [*oldest, *tail], 0, True
+    return [*oldest, None, *tail], omitted, exact
+
+
 @router.get("/jobs/{job_id}", response_class=HTMLResponse)
 async def job_detail(
     request: Request, job_id: str, services: Annotated[Services, Depends(get_services)]
@@ -473,14 +501,13 @@ async def job_detail(
     if detail is None:
         return _job_not_found(request)
     job = detail.job
-    events = await services.events.query(job_id=job_id, newest=False, limit=TIMELINE_LIMIT + 1)
+    events, omitted, exact = await _timeline_events(services, job_id)
     context = {
         "job": job,
         "terminal": job.status.is_terminal,
         "result": detail.result,
-        "rows": [_event_context(e) for e in events[:TIMELINE_LIMIT]],
-        "more_events": len(events) > TIMELINE_LIMIT,
-        "timeline_limit": TIMELINE_LIMIT,
+        "rows": [None if e is None else _event_context(e) for e in events],
+        "omitted": f"{omitted}" if exact else f"{omitted}+",
     }
     return templates.TemplateResponse(request, "job.html", context, headers=_NO_STORE)
 
@@ -494,9 +521,12 @@ async def job_status_partial(
 ) -> HTMLResponse:
     detail = await services.jobs.get(job_id) if valid_job_id(job_id) else None
     if detail is None:
+        # 286 makes htmx swap the fragment and stop polling; any other 4xx is never swapped, so
+        # a poll on a pruned job would go on every 2 s forever. An invalid id never polled.
         return HTMLResponse(
-            '<section id="job-status" class="panel"><p class="error">Job not found.</p></section>',
-            status_code=404,
+            '<section id="job-status" class="panel"><p class="error">'
+            "This job no longer exists.</p></section>",
+            status_code=286 if valid_job_id(job_id) else 404,
             headers=_NO_STORE,
         )
     job = detail.job

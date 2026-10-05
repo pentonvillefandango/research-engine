@@ -14,7 +14,7 @@
     {% if score is not none and score is defined %}<dt>Search score</dt><dd>{{ score }}</dd>{% endif %}
   </dl>
   {% if d.warnings %}
-  <ul class="warnings">{% for w in d.warnings %}<li class="warning">{{ w }}</li>{% endfor %}</ul>
+  <ul class="warnings">{% for w in d.warnings %}<li class="warning">{{ w|truncate(2000, true) }}</li>{% endfor %}</ul>
   {% endif %}
 
   <h3>Content</h3>
@@ -26,9 +26,9 @@
   <h3>Tables ({{ d.tables|length }})</h3>
   {% for t in d.tables[:max_tables] %}
   <table class="doc-table">
-    {% if t.caption %}<caption>{{ t.caption }}</caption>{% endif %}
-    {% if t.headers %}<thead><tr>{% for h in t.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>{% endif %}
-    <tbody>{% for row in t.rows[:max_table_rows] %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    {% if t.caption %}<caption>{{ t.caption|truncate(2000, true) }}</caption>{% endif %}
+    {% if t.headers %}<thead><tr>{% for h in t.headers %}<th>{{ h|truncate(2000, true) }}</th>{% endfor %}</tr></thead>{% endif %}
+    <tbody>{% for row in t.rows[:max_table_rows] %}<tr>{% for cell in row %}<td>{{ cell|truncate(2000, true) }}</td>{% endfor %}</tr>{% endfor %}</tbody>
   </table>
   {% if t.rows|length > max_table_rows %}<p class="muted">Showing first {{ max_table_rows }} of {{ t.rows|length }} rows.</p>{% endif %}
   {% endfor %}
@@ -44,7 +44,7 @@
   <h3>Links ({{ d.links|length }})</h3>
   <ul class="links">
     {% for l in d.links[:max_links] %}
-    <li>{% if is_http_url(l.url) %}<a href="{{ l.url }}" rel="{{ link_rel }}" target="_blank">{{ l.text or l.url }}</a>{% else %}{{ l.text or l.url }} <span class="muted">({{ l.url }})</span>{% endif %}</li>
+    <li>{% if is_http_url(l.url) %}<a href="{{ l.url }}" rel="{{ link_rel }}" target="_blank">{{ (l.text or l.url)|truncate(2000, true) }}</a>{% else %}{{ (l.text or l.url)|truncate(2000, true) }} <span class="muted">({{ l.url }})</span>{% endif %}</li>
     {% endfor %}
   </ul>
   {% if d.links|length > max_links %}<p class="muted">Showing first {{ max_links }} of {{ d.links|length }} links.</p>{% endif %}
