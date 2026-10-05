@@ -526,3 +526,43 @@ async def test_on_hop_refusal_stops_before_request(fetcher: StaticFetcher) -> No
     with pytest.raises(ServiceError) as ei:
         await fetcher.fetch("https://a.example/1", timeout_s=5, on_hop=deny)
     assert ei.value.detail.code is ErrorCode.ROBOTS_DISALLOWED and not hop.called
+
+
+@respx.mock
+async def test_unavailable_robots_on_redirect_hop_is_not_retried(client: httpx.AsyncClient) -> None:
+    """A retryable ``robots_disallowed`` (robots.txt 5xx) is a policy refusal with a cached
+    answer: one request, no backoff, no repeat (v1.0.1 review finding 1)."""
+    from research_engine.safety.limiter import DomainLimiter
+    from research_engine.safety.robots import RobotsPolicy
+
+    sleeps: list[float] = []
+
+    async def record_sleep(s: float) -> None:
+        sleeps.append(s)
+
+    guard = SsrfGuard(frozenset(), resolver=_resolve)
+    f = StaticFetcher(
+        client,
+        guard,
+        max_bytes=1000,
+        allowed_types=frozenset({"text/html"}),
+        user_agent=UA,
+        sleep=record_sleep,
+    )
+    robots = RobotsPolicy(client, UA, DomainLimiter(2, 0), guard)
+    respx.get("https://a.example/robots.txt").respond(404)
+    respx.get("https://b.example/robots.txt").respond(503)
+    start = respx.get("https://a.example/start").respond(
+        302, headers={"location": "https://b.example/x"}
+    )
+
+    @asynccontextmanager
+    async def hook(url: str) -> AsyncIterator[None]:
+        await robots.check(url)
+        yield
+
+    with pytest.raises(ServiceError) as ei:
+        await f.fetch("https://a.example/start", timeout_s=5, on_hop=hook)
+    assert ei.value.detail.code is ErrorCode.ROBOTS_DISALLOWED
+    assert ei.value.detail.retryable is True
+    assert start.call_count == 1 and sleeps == []
