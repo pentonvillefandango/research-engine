@@ -1,6 +1,7 @@
 import asyncio
 import gc
 import json
+import logging
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
@@ -92,8 +93,15 @@ async def test_unsubscribe_on_cancel() -> None:
 
 @pytest.fixture
 def _restore_structlog() -> Iterator[None]:
+    root = logging.getLogger()
+    level, handlers = root.level, root.handlers[:]
     yield
-    structlog.reset_defaults()  # configure_logging binds to the (captured) stdout
+    # configure_logging("DEBUG") is process-global (structlog and the stdlib root logger):
+    # without a reset every later test would log at DEBUG, which slows the suite and trips
+    # timing tests.
+    structlog.reset_defaults()
+    root.setLevel(level)
+    root.handlers[:] = handlers
 
 
 @pytest.mark.usefixtures("_restore_structlog")
