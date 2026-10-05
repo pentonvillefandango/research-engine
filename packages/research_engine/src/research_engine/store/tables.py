@@ -1,7 +1,10 @@
-"""SQLite tables (D9). JSON payloads are stored as text, validated via the public models on read."""
+"""SQLite tables (D9). JSON payloads are stored as text, validated via the public models on read.
 
-from datetime import datetime
+Timestamps are ``NaiveDatetime`` (naive UTC): this SQLModel version maps a bare ``datetime`` to an
+aware-only ``UTCDateTime`` column, and SQLite drops tzinfo anyway. Converters re-attach ``UTC``.
+"""
 
+from pydantic import NaiveDatetime
 from sqlalchemy import Column, Index, LargeBinary
 from sqlmodel import Field, SQLModel
 
@@ -20,9 +23,9 @@ class JobRow(SQLModel, table=True):
     request_json: str
     result_json: str | None = None
     errors_json: str = "[]"
-    created_at: datetime
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    created_at: NaiveDatetime
+    started_at: NaiveDatetime | None = None
+    finished_at: NaiveDatetime | None = None
 
 
 class EventRow(SQLModel, table=True):
@@ -33,7 +36,7 @@ class EventRow(SQLModel, table=True):
         Index("ix_event_kind", "kind"),
     )
     id: int | None = Field(default=None, primary_key=True)
-    ts: datetime
+    ts: NaiveDatetime
     job_id: str | None = None
     level: str
     kind: str
