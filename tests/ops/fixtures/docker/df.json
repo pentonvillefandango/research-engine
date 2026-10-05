@@ -1,0 +1,4 @@
+{"Images":[],"Containers":[],"BuildCache":[],"Volumes":[
+{"Name":"research-engine_app-data","Size":"5.742MB","Links":"1"},
+{"Name":"research-engine_searxng-cache","Size":"0B","Links":"1"},
+{"Name":"other-tool_data","Size":"9GB","Links":"1"}]}

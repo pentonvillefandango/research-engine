@@ -37,3 +37,6 @@ build/
 
 # Claude Code: keep shared settings, ignore personal ones
 .claude/settings.local.json
+
+# Ops: deploy worktrees
+.deploy/

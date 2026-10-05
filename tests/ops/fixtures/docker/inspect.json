@@ -1,0 +1,3 @@
+[{"Id":"aaa111","Name":"/research-engine-app-1","RestartCount":0,"State":{"Status":"running","Health":{"Status":"healthy"}}},
+ {"Id":"bbb222","Name":"/research-engine-searxng-1","RestartCount":1,"State":{"Status":"running","Health":{"Status":"healthy"}}},
+ {"Id":"ccc333","Name":"/research-engine-crawl4ai-1","RestartCount":0,"State":{"Status":"running","Health":{"Status":"healthy"}}}]

@@ -1,0 +1,2 @@
+{"level":"info","msg":"one"}
+{"level":"info","msg":"two"}

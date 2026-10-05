@@ -1,0 +1,3 @@
+app
+searxng
+crawl4ai
