@@ -21,6 +21,13 @@ from research_engine_client import ResearchEngineClient
 from research_engine_client.models import ErrorCode
 
 ROOT = Path(__file__).resolve().parents[3]
+# Captured at import, before any fixture patches them (served_results lowers MIN_WORDS).
+REAL_THRESHOLDS = (
+    smoke.MIN_SEARCH_RESULTS,
+    smoke.MIN_WORDS,
+    smoke.SEARCH_READ_TOP_N,
+    smoke.DEADLINE_S,
+)
 CHECKS = ["version", "health", "mcp", "search", "fetch_static", "fetch_pdf", "search_read"]
 
 # The real demo ids with URLs the fake fetchers serve.
@@ -206,6 +213,11 @@ async def test_deadline_marks_pending_checks_failed(
     assert result["took_ms"] < 10_000
 
 
+def test_thresholds_are_the_briefs() -> None:
+    """Task 9.2: search >= 5 results, fetches >= 100 words, search_read top_n=2, 110 s."""
+    assert REAL_THRESHOLDS == (5, 100, 2, 110.0)
+
+
 def test_real_demo_file_has_every_smoke_demo() -> None:
     ids = {d.id for d in load_demos(ROOT / "config" / "demos.yaml")}
     assert set(smoke.SMOKE_DEMOS.values()) <= ids
@@ -266,3 +278,58 @@ def test_cli_missing_env_is_usage_error(
     assert code == 2 and len(lines) == 1
     result = json.loads(lines[0])
     assert result["ok"] is False and missing in result["error"]
+
+
+LONG_KEY = "test-key-" * 3  # an obviously fake key, long enough to be scrubbed
+
+
+def _smoke_cli(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], key: str, fake: Any
+) -> tuple[int, list[str], str]:
+    monkeypatch.setenv("API_KEY", key)
+    monkeypatch.setattr(smoke, "run_smoke", fake)
+    code = main(["smoke", "--url", "http://127.0.0.1:9"])
+    out = capsys.readouterr()
+    return code, out.out.strip().splitlines(), out.out + out.err
+
+
+def test_cli_unexpected_error_is_one_json_line(
+    demos_file: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key = LONG_KEY
+
+    async def boom(*a: object, **kw: object) -> dict[str, Any]:
+        raise RuntimeError(f"exploded with {key}")
+
+    code, lines, everything = _smoke_cli(monkeypatch, capsys, key, boom)
+    assert code == 1 and len(lines) == 1, lines
+    result = json.loads(lines[0])
+    assert result == {"command": "smoke", "ok": False, "error": "unexpected error: RuntimeError"}
+    assert key not in everything
+
+
+def test_cli_scrubs_a_long_key_from_details(
+    demos_file: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key = LONG_KEY
+
+    async def leaky(*a: object, **kw: object) -> dict[str, Any]:
+        check = {"name": "search", "ok": False, "ms": 1, "detail": f"echoed {key} back"}
+        return {"ok": False, "checks": [check], "took_ms": 1}
+
+    code, lines, everything = _smoke_cli(monkeypatch, capsys, key, leaky)
+    assert code == 1 and len(lines) == 1
+    assert key not in everything
+    assert json.loads(lines[0])["checks"][0]["detail"] == "echoed *** back"
+
+
+def test_cli_short_key_does_not_corrupt_output(
+    demos_file: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def fine(*a: object, **kw: object) -> dict[str, Any]:
+        check = {"name": "fetch_static", "ok": True, "ms": 1, "detail": "/nonexistent x"}
+        return {"ok": True, "checks": [check], "took_ms": 1}
+
+    code, lines, _ = _smoke_cli(monkeypatch, capsys, "x", fine)
+    assert code == 0
+    assert json.loads(lines[0])["checks"][0]["detail"] == "/nonexistent x"

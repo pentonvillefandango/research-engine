@@ -38,6 +38,10 @@ def _export(out_dir: Path, check: bool) -> int:
     return 0
 
 
+MIN_SCRUB_KEY_LEN = 8
+"""Shorter keys are not scrubbed from smoke output by substring (they'd corrupt it)."""
+
+
 def _smoke(url: str, timeout_s: float) -> int:
     """Print exactly one JSON line; exit 0 if every check passed, 1 if not, 2 on bad setup.
 
@@ -52,7 +56,10 @@ def _smoke(url: str, timeout_s: float) -> int:
 
     def emit(result: dict[str, Any]) -> None:
         line = json.dumps({"command": "smoke", **result}, sort_keys=True)
-        print(line.replace(api_key, "***") if api_key else line, flush=True)
+        # Scrub only a real-length key: replacing a short one (say "x") would corrupt the line.
+        if len(api_key) >= MIN_SCRUB_KEY_LEN:
+            line = line.replace(api_key, "***")
+        print(line, flush=True)
 
     api_key = os.environ.get("API_KEY", "")
     site_host = os.environ.get("SITE_HOST", "")
@@ -75,7 +82,11 @@ def _smoke(url: str, timeout_s: float) -> int:
         ):
             return await run_smoke(client, demos, timeout_s, mcp_http=mcp_http, site_host=site_host)
 
-    result = asyncio.run(run())
+    try:
+        result = asyncio.run(run())
+    except Exception as exc:  # still exactly one JSON line; the type only (no message, no key)
+        emit({"ok": False, "error": f"unexpected error: {type(exc).__name__}"})
+        return 1
     emit(result)
     return 0 if result["ok"] else 1
 

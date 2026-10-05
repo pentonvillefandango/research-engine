@@ -128,23 +128,57 @@ def test_makefile_has_sandbox_target() -> None:
     assert re.search(r"^sandbox\s", out.stdout, re.M)
 
 
-DEV_DOCS = [
-    "CLAUDE.md",
-    "scripts/dev_urls.sh",
-    "scripts/check_sandbox.sh",
-    "scripts/record_fixtures.py",
-    "deploy/crawl4ai/README.md",
-    "docs/adr/0022-chromium-sandbox.md",
-]
+SCAN_SUFFIXES = {".md", ".sh", ".py", ".yaml", ".yml"}
+HISTORICAL = ("docs/plans/", "docs/superpowers/")  # plans and specs as written at the time
 
 
-@pytest.mark.parametrize("rel", DEV_DOCS)
-def test_dev_stack_always_uses_dev_project(rel: str) -> None:
-    """Every dev-stack invocation names the project `research-engine-dev`, so it can never
-    replace the live `research-engine` stack."""
-    for line in (ROOT / rel).read_text().splitlines():
-        if "compose.dev.yaml" in line and re.search(r"docker compose|\bdc\b", line):
-            assert "-p research-engine-dev" in line, f"{rel}: {line}"
+def _scanned_files() -> list[str]:
+    tracked = subprocess.run(
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.split()
+    return [
+        f
+        for f in tracked
+        if (Path(f).suffix in SCAN_SUFFIXES or Path(f).name == "Makefile")
+        and not f.startswith(HISTORICAL)
+        and (ROOT / f).is_file()
+    ]
+
+
+def _logical_lines(text: str) -> list[str]:
+    """Join backslash-continued lines, so a command split over several lines is one line."""
+    return re.sub(r"\\\n\s*", " ", text).splitlines()
+
+
+def dev_invocations_without_project(text: str) -> list[str]:
+    return [
+        ln
+        for ln in _logical_lines(text)
+        if "compose.dev.yaml" in ln
+        and re.search(r"docker[ -]compose|\bdc\b", ln)
+        and "-p research-engine-dev" not in ln
+    ]
+
+
+def test_dev_scan_sees_continued_lines() -> None:
+    dev_file = "compose." + "dev.yaml"  # split, so this very file passes the scan
+    assert dev_invocations_without_project(f"docker compose \\\n  -f {dev_file} up")
+    assert not dev_invocations_without_project(
+        "docker compose -p research-engine-dev \\\n  -f compose.yaml -f compose.dev.yaml up"
+    )
+
+
+def test_dev_stack_always_uses_dev_project() -> None:
+    """Every dev-stack invocation in a tracked file names the project `research-engine-dev`, so
+    it can never replace the live `research-engine` stack."""
+    files = _scanned_files()
+    assert "CLAUDE.md" in files and "scripts/check_sandbox.sh" in files and "Makefile" in files
+    bad = {
+        f: hits
+        for f in files
+        if (hits := dev_invocations_without_project((ROOT / f).read_text(errors="replace")))
+    }
+    assert not bad, bad
 
 
 def test_dev_urls_uses_dev_project() -> None:

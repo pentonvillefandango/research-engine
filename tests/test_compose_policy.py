@@ -255,13 +255,27 @@ def test_env_example_in_sync() -> None:
 def test_dev_override_publishes_loopback_ephemeral_only() -> None:
     assert set(DEV) <= {"services", "networks"}
     for name, svc in DEV["services"].items():
+        if name == "app":
+            continue  # image only: see test_dev_override_app_image_is_dev_only
         assert set(svc) == {"ports"}, f"dev override may only add ports: {name}"
         for p in svc["ports"]:
             assert isinstance(p, str) and re.fullmatch(r"127\.0\.0\.1::\d+", p), f"{name}: {p}"
-    assert "app" not in DEV["services"]
     assert set(DEV.get("networks", {})) == {"proxy"}
     proxy = DEV["networks"]["proxy"]
     assert proxy["external"] is False and str(proxy["name"]).startswith("research-engine-")
+
+
+def test_dev_override_app_image_is_dev_only() -> None:
+    """A dev `up --build` must never overwrite a live or rollback `research-engine-app:<sha>`
+    tag: the dev override renames the app image, with no variable in it, and changes nothing
+    else about the app (no ports)."""
+    app = DEV["services"]["app"]
+    assert set(app) == {"image"}
+    image = app["image"]
+    assert "$" not in image and ":" in image
+    repo, _, _tag = image.partition(":")
+    assert repo != COMPOSE["services"]["app"]["image"].partition(":")[0]
+    assert repo.startswith("research-engine-") and repo.endswith("-dev")
 
 
 def test_debug_override_app_loopback_only() -> None:
