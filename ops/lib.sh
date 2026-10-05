@@ -116,14 +116,16 @@ weak_secrets() {
 names_json() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1].split()))' "$1"; }
 
 # redact: stdin -> stdout, masks values of key/token/secret/password-like names (case-insensitive)
-# in NAME=value, JSON "name": "value", and X-API-Key / Authorization headers.
+# in NAME=value and name: value (a quoted value, or an unquoted one up to the end of the line),
+# JSON "name": "value", and X-API-Key / Authorization / Cookie / Set-Cookie headers.
 _REDACT_PY='
 import re, sys
 M = "***REDACTED***"
 kw = r"(?:key|token|secret|password|passwd)"
 j = re.compile(r"(\"[^\"]*" + kw + r"[^\"]*\"\s*:\s*)(\"(?:[^\"\\]|\\.)*\"|[^,}\s]+)", re.I)
-h = re.compile(r"(?<![\"\w-])((?:x-api-key|authorization|proxy-authorization)\s*:\s*)[^\r\n]*", re.I)
-e = re.compile(r"([A-Za-z0-9_.-]*" + kw + r"[A-Za-z0-9_.-]*\s*=\s*)(\"(?:[^\"\\]|\\.)*\"|\x27[^\x27]*\x27|\S+)", re.I)
+h = re.compile(r"(?<![\"\w-])((?:x-api-key|authorization|proxy-authorization|set-cookie|cookie)\s*:\s*)[^\r\n]*", re.I)
+v = r"(\"(?:[^\"\\]|\\.)*\"|\x27[^\x27]*\x27|[^\r\n]*\S)"
+e = re.compile(r"([A-Za-z0-9_.-]*" + kw + r"[A-Za-z0-9_.-]*\s*[=:]\s*)" + v, re.I)
 for line in sys.stdin:
     line = j.sub(lambda m: m.group(1) + "\"" + M + "\"", line)
     line = h.sub(lambda m: m.group(1) + M, line)

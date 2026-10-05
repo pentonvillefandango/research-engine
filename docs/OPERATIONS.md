@@ -7,7 +7,7 @@ How to run, check, deploy, back up and repair a Research Engine host. Every comm
 - Every operation is `make <target>`, a thin wrapper around `ops/<target>.sh`. Run them from the repository root (for example `/opt/research-engine`).
 - Progress goes to stderr. The **last line on stdout is one JSON object**, always with `ok` (true or false) and `command`. A failure adds `error`.
 - The scripts exit **0** on success, **1** when the check or command failed, and **2** on a usage or precondition error (bad argument, dirty tree, or the shared lock is held: deploy, rollback and restore give up at once, while a backup waits up to `BACKUP_LOCK_WAIT` first). `make` reports a failing script as `make: *** [Makefile:NN: <target>] Error 1` (or `Error 2`) on stderr, and then itself exits 2. Read the JSON `ok`, or run `ops/<target>.sh` directly when you need the exact code.
-- No script prints a secret. Logs and command output pass through a redactor that masks key, token, secret and password values.
+- No script prints a secret. Logs and command output pass through a redactor that masks key, token, secret and password values (`NAME=value`, `name: value`, JSON), plus `X-API-Key`, `Authorization`, `Cookie` and `Set-Cookie` headers. An unquoted value is masked to the end of the line.
 - The scripts address the stack only as Compose project `research-engine`, with `--env-file .env`. They never touch other projects or VM-wide Docker state.
 - Useful environment overrides: `BACKUP_DIR` (default `backups/`), `BACKUP_RETENTION_DAYS` (14), `BACKUP_LOCK_WAIT` (600 seconds), `CADDY_DIR` (`/opt/caddy`), `ENV_FILE` (`.env`), `DEPLOYS_LOG` (`deploys.jsonl`), `TAIL` (500 lines, for logs).
 
