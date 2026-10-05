@@ -57,8 +57,22 @@ case "$1" in
           *"/version"*) cat "$F/exec_version.json" ;;
           *) exit 1 ;;
         esac ;;
+      *" up -d "*)
+        printf '%s\n' "${GIT_SHA-unset}" >> "$FAKE_CALLS.up"
+        printf '%s\n' "$PWD" >> "$FAKE_CALLS.up_pwd"
+        if [ -n "${FAKE_UP_FAIL_SHA:-}" ] && [ "${GIT_SHA-}" = "$FAKE_UP_FAIL_SHA" ]; then
+          echo "fake docker: up failed" >&2; exit 1
+        fi
+        echo "fake docker: up ok" >&2 ;;
       *) echo "fake docker: unhandled: $*" >&2; exit 99 ;;
     esac ;;
+  image)
+    case "$2" in
+      ls) for t in ${FAKE_IMAGE_TAGS:-}; do echo "$t"; done ;;
+      rm) echo "Untagged: $3" ;;
+      *) echo "fake docker: unhandled: $*" >&2; exit 99 ;;
+    esac ;;
+  ps) for i in ${FAKE_PS_IMAGES:-}; do echo "$i"; done ;;
   inspect)
     case "$args" in
       *"State.StartedAt"*) echo 2026-10-05T10:00:00Z ;;

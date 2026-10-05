@@ -2,8 +2,9 @@
 SERVICE ?= app
 SINCE ?= 30m
 FILE ?=
+SHA ?=
 # Passed to scripts via the environment (never expanded into the recipe text).
-export SERVICE SINCE FILE
+export SERVICE SINCE FILE SHA
 
 help:            ## List ops commands
 	@grep -E '^[a-z]+:.*##' $(MAKEFILE_LIST) | sed -E 's/:[ ]*## /\t/'
@@ -11,7 +12,7 @@ bootstrap:       ## One-off idempotent VM setup (needs sudo; owner runs or appro
 	@ops/bootstrap.sh
 deploy:          ## Build + start the current commit, smoke test, auto-rollback on failure (approval required)
 	@ops/deploy.sh
-rollback:        ## Redeploy the last good commit from deploys.jsonl (approval required)
+rollback:        ## Redeploy the last good commit, or SHA=<sha> (approval required)
 	@ops/rollback.sh
 status:          ## Containers, health, resources, version, last deploy/backup (read-only)
 	@ops/status.sh
