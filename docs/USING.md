@@ -146,7 +146,7 @@ The transport is streamable HTTP. The service answers POST only and returns JSON
 Install the client from the repository (it needs Python 3.12 or newer):
 
 ```bash
-pip install "git+https://github.com/pentonvillefandango/research-engine@v1.0.0#subdirectory=packages/research_engine_client"
+pip install "git+https://github.com/pentonvillefandango/research-engine@v1.0.1#subdirectory=packages/research_engine_client"
 ```
 
 ```python

@@ -151,7 +151,7 @@ Tool arguments, agent patterns and a system-prompt snippet are in the [agent usa
 `research-engine-client` is a typed async client with the shared Pydantic models. Install it from this repository:
 
 ```bash
-pip install "git+https://github.com/pentonvillefandango/research-engine@v1.0.0#subdirectory=packages/research_engine_client"
+pip install "git+https://github.com/pentonvillefandango/research-engine@v1.0.1#subdirectory=packages/research_engine_client"
 ```
 
 ```python
