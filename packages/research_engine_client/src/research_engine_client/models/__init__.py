@@ -93,6 +93,9 @@ ALL_MODELS: dict[str, type[BaseModel]] = {m.__name__: m for m in _PLAIN} | {
     _envelope_name(m): Envelope[m]  # pyright: ignore[reportInvalidTypeArguments]
     for m in _ENVELOPED
 }
+# Named as in the OpenAPI components: GET /v1/schemas, and every error response.
+ALL_MODELS["Envelope_list_str__"] = Envelope[list[str]]
+ALL_MODELS["Envelope_NoneType_"] = Envelope[None]
 
 __all__ = [
     "ALL_MODELS",

@@ -206,7 +206,7 @@ uv run pytest -m integration
 docker compose -p research-engine-dev -f compose.yaml -f compose.dev.yaml down
 ```
 
-`uv run research-engine schemas export --check` checks that `schemas/` is current (CI runs it). See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions.
+`uv run research-engine schemas export --check` checks that `schemas/` is current (CI runs it). `tests/service/unit/test_response_schemas.py` calls every public endpoint and validates each real response, errors included, against its file in `schemas/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions.
 
 ## Licence
 

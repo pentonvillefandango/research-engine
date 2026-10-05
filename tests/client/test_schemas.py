@@ -34,6 +34,8 @@ def test_registry_contains_core_models() -> None:
         "ErrorDetail",
         "Envelope_SearchResponse_",
         "Envelope_Document_",
+        "Envelope_list_str__",
+        "Envelope_NoneType_",
     ):
         assert name in ALL_MODELS, name
 
