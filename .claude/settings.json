@@ -1,13 +1,7 @@
 {
   "permissions": {
     "ask": [
-      "Bash(make*deploy*)",
-      "Bash(make*rollback*)",
-      "Bash(make*restore*)",
       "Bash(make*bootstrap*)",
-      "Bash(*ops/deploy.sh*)",
-      "Bash(*ops/rollback.sh*)",
-      "Bash(*ops/restore.sh*)",
       "Bash(*ops/bootstrap.sh*)"
     ],
     "deny": [

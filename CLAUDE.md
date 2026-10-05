@@ -15,7 +15,7 @@ A self-hosted web search and scraping service for research agents. It offers RES
   - **TDD always** (`test-driven-development`): write a failing test, watch it fail, then write the minimal code to pass.
   - Bugs and unexpected behaviour: `systematic-debugging`. No guess-and-patch.
 - **Before saying something is done:** `verification-before-completion`. Run the commands and show the output before claiming anything is done.
-- **After each step:** `requesting-code-review`, then report to the owner with evidence, and **pause for confirmation** before the next step.
+- **After each step:** `requesting-code-review`, then report to the owner with evidence, and continue to the next step. Don't pause for confirmation (owner's standing approval, 2026-10-05).
 - **End of a branch:** `finishing-a-development-branch`.
 
 The spec is `REQUIREMENTS.md` plus the design addendum `docs/superpowers/specs/2026-10-04-v1-design.md`, which wins where the two differ. The V1 plan is `docs/plans/2026-10-04-research-engine-v1.md`, with one file per step in `docs/plans/v1/`. Decisions are in `docs/adr/`. Record any new notable decision as an ADR.
@@ -56,11 +56,11 @@ Development:
 
 Operations (added in build step 9; see `docs/OPERATIONS.md`). Each command prints a final JSON line and exits non-zero on failure:
 - **Read-only, run freely:** `make status`, `make health`, `make logs SERVICE=app SINCE=30m`, `make version`, `make smoke`, `make sandbox`, `make backup`.
-- **Restart or restore the live service: ask the owner every time:** `make deploy`, `make rollback`, `make restore FILE=…`, `make bootstrap`. The project's `.claude/settings.json` makes these prompt.
+- **Restart or restore the live service:** `make deploy`, `make rollback`, `make restore FILE=…` are pre-approved by the owner (2026-10-05). Report what you ran. `make bootstrap` uses `sudo`, so the owner runs it, and `.claude/settings.json` makes it prompt.
 - **Never, unless the owner explicitly asks:** `docker compose down -v`, deleting volumes or backups, or force-pushing. These are also denied in `.claude/settings.json`.
 - Changes go live only by committing and then running `make deploy`.
 
 ## Git
 
-- Step 0 goes on `main`. V1 steps 1–9 go on branch `v1`. Push only after the owner approves a step. One PR `v1`→`main` at the end, then tag `v1.0.0` (ADR-0024).
+- Step 0 goes on `main`. V1 steps 1–9 go on branch `v1`. Push after each step's review passes. One PR `v1`→`main` at the end, merged once CI is green, then tag `v1.0.0` (ADR-0024). The owner pre-approved the push, PR, merge and tag (2026-10-05).
 - Use conventional commit prefixes with feature IDs.
