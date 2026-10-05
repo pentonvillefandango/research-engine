@@ -1,0 +1,2 @@
+[research-engine sandbox add-on] active (playwright)
+[research-engine sandbox add-on] WARNING: target missing

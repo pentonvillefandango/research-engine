@@ -26,6 +26,7 @@ case "$1" in
   compose)
     case "$args" in
       *" ps -a -q "*) [ -n "${FAKE_PS_EMPTY:-}" ] || cat "$F/ps_q.txt" ;;
+      *" ps -q crawl4ai "*) echo c4id ;;
       *" config --services "*)
         [ -z "${FAKE_CONFIG_FAIL:-}" ] || exit 1
         cat "$F/config_services.txt" ;;
@@ -33,6 +34,25 @@ case "$1" in
       *" logs "*) [ -z "${FAKE_LOGS_FAIL:-}" ] || exit 1; cat "$F/${FAKE_LOGS_FILE:-logs.txt}" ;;
       *" exec "*)
         case "$args" in
+          *" research-engine smoke "*)
+            cat "$F/${FAKE_SMOKE_FILE:-exec_smoke_ok.json}"; exit "${FAKE_SMOKE_EXIT:-0}" ;;
+          *"select.select"*)  # sandbox /proc probe: ready, wait for stop, report
+            kind="${*: -1}"
+            echo ready
+            read -r _ || true
+            if [ "$kind" = builtin ]; then echo "${FAKE_PROBE_BUILTIN:-$FAKE_PROBE_OK}"
+            else echo "${FAKE_PROBE_DEFAULT:-$FAKE_PROBE_OK}"; fi ;;
+          *"127.0.0.1:11235/crawl"*)  # in-container crawl
+            closed='{"detail":"Target page, context or browser has been closed"}'
+            case "$args" in
+              *'"browser_mode":"builtin"'*)
+                if [ -n "${FAKE_CRAWL_BUILTIN_FAIL:-}" ]; then echo "$closed"
+                elif [ -n "${FAKE_CRAWL_BUILTIN_FAIL_ONCE:-}" ] &&
+                  [ ! -e "$FAKE_CRAWL_BUILTIN_FAIL_ONCE" ]; then
+                  : > "$FAKE_CRAWL_BUILTIN_FAIL_ONCE"; echo "$closed"
+                else cat "$F/crawl_ok.json"; fi ;;
+              *) cat "$F/crawl_ok.json" ;;
+            esac ;;
           *"/health"*) cat "$F/${FAKE_HEALTH_FILE:-exec_health.json}" ;;
           *"/version"*) cat "$F/exec_version.json" ;;
           *) exit 1 ;;
@@ -41,6 +61,7 @@ case "$1" in
     esac ;;
   inspect)
     case "$args" in
+      *"State.StartedAt"*) echo 2026-10-05T10:00:00Z ;;
       *" --format "*) cat "$F/${FAKE_INSPECT_FILE:-inspect.tsv}" ;;
       *) cat "$F/inspect_full.json" ;;
     esac ;;
@@ -75,10 +96,13 @@ def fake_env(tmp_path: Path) -> FakeEnv:
     repo = tmp_path / "repo"
     repo.mkdir()
     shutil.copytree(ROOT / "ops", repo / "ops")
+    (repo / "scripts").mkdir()
+    shutil.copy(ROOT / "scripts" / "check_sandbox.sh", repo / "scripts" / "check_sandbox.sh")
     shutil.copy(ROOT / "Makefile", repo / "Makefile")
-    secrets = ["SEKRIT-API", "SEKRIT-SX", "SEKRIT-TOK"]
+    secrets = ["SEKRIT-API", "SEKRIT-SX", "SEKRIT-TOK", "SEKRIT-C4"]
     (repo / ".env").write_text(
         "API_KEY=SEKRIT-API\nSEARXNG_SECRET=SEKRIT-SX\nADMIN_TOKEN=SEKRIT-TOK\n"
+        "CRAWL4AI_API_TOKEN=SEKRIT-C4\n"
         "SITE_HOST=research.example.test\n"
     )
     caddy = tmp_path / "caddy"
@@ -97,7 +121,7 @@ def fake_env(tmp_path: Path) -> FakeEnv:
     docker.chmod(0o755)
     calls = tmp_path / "calls.log"
 
-    def run(cmd: str, *args: str, **env: str) -> Result:
+    def run(cmd: str, *args: str, script: str | None = None, **env: str) -> Result:
         full = {
             "PATH": f"{bindir}:{os.environ['PATH']}",
             "HOME": str(tmp_path),
@@ -105,10 +129,11 @@ def fake_env(tmp_path: Path) -> FakeEnv:
             "FAKE_CALLS": str(calls),
             "GIT_SHA": "abc1234",
             "CADDY_DIR": str(caddy),
+            "FAKE_PROBE_OK": '{"no_sandbox": 0, "new_renderers": 2, "sandboxed": 2}',
             **env,
         }
         p = subprocess.run(
-            [BASH, f"ops/{cmd}.sh", *args],
+            [BASH, script or f"ops/{cmd}.sh", *args],
             cwd=repo,
             env=full,
             capture_output=True,

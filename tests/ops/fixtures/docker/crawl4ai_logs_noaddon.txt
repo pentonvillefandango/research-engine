@@ -1,0 +1,2 @@
+2026-10-05 10:00:01,000 INFO supervisord started
+[2026-10-05 10:00:05] gunicorn listening

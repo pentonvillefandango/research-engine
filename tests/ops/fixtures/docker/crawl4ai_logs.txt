@@ -1,0 +1,3 @@
+2026-10-05 10:00:01,000 INFO supervisord started
+[research-engine sandbox add-on] active (playwright, patchright, browser_manager)
+[2026-10-05 10:00:05] gunicorn listening
