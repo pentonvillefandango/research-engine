@@ -19,9 +19,9 @@ ARG GIT_SHA=unknown
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app \
     && mkdir -p /data && chown 10001:10001 /data
 WORKDIR /app
-COPY --from=builder --chown=10001:10001 /app/.venv /app/.venv
-COPY --chown=10001:10001 config ./config
-COPY --chown=10001:10001 schemas ./schemas
+COPY --from=builder /app/.venv /app/.venv
+COPY config ./config
+COPY schemas ./schemas
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 DB_PATH=/data/research-engine.sqlite GIT_SHA=${GIT_SHA}
 USER 10001
 EXPOSE 8000
