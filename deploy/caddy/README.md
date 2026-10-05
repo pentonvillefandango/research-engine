@@ -25,7 +25,8 @@ Back up the Caddy root CA (private key in the `caddy-data` volume, under
 `/data/caddy/pki/authorities/local/`). Losing it means a new CA and every client must re-trust.
 
 `SITE_HOST` and `LAB_SUBNET` are both required. If either is empty the site fails closed
-(no lab client matches, so everything gets 403). `LAB_SUBNET` takes one or more
+(no lab client matches, so everything gets 403). The `TOOLBOX_HOST` index page is lab-only
+too: it has the same `@lab remote_ip {$LAB_SUBNET}` gate, and every other client gets 403. `LAB_SUBNET` takes one or more
 space-separated CIDRs. Keep `.env` mode 600.
 
 Validate without starting anything (no ports, removed afterwards):
@@ -56,7 +57,7 @@ real client, so the app's Origin check sees `https://<SITE_HOST>`. Never set `tr
 here: that would make Caddy trust client-supplied forwarded headers.
 
 Caveat (ADR-0026): any co-tenant container on `proxy` can reach the apps directly, bypassing
-the lab-subnet restriction in the site file. The application's API key still applies.
+the lab-subnet restriction in the site files and the index page. The application's API key still applies.
 
 ## Serve at the site root, never under a path prefix
 

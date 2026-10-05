@@ -6,8 +6,16 @@
 import sites/*.caddy
 
 # Index page listing the tools on this host. The default host is an example; set TOOLBOX_HOST.
+# Lab-only, like the tool sites: the same LAB_SUBNET gate, 403 for everyone else.
 {$TOOLBOX_HOST:toolbox.home.arpa} {
 	tls internal
-	root * /srv/index
-	file_server
+
+	@lab remote_ip {$LAB_SUBNET}
+	handle @lab {
+		root * /srv/index
+		file_server
+	}
+
+	# everything outside the lab subnet
+	respond 403
 }
