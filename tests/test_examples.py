@@ -15,6 +15,8 @@ from fastapi import FastAPI
 from research_engine.testing import STATIC_PAGES
 from research_engine_client import ResearchEngineClient
 
+from tests.conftest import TEST_API_KEY
+
 EX = Path(__file__).resolve().parents[1] / "examples"
 SECRET = "sk-test-secret-value-123"
 
@@ -118,7 +120,7 @@ async def test_client_example_runs_against_app(
         monkeypatch.setitem(STATIC_PAGES, f"https://result{i}.example/1", "article.html")
     mod = _load("client_usage")
     _inject(monkeypatch, mod, httpx.ASGITransport(app=app))
-    monkeypatch.setenv("RESEARCH_ENGINE_API_KEY", "test-key")
+    monkeypatch.setenv("RESEARCH_ENGINE_API_KEY", TEST_API_KEY)
     monkeypatch.setenv("RESEARCH_ENGINE_URL", "http://research.localhost")
     rc = await mod.main()
     out = capsys.readouterr().out
@@ -127,7 +129,7 @@ async def test_client_example_runs_against_app(
     assert "words:" in out
     assert "provenance:" in out
     assert "sha256:" in out
-    assert "test-key" not in out
+    assert TEST_API_KEY not in out
 
 
 @pytest.mark.parametrize("kind", ["http", "transport"])

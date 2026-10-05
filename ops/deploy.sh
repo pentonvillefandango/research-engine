@@ -12,6 +12,9 @@ require_cmd git
 require_cmd docker
 
 [ -z "$(g status --porcelain)" ] || fail 2 deploy "working tree has uncommitted changes"
+weak="$(weak_secrets)"
+[ -z "$weak" ] || fail 2 deploy "weak secrets in .env: $weak ($SECRET_HINT)" \
+  weak_secrets:="$(names_json "$weak")"
 take_lock
 
 TARGET="$(g rev-parse HEAD)"

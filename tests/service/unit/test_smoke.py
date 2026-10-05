@@ -20,6 +20,8 @@ from research_engine.errors import ServiceError
 from research_engine_client import ResearchEngineClient
 from research_engine_client.models import ErrorCode
 
+from tests.conftest import TEST_API_KEY
+
 ROOT = Path(__file__).resolve().parents[3]
 # Captured at import, before any fixture patches them (served_results lowers MIN_WORDS).
 REAL_THRESHOLDS = (
@@ -71,7 +73,7 @@ def served_results(monkeypatch: pytest.MonkeyPatch) -> None:
 async def rc(app: FastAPI) -> AsyncIterator[ResearchEngineClient]:
     transport = httpx.ASGITransport(app=app)
     async with ResearchEngineClient(
-        "http://research.localhost", "test-key", transport=transport
+        "http://research.localhost", TEST_API_KEY, transport=transport
     ) as c:
         yield c
 
@@ -81,7 +83,7 @@ async def mcp_http(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://127.0.0.1:8000",
-        headers={"X-API-Key": "test-key"},
+        headers={"X-API-Key": TEST_API_KEY},
     ) as c:
         yield c
 
@@ -248,7 +250,7 @@ async def test_cli_prints_one_json_line(
     result = json.loads(lines[0])
     assert code == 0 and result["ok"] is True, result
     assert [c["name"] for c in result["checks"]] == CHECKS
-    assert "test-key" not in out.out + out.err
+    assert TEST_API_KEY not in out.out + out.err
 
 
 async def test_cli_wrong_site_host_exits_1(

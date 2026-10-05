@@ -4,6 +4,8 @@ import httpx
 from research_engine.errors import ServiceError
 from research_engine_client.models import EnginesResponse, Envelope, ErrorCode, SearchResponse
 
+from tests.conftest import TEST_API_KEY
+
 
 async def test_search_envelope_and_cache(client: httpx.AsyncClient) -> None:
     r1 = await client.post("/v1/search", json={"query": "vector db", "depth": "quick"})
@@ -70,4 +72,4 @@ async def test_unexpected_error_logged_without_secrets(
     assert r.headers["x-request-id"] == r.json()["meta"]["request_id"]
     out = capsys.readouterr().out
     assert "secret internals" in out and "RuntimeError" in out  # traceback logged
-    assert "test-key" not in out  # frame locals (request headers) are not
+    assert TEST_API_KEY not in out  # frame locals (request headers) are not

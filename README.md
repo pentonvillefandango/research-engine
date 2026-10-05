@@ -46,7 +46,7 @@ Don't add `-v` unless you want to delete the dev stack's data. For a real deploy
 
 ## Configuration
 
-All settings come from `.env` (copy `.env.example`; never commit `.env`). Secrets are marked. Generate each secret with `openssl rand -hex 32`.
+All settings come from `.env` (copy `.env.example`; never commit `.env`). Secrets are marked. Generate each secret with `openssl rand -hex 32`. Each must be at least 32 characters and not the `.env.example` placeholder: the app refuses to start otherwise (naming the variable, never its value), and `make deploy` and `make health` check all four, `SEARXNG_SECRET` included.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

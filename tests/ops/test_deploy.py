@@ -133,6 +133,24 @@ def test_deploy_refuses_dirty_tree(dep: Deployer, change: str) -> None:
     assert not (dep.repo / ".deploy" / "current").exists()
 
 
+@pytest.mark.parametrize(
+    "name", ["SEARXNG_SECRET", "API_KEY", "SESSION_SECRET", "CRAWL4AI_API_TOKEN"]
+)
+@pytest.mark.parametrize("bad", ["change-me", "short-but-unique-value"])
+def test_deploy_refuses_placeholder_or_short_secret(dep: Deployer, name: str, bad: str) -> None:
+    commit(dep.repo, "v1")
+    env = dep.repo / ".env"
+    lines = [ln for ln in env.read_text().splitlines() if not ln.startswith(f"{name}=")]
+    env.write_text("\n".join([*lines, f"{name}={bad}"]) + "\n")
+    r = dep.run("deploy")
+    assert r.code == 2 and r.last["ok"] is False
+    assert r.last["weak_secrets"] == [name]
+    assert name in r.last["error"] and "openssl rand -hex 32" in r.last["error"]
+    assert bad not in r.stdout + r.stderr
+    assert dep.env.docker_calls() == [] and dep.entries() == []
+    assert not (dep.repo / ".deploy" / "current").exists()
+
+
 def test_deploy_ignores_ignored_files(dep: Deployer) -> None:
     commit(dep.repo, "v1")
     (dep.repo / "backups" / "more.sqlite").write_text("x")  # ignored: not "dirty"

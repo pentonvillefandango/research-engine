@@ -23,6 +23,8 @@ from research_engine_client.models import (
     SearchResponse,
 )
 
+from tests.conftest import TEST_API_KEY, TEST_ENV
+
 TOOLS = {"web_search", "web_fetch", "search_and_read", "get_job"}
 INIT = {
     "jsonrpc": "2.0",
@@ -34,7 +36,7 @@ INIT = {
         "clientInfo": {"name": "test", "version": "0"},
     },
 }
-MCP_HEADERS = {"Accept": "application/json, text/event-stream", "X-API-Key": "test-key"}
+MCP_HEADERS = {"Accept": "application/json, text/event-stream", "X-API-Key": TEST_API_KEY}
 MODERN = "2026-07-28"  # the newer protocol revision mcp 2.3.0 also serves
 LISTEN = {
     "jsonrpc": "2.0",
@@ -59,7 +61,7 @@ LISTEN_HEADERS = MCP_HEADERS | {
 async def mcp_client(live_server: str) -> AsyncIterator[MCPServerStreamableHttp]:
     server = MCPServerStreamableHttp(
         name="re",
-        params={"url": f"{live_server}/mcp", "headers": {"X-API-Key": "test-key"}},
+        params={"url": f"{live_server}/mcp", "headers": {"X-API-Key": TEST_API_KEY}},
         client_session_timeout_seconds=20,
     )
     async with server:
@@ -91,7 +93,7 @@ async def test_mcp_requires_key(
 async def test_gui_session_cookie_does_not_authenticate_mcp(live_server: str, path: str) -> None:
     """MCP clients hold the API key, never the GUI cookie: a valid cookie with a same-origin
     Origin is still 401 on /mcp (while /v1 keeps accepting it, B2)."""
-    cookie = SessionCodec("test-session-secret-0123456789abcdef").issue()
+    cookie = SessionCodec(TEST_ENV["SESSION_SECRET"]).issue()
     headers = {
         "Accept": "application/json, text/event-stream",
         "Cookie": f"{COOKIE}={cookie}",

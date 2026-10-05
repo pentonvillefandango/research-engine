@@ -3,12 +3,18 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PLACEHOLDER_SECRET = "change-me"  # noqa: S105  # the .env.example placeholder, refused below
+MIN_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=None, extra="ignore", case_sensitive=False)
+    # hide_input_in_errors: a validation error must never echo a secret's value.
+    model_config = SettingsConfigDict(
+        env_file=None, extra="ignore", case_sensitive=False, hide_input_in_errors=True
+    )
 
     # core / identity
     api_key: SecretStr
@@ -50,6 +56,25 @@ class Settings(BaseSettings):
     job_fetch_concurrency: int = Field(default=5, ge=1)
     job_timeout_s: int = Field(default=900, ge=1)
     event_retention_days: int = Field(default=30, ge=1)
+
+    @field_validator("api_key", "session_secret", "crawl4ai_api_token")
+    @classmethod
+    def _real_secret(cls, v: SecretStr, info: ValidationInfo) -> SecretStr:
+        """Refuse the published placeholder and short secrets (names the variable, never the
+        value): with SESSION_SECRET=change-me anyone could mint a GUI session cookie."""
+        name = (info.field_name or "secret").upper()
+        value = v.get_secret_value()
+        if value == PLACEHOLDER_SECRET or len(value) < MIN_SECRET_LENGTH:
+            what = (
+                "is the .env.example placeholder"
+                if value == PLACEHOLDER_SECRET
+                else f"is shorter than {MIN_SECRET_LENGTH} characters"
+            )
+            raise ValueError(
+                f"{name} {what}; it must be a random secret of at least {MIN_SECRET_LENGTH} "
+                "characters. Generate one with: openssl rand -hex 32"
+            )
+        return v
 
     @property
     def ssrf_allow_hosts_set(self) -> frozenset[str]:

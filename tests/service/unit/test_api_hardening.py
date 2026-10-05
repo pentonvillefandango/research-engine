@@ -7,6 +7,8 @@ from research_engine.config import Settings
 from research_engine.testing import build_test_services
 from research_engine_client.models import Envelope, ErrorCode
 
+from tests.conftest import TEST_API_KEY
+
 
 async def test_404_is_envelope(client: httpx.AsyncClient) -> None:
     r = await client.get("/v1/nope")
@@ -79,7 +81,7 @@ async def test_websocket_without_key_refused(app) -> None:
 
 
 async def test_websocket_with_key_passes_auth(app) -> None:
-    sent = await _ws(app, [(b"x-api-key", b"test-key")])
+    sent = await _ws(app, [(b"x-api-key", TEST_API_KEY.encode())])
     assert {"type": "websocket.close", "code": 1008} not in sent
 
 

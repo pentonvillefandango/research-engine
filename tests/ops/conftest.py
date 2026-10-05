@@ -147,11 +147,14 @@ def fake_env(tmp_path: Path) -> FakeEnv:
     (repo / "scripts").mkdir()
     shutil.copy(ROOT / "scripts" / "check_sandbox.sh", repo / "scripts" / "check_sandbox.sh")
     shutil.copy(ROOT / "Makefile", repo / "Makefile")
-    secrets = ["SEKRIT-API", "SEKRIT-SX", "SEKRIT-TOK", "SEKRIT-C4"]
+    # Fake secrets, built at runtime, long enough to pass the ops 32-character secret check.
+    pad = "0" * 32
+    names = ("API_KEY", "SESSION_SECRET", "SEARXNG_SECRET", "ADMIN_TOKEN", "CRAWL4AI_API_TOKEN")
+    tags = ("API", "SS", "SX", "TOK", "C4")
+    secrets = [f"SEKRIT-{tag}-{pad}" for tag in tags]
     (repo / ".env").write_text(
-        "API_KEY=SEKRIT-API\nSEARXNG_SECRET=SEKRIT-SX\nADMIN_TOKEN=SEKRIT-TOK\n"
-        "CRAWL4AI_API_TOKEN=SEKRIT-C4\n"
-        "SITE_HOST=research.example.test\n"
+        "".join(f"{n}={v}\n" for n, v in zip(names, secrets, strict=True))
+        + "SITE_HOST=research.example.test\n"
     )
     caddy = tmp_path / "caddy"
     caddy.mkdir()

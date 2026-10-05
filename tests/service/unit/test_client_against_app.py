@@ -13,11 +13,13 @@ from research_engine_client.models import (
     SearchRequest,
 )
 
+from tests.conftest import TEST_API_KEY
+
 
 @pytest.fixture
 async def rc(app):
     async with ResearchEngineClient(
-        "http://research.localhost", "test-key", transport=httpx.ASGITransport(app=app)
+        "http://research.localhost", TEST_API_KEY, transport=httpx.ASGITransport(app=app)
     ) as c:
         yield c
 

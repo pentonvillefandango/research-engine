@@ -14,6 +14,8 @@ import pytest
 import research_engine_client
 from research_engine_client.models import Document, JobDetail, SearchResponse
 
+from tests.conftest import TEST_API_KEY
+
 from .test_gui_try import NODE, snippets
 
 CASES: list[tuple[str, dict[str, Any], type[Any]]] = [
@@ -46,7 +48,7 @@ async def test_python_snippet_runs(
 
     monkeypatch.setattr(research_engine_client, "ResearchEngineClient", AsgiClient)
     monkeypatch.setenv("RESEARCH_ENGINE_URL", "http://research.localhost")
-    monkeypatch.setenv("RESEARCH_ENGINE_API_KEY", "test-key")
+    monkeypatch.setenv("RESEARCH_ENGINE_API_KEY", TEST_API_KEY)
     pending: list[Coroutine[Any, Any, None]] = []
     monkeypatch.setattr(asyncio, "run", lambda coro: pending.append(coro))
 

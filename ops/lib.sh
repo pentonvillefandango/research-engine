@@ -97,6 +97,24 @@ print(val)
 PY
 }
 
+# weak_secrets: names (space-separated, never values) of the secrets in $ENV_FILE that are missing,
+# the .env.example placeholder, or shorter than 32 characters. The app refuses the first three
+# itself (Settings); SEARXNG_SECRET is compose-only, so this is its only check.
+SECRET_NAMES="API_KEY SESSION_SECRET CRAWL4AI_API_TOKEN SEARXNG_SECRET"
+SECRET_HINT="each must be a random secret of at least 32 characters, not the .env.example placeholder; generate one with: openssl rand -hex 32"
+weak_secrets() {
+  local name value weak=()
+  for name in $SECRET_NAMES; do
+    value="$(env_get "$name" || true)"
+    if [ "$value" = change-me ] || [ "${#value}" -lt 32 ]; then weak+=("$name"); fi
+  done
+  value=""
+  printf '%s' "${weak[*]}"
+}
+
+# names_json "A B": '["A", "B"]' (for json_out key:=...)
+names_json() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1].split()))' "$1"; }
+
 # redact: stdin -> stdout, masks values of key/token/secret/password-like names (case-insensitive)
 # in NAME=value, JSON "name": "value", and X-API-Key / Authorization headers.
 _REDACT_PY='

@@ -19,6 +19,8 @@ from sqlalchemy import func, inspect
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from tests.conftest import TEST_API_KEY
+
 from .test_gui_dashboard import live_client, log_texts, logged_in
 from .test_gui_job import EVIL_MD, result, run_job
 
@@ -50,9 +52,9 @@ async def test_try_page_never_contains_key(app) -> None:
         page = await c.get("/try")
         await c.post("/gui/runs", json=run_body(), headers=ORIGIN)
         listing = await c.get("/gui/runs")
-    assert page.status_code == 200 and "test-key" not in page.text
-    assert "test-key" not in listing.text
-    assert "test-key" not in TRY_JS.read_text()
+    assert page.status_code == 200 and TEST_API_KEY not in page.text
+    assert TEST_API_KEY not in listing.text
+    assert TEST_API_KEY not in TRY_JS.read_text()
     assert "RESEARCH_ENGINE_API_KEY" in TRY_JS.read_text()
 
 
@@ -466,7 +468,7 @@ def test_copy_as_snippets(kind: str, path: str, tool: str, request_: dict[str, A
     s = snippets(kind, request_)
     assert set(s) == {"curl", "python", "mcp"}
     for text in s.values():
-        assert "test-key" not in text
+        assert TEST_API_KEY not in text
     # curl: run it through a real shell with curl replaced by a function that dumps its argv.
     bash = shutil.which("bash")
     assert bash is not None

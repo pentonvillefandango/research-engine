@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# /health, every compose service running and healthy, and SITE_HOST consistent with Caddy. Read-only.
+# /health, every compose service running and healthy, SITE_HOST consistent with Caddy, and no
+# placeholder/short secrets in .env (names only, never values). Read-only.
 CMD=health
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_cmd docker
@@ -31,7 +32,10 @@ else
   fi
 fi
 
-result="$(INSPECT="$inspect" EXPECTED="$expected" BODY="$body" SITE_MATCH="$site_match" \
+# Placeholder, short or missing secrets in .env (names only; values are never printed).
+weak="$(weak_secrets)"
+
+result="$(WEAK="$weak" SECRET_HINT="$SECRET_HINT" INSPECT="$inspect" EXPECTED="$expected" BODY="$body" SITE_MATCH="$site_match" \
   SITE_REASON="$site_reason" python3 - <<'PY'
 import json, os
 containers, good = {}, set()
@@ -43,6 +47,9 @@ for line in os.environ["INSPECT"].splitlines():
     if state == "running" and health == "healthy":
         good.add(service)
 problems = [f"{svc}: not running and healthy" for svc in os.environ["EXPECTED"].split() if svc not in good]
+weak = os.environ["WEAK"].split()
+if weak:
+    problems.append(f"weak secrets in .env: {' '.join(weak)} ({os.environ['SECRET_HINT']})")
 try:
     app_status = json.loads(os.environ["BODY"])["data"]["status"]
 except (ValueError, KeyError, TypeError):
@@ -50,7 +57,7 @@ except (ValueError, KeyError, TypeError):
 site = json.loads(os.environ["SITE_MATCH"])
 ok = app_status == "up" and not problems and site is not False
 print(json.dumps({"ok": ok, "command": "health", "app_status": app_status, "containers": containers,
-                  "problems": problems, "site_host_match": site,
+                  "problems": problems, "site_host_match": site, "weak_secrets": weak,
                   "site_host_reason": json.loads(os.environ["SITE_REASON"])}, sort_keys=True))
 PY
 )"

@@ -28,6 +28,8 @@ from research_engine_client.models import (
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from tests.conftest import TEST_API_KEY
+
 GUI = Path(__file__).resolve().parents[3] / "packages/research_engine/src/research_engine/gui"
 
 
@@ -42,7 +44,7 @@ async def logged_in(app) -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(transport=transport, base_url="http://research.localhost") as c:
         r = await c.post(
             "/login",
-            data={"api_key": "test-key", "next": "/"},
+            data={"api_key": TEST_API_KEY, "next": "/"},
             headers={"Origin": "http://research.localhost"},
         )
         assert r.status_code == 303

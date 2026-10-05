@@ -11,7 +11,7 @@ from pydantic import SecretStr
 from research_engine.app import create_app
 from research_engine.config import Settings
 
-from tests.conftest import running_lifespan
+from tests.conftest import TEST_API_KEY, running_lifespan
 
 from .live_token import crawl4ai_token, require_token
 
@@ -46,7 +46,7 @@ async def live_client(live_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=live_app),
         base_url="http://research.localhost",
-        headers={"X-API-Key": "test-key"},
+        headers={"X-API-Key": TEST_API_KEY},
         timeout=120,
     ) as c:
         yield c

@@ -17,7 +17,7 @@ How to run, check, deploy, back up and repair a Research Engine host. Every comm
 | --- | --- | --- |
 | `make help` | Lists the targets. | (plain text) |
 | `make status` | Containers, health, restart counts, CPU and memory, this project's volume sizes, running version, last deploy and last backup. Read-only. Fails if an expected service isn't running. | `{ok, command, containers: [{name, state, health, restarts, cpu, memory}], not_running, volumes: [{name, size}], version, last_deploy, last_backup}` |
-| `make health` | The app's `/health`, every container's healthcheck, and whether `SITE_HOST` in `.env` equals `SITE_HOST` in `$CADDY_DIR/.env` (compared, never printed). Read-only. Fails unless the app is `up`, every service is running and healthy, and the hosts match. | `{ok, command, app_status, containers: {name: health}, problems, site_host_match, site_host_reason}` |
+| `make health` | The app's `/health`, every container's healthcheck, whether `SITE_HOST` in `.env` equals `SITE_HOST` in `$CADDY_DIR/.env` (compared, never printed), and whether any of `API_KEY`, `SESSION_SECRET`, `CRAWL4AI_API_TOKEN` and `SEARXNG_SECRET` in `.env` is missing, the `.env.example` placeholder or shorter than 32 characters (names only, never values). Read-only. Fails unless the app is `up`, every service is running and healthy, the hosts match and no secret is weak. | `{ok, command, app_status, containers: {name: health}, problems, site_host_match, site_host_reason, weak_secrets}` |
 | `make smoke` | The demo set against the live API, from inside the app container, in under 2 minutes: `version`, `health`, `mcp`, `search`, `fetch_static`, `fetch_pdf`, `search_read`. Read-only apart from those requests. | `{ok, command, checks: [{name, ok, ms, detail}], took_ms}` |
 | `make sandbox` | Checks that Chromium in the live `crawl4ai` runs with its sandbox on, on both launch paths (ADR-0022). Two crawls of `https://example.com` from inside the container; takes 10–30 s. | `{ok, command, mode, sandbox, no_sandbox_procs, default_ok, builtin_ok, addon_active, addon_warnings, crawl_ok, ...}` |
 | `make logs SERVICE=app SINCE=30m` | Recent logs for one service (`app`, `searxng` or `crawl4ai`), redacted. `SINCE` is a number plus `s`, `m`, `h` or `d`. | log lines, then `{ok, command, service, lines}` |
@@ -48,7 +48,7 @@ The live stack always runs a **committed** version. Changes go live only by comm
 
 ### What `make deploy` does
 
-1. Refuses (exit 2) if the working tree has uncommitted changes, or another deploy holds the lock.
+1. Refuses (exit 2) if the working tree has uncommitted changes, if any of `API_KEY`, `SESSION_SECRET`, `CRAWL4AI_API_TOKEN` and `SEARXNG_SECRET` in `.env` is missing, the `.env.example` placeholder or shorter than 32 characters (`weak_secrets` names them, never their values), or if another deploy holds the lock.
 2. Creates (or reuses, after checking it) the worktree `.deploy/<short-sha>` at `HEAD` and points `current` at it.
 3. Runs `docker compose up -d --build --wait` from the worktree, with `GIT_SHA` set, so the app image is `research-engine-app:<short-sha>`.
 4. Runs `make smoke`, then `make sandbox` (every deploy recreates `crawl4ai`, so the sandbox is checked every time).
@@ -129,6 +129,7 @@ Start with `make status`, `make health` and `tail -n 5 deploys.jsonl`.
 - `make logs SERVICE=<service> SINCE=1h` for the failing one.
 - Restart only that container by the name `make status` shows, for example `docker restart research-engine-crawl4ai-1`. After restarting `crawl4ai`, run `make sandbox`.
 - `site_host_match: false` means `SITE_HOST` differs between `.env` and `/opt/caddy/.env`, so `/mcp` returns 421 through Caddy. Fix the Caddy copy (or re-run `make bootstrap`), then `docker compose up -d --force-recreate` in `/opt/caddy`.
+- `weak_secrets` names secrets in `.env` that are missing, the `.env.example` placeholder or shorter than 32 characters. The app refuses to start with such an `API_KEY`, `SESSION_SECRET` or `CRAWL4AI_API_TOKEN`, and `make deploy` refuses (exit 2, nothing changed) while any of the four is weak. Replace each with `openssl rand -hex 32`, then `make deploy`. Rotating `SESSION_SECRET` logs every GUI session out.
 - If it still fails, `make rollback`.
 
 **A container keeps restarting.**

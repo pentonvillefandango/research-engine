@@ -98,6 +98,26 @@ def test_health_ok(fake_env: FakeEnv) -> None:
     assert any("ps -a -q" in c for c in fake_env.docker_calls())
 
 
+@pytest.mark.parametrize(
+    "name", ["SEARXNG_SECRET", "API_KEY", "SESSION_SECRET", "CRAWL4AI_API_TOKEN"]
+)
+@pytest.mark.parametrize("bad", ["change-me", "short-but-unique-value", None])
+def test_health_flags_placeholder_short_or_missing_secret(
+    fake_env: FakeEnv, name: str, bad: str | None
+) -> None:
+    env = fake_env.repo / ".env"
+    lines = [ln for ln in env.read_text().splitlines() if not ln.startswith(f"{name}=")]
+    if bad is not None:
+        lines.append(f"{name}={bad}")
+    env.write_text("\n".join(lines) + "\n")
+    r = fake_env.run("health")
+    assert r.code == 1 and r.last["ok"] is False
+    assert r.last["weak_secrets"] == [name]
+    assert any(name in p and "openssl rand -hex 32" in p for p in r.last["problems"])
+    if bad is not None:
+        assert bad not in r.stdout + r.stderr
+
+
 def test_health_unhealthy_container_fails(fake_env: FakeEnv) -> None:
     r = fake_env.run("health", FAKE_INSPECT_FILE="inspect_unhealthy.tsv")
     assert r.code == 1 and r.last["ok"] is False

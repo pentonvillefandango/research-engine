@@ -11,10 +11,13 @@ from fastapi import FastAPI
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Fake secrets, built at runtime (nothing for gitleaks to flag) and long enough for Settings'
+# 32-character minimum.
+TEST_API_KEY = "test-key-" + "0" * 32
 TEST_ENV = {
-    "API_KEY": "test-key",
-    "SESSION_SECRET": "test-session-secret-0123456789abcdef",
-    "CRAWL4AI_API_TOKEN": "test-crawl-token",
+    "API_KEY": TEST_API_KEY,
+    "SESSION_SECRET": "test-session-secret-" + "1" * 32,
+    "CRAWL4AI_API_TOKEN": "test-crawl-token-" + "2" * 32,
     "SEARXNG_URL": "http://searxng.test:8080",
     "CRAWL4AI_URL": "http://crawl4ai.test:11235",
     "DB_PATH": ":memory:",
@@ -133,6 +136,6 @@ async def client(app) -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(
         transport=transport,
         base_url="http://research.localhost",
-        headers={"X-API-Key": "test-key"},
+        headers={"X-API-Key": TEST_API_KEY},
     ) as c:
         yield c

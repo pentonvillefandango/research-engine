@@ -18,7 +18,7 @@ from research_engine.gui.session import (
 )
 from research_engine_client.models import ErrorCode
 
-from tests.conftest import TEST_ENV
+from tests.conftest import TEST_API_KEY, TEST_ENV
 
 ORIGIN = {"Origin": "http://research.localhost"}
 CSP = (
@@ -36,7 +36,7 @@ def anon(app, *, base_url: str = "http://research.localhost", ip: str = "10.0.0.
     return httpx.AsyncClient(transport=transport, base_url=base_url)
 
 
-async def _login(c: httpx.AsyncClient, key: str = "test-key") -> httpx.Response:
+async def _login(c: httpx.AsyncClient, key: str = TEST_API_KEY) -> httpx.Response:
     return await c.post("/login", data={"api_key": key, "next": "/"}, headers=ORIGIN)
 
 
@@ -74,7 +74,7 @@ async def test_login_sets_cookie_and_authenticates_api(app) -> None:
 async def test_open_redirect_blocked(app) -> None:
     async with anon(app) as c:
         r = await c.post(
-            "/login", data={"api_key": "test-key", "next": "//evil.example/"}, headers=ORIGIN
+            "/login", data={"api_key": TEST_API_KEY, "next": "//evil.example/"}, headers=ORIGIN
         )
         assert r.headers["location"] == "/"
 
@@ -146,7 +146,7 @@ async def test_cookie_secure_when_https(app) -> None:
     async with anon(app, base_url="https://research.localhost") as c:
         r = await c.post(
             "/login",
-            data={"api_key": "test-key", "next": "/"},
+            data={"api_key": TEST_API_KEY, "next": "/"},
             headers={"Origin": "https://research.localhost"},
         )
     assert r.status_code == 303
@@ -174,14 +174,14 @@ async def test_cookie_secure_when_https(app) -> None:
 )
 async def test_next_must_be_same_site_path(app, bad: str) -> None:
     async with anon(app) as c:
-        r = await c.post("/login", data={"api_key": "test-key", "next": bad}, headers=ORIGIN)
+        r = await c.post("/login", data={"api_key": TEST_API_KEY, "next": bad}, headers=ORIGIN)
     assert r.status_code == 303 and r.headers["location"] == "/"
 
 
 async def test_next_keeps_safe_path_and_query(app) -> None:
     async with anon(app) as c:
         r = await c.post(
-            "/login", data={"api_key": "test-key", "next": "/jobs/abc?tab=events"}, headers=ORIGIN
+            "/login", data={"api_key": TEST_API_KEY, "next": "/jobs/abc?tab=events"}, headers=ORIGIN
         )
     assert r.headers["location"] == "/jobs/abc?tab=events"
 
@@ -209,7 +209,7 @@ def test_safe_next_unit() -> None:
 )
 async def test_login_post_requires_same_origin(app, headers: dict[str, str]) -> None:
     async with anon(app) as c:
-        r = await c.post("/login", data={"api_key": "test-key", "next": "/"}, headers=headers)
+        r = await c.post("/login", data={"api_key": TEST_API_KEY, "next": "/"}, headers=headers)
     assert r.status_code == 403
     assert "set-cookie" not in r.headers
 
@@ -218,13 +218,13 @@ async def test_login_post_referer_fallback_and_site_host(app) -> None:
     async with anon(app) as c:
         r = await c.post(
             "/login",
-            data={"api_key": "test-key", "next": "/"},
+            data={"api_key": TEST_API_KEY, "next": "/"},
             headers={"Referer": "http://research.localhost/login?next=/"},
         )
         assert r.status_code == 303
     # The Host differs (e.g. a port), but the Origin host equals SITE_HOST.
     async with anon(app, base_url="http://research.localhost:8443") as c:
-        r = await c.post("/login", data={"api_key": "test-key", "next": "/"}, headers=ORIGIN)
+        r = await c.post("/login", data={"api_key": TEST_API_KEY, "next": "/"}, headers=ORIGIN)
         assert r.status_code == 303
 
 
@@ -663,16 +663,16 @@ async def test_cookie_post_with_explicit_default_port_allowed(app) -> None:
 
 async def test_login_over_ipv6_literal_host(app) -> None:
     async with anon(app, base_url="http://[::1]:8080") as c:
-        ok = await c.post("/login", data={"api_key": "test-key", "next": "/"},
+        ok = await c.post("/login", data={"api_key": TEST_API_KEY, "next": "/"},
                           headers={"Origin": "http://[::1]:8080"})  # fmt: skip
-        bad = await c.post("/login", data={"api_key": "test-key", "next": "/"},
+        bad = await c.post("/login", data={"api_key": TEST_API_KEY, "next": "/"},
                            headers={"Origin": "http://[::1]:9999"})  # fmt: skip
     assert ok.status_code == 303 and bad.status_code == 403
 
 
 async def test_login_post_scheme_mismatch_rejected(app) -> None:
     async with anon(app, base_url="https://research.localhost") as c:
-        r = await c.post("/login", data={"api_key": "test-key", "next": "/"}, headers=ORIGIN)
+        r = await c.post("/login", data={"api_key": TEST_API_KEY, "next": "/"}, headers=ORIGIN)
     assert r.status_code == 403
 
 

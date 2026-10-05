@@ -7,6 +7,8 @@ from research_engine.config import Settings
 from research_engine.config_files import IntentRegistry
 from research_engine_client.models import SearchIntent
 
+from tests.conftest import TEST_API_KEY
+
 ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_ONLY = {
     "SEARXNG_SECRET",
@@ -24,7 +26,7 @@ def test_requires_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_reads_env(settings_env: None) -> None:
     s = Settings()  # type: ignore[call-arg]
-    assert s.api_key.get_secret_value() == "test-key"
+    assert s.api_key.get_secret_value() == TEST_API_KEY
     assert s.site_host == "research.localhost"
     assert s.search_min_results == 10 and s.thin_word_threshold == 150
 
@@ -95,3 +97,29 @@ def test_settings_ignores_dotenv_file(tmp_path: Path, monkeypatch: pytest.Monkey
         monkeypatch.delenv(k, raising=False)
     with pytest.raises(ValidationError):
         Settings()  # type: ignore[call-arg]
+
+
+SECRET_VARS = ("API_KEY", "SESSION_SECRET", "CRAWL4AI_API_TOKEN")
+
+
+@pytest.mark.parametrize("name", SECRET_VARS)
+@pytest.mark.parametrize("bad", ["change-me", "", "s" * 31, "unique-short-value-" + "q" * 5])
+def test_refuses_placeholder_or_short_secret(
+    settings_env: None, monkeypatch: pytest.MonkeyPatch, name: str, bad: str
+) -> None:
+    monkeypatch.setenv(name, bad)
+    with pytest.raises(ValidationError) as ei:
+        Settings()  # type: ignore[call-arg]
+    msg = str(ei.value)
+    assert name in msg and "openssl rand -hex 32" in msg and "32 characters" in msg
+    if bad:
+        assert bad not in msg  # the value itself is never echoed
+
+
+@pytest.mark.parametrize("name", SECRET_VARS)
+def test_accepts_32_char_secret(
+    settings_env: None, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    value = "k" * 32  # built at runtime: a fake key, nothing for gitleaks to flag
+    monkeypatch.setenv(name, value)
+    assert getattr(Settings(), name.lower()).get_secret_value() == value  # type: ignore[call-arg]

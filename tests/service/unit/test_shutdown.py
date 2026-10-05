@@ -23,7 +23,7 @@ from research_engine.gui.session import COOKIE, SessionCodec
 from research_engine.shutdown import begin_shutdown, shutdown_signals
 from research_engine_client.models import BatchFetchRequest, EventKind, JobStatus, JobType
 
-from tests.conftest import ROOT, TEST_ENV
+from tests.conftest import ROOT, TEST_API_KEY, TEST_ENV
 
 
 async def test_close_subscribers_ends_open_and_new_subscriptions() -> None:
@@ -220,7 +220,7 @@ async def test_sigterm_with_open_sse_stream_exits_fast() -> None:
 
 _MCP_HEADERS = {
     "Accept": "application/json, text/event-stream",
-    "X-API-Key": "test-key",
+    "X-API-Key": TEST_API_KEY,
     "MCP-Protocol-Version": "2025-06-18",
 }
 _MODERN_META = {
