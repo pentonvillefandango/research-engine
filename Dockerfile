@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.13.16-slim-trixie AS builder
+FROM python:3.14.7-slim-trixie AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.12.23 /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_NO_DEV=1 UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
@@ -14,7 +14,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --package research-engine --no-editable
 
-FROM python:3.13.16-slim-trixie
+FROM python:3.14.7-slim-trixie
 ARG GIT_SHA=unknown
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app \
     && mkdir -p /data && chown 10001:10001 /data
