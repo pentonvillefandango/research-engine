@@ -12,6 +12,10 @@ cp .env.example .env     # edit SITE_HOST, LAB_SUBNET, TOOLBOX_HOST
 docker compose up -d
 ```
 
+`SITE_HOST` and `LAB_SUBNET` are both required. If either is empty the site fails closed
+(no lab client matches, so everything gets 403). `LAB_SUBNET` takes one or more
+space-separated CIDRs. Keep `.env` mode 600.
+
 Validate without starting anything (no ports, removed afterwards):
 
 ```sh
