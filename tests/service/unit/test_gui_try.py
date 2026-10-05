@@ -455,9 +455,14 @@ CASES = [
 ]
 
 
-@pytest.mark.skipif(NODE is None, reason="node is not installed")
 @pytest.mark.parametrize(("kind", "path", "tool", "request_"), CASES)
 def test_copy_as_snippets(kind: str, path: str, tool: str, request_: dict[str, Any]) -> None:
+    if NODE is None:
+        # CI installs node (actions/setup-node), so a missing node there is a broken runner,
+        # not a reason to silently skip the only test that executes the snippet builders.
+        if os.environ.get("CI"):
+            pytest.fail("node is not on PATH in CI: the copy-as snippet tests need it")
+        pytest.skip("node is not installed")
     s = snippets(kind, request_)
     assert set(s) == {"curl", "python", "mcp"}
     for text in s.values():
