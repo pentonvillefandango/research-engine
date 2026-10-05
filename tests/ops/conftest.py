@@ -25,6 +25,24 @@ args=" $* "
 case "$1" in
   compose)
     case "$args" in
+      *" compose version "*) echo "Docker Compose version v0.0.0-fake" ;;
+      *" run "*)  # restore: record the mounted source's modes and content, print the CLI result
+        src="" prev=""
+        for a in "$@"; do [ "$prev" = "-v" ] && src="${a%%:*}"; prev="$a"; done
+        printf '%s %s %s\n' "$src" "$(stat -c %a "$src")" "$(stat -c %a "$(dirname "$src")")" \
+          >> "$FAKE_CALLS.run"
+        cp "$src" "$FAKE_CALLS.run.copy"
+        if [ -n "${FAKE_RESTORE_FAIL:-}" ]; then
+          echo '{"command": "db restore", "error": "missing tables: event", "ok": false}'; exit 1
+        fi
+        printf '%s' '{"bytes": 20, "command": "db restore", "from": "/restore.sqlite", "ok": true,'
+        echo ' "restored": "/data/research-engine.sqlite"}' ;;
+      *" cp app:"*)
+        [ -z "${FAKE_CP_FAIL:-}" ] || { echo "fake docker: cp failed" >&2; exit 1; }
+        printf 'SQLite format 3 fake backup' > "${*: -1}" ;;
+      *" stop app "*) [ -z "${FAKE_STOP_FAIL:-}" ] || exit 1; echo "fake docker: stopped" >&2 ;;
+      *" start "*) echo "fake docker: started" >&2 ;;
+      *" ps -q caddy "*) [ -n "${FAKE_CADDY_DOWN:-}" ] || echo caddyid ;;
       *" ps -a -q "*) [ -n "${FAKE_PS_EMPTY:-}" ] || cat "$F/ps_q.txt" ;;
       *" ps -q crawl4ai "*) echo c4id ;;
       *" config --services "*)
@@ -34,6 +52,13 @@ case "$1" in
       *" logs "*) [ -z "${FAKE_LOGS_FAIL:-}" ] || exit 1; cat "$F/${FAKE_LOGS_FILE:-logs.txt}" ;;
       *" exec "*)
         case "$args" in
+          *" research-engine db backup "*)
+            if [ -n "${FAKE_DB_BACKUP_FAIL:-}" ]; then
+              echo '{"command": "db backup", "error": "database not found", "ok": false}'; exit 1
+            fi
+            printf '{"bytes": 27, "command": "db backup", "ok": true, "path": "%s"}\n' "${*: -1}" ;;
+          *" rm -f /data/.backup-"*) : ;;
+          *" caddy reload "*) echo "fake docker: caddy reloaded" >&2 ;;
           *" research-engine smoke "*)
             cat "$F/${FAKE_SMOKE_FILE:-exec_smoke_ok.json}"; exit "${FAKE_SMOKE_EXIT:-0}" ;;
           *"select.select"*)  # sandbox /proc probe: ready, wait for stop, report

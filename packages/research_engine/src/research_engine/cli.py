@@ -1,9 +1,10 @@
-"""`research-engine` command line: schema export and the smoke test."""
+"""`research-engine` command line: schema export, the smoke test, and SQLite backup/restore."""
 
 import argparse
 import asyncio
 import json
 import os
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
@@ -91,6 +92,30 @@ def _smoke(url: str, timeout_s: float) -> int:
     return 0 if result["ok"] else 1
 
 
+def _db(action: str, path: Path) -> int:
+    """``db backup --out`` / ``db restore --from``: exactly one JSON line; exit 0, 1 or 2."""
+    from research_engine.config import Settings
+    from research_engine.store.sqlite_backup import DbOpError, backup_db, restore_db
+
+    db_path = Path(os.environ.get("DB_PATH") or Settings.model_fields["db_path"].default)
+    result: dict[str, Any] = {"command": f"db {action}"}
+    code = 0
+    try:
+        if action == "backup":
+            result |= {"ok": True, "path": str(path), "bytes": backup_db(db_path, path)}
+        else:
+            size = restore_db(path, db_path)
+            result |= {"ok": True, "restored": str(db_path), "from": str(path), "bytes": size}
+    except DbOpError as exc:
+        result |= {"ok": False, "error": str(exc)}
+        code = exc.code
+    except (OSError, sqlite3.Error) as exc:
+        result |= {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}
+        code = 1
+    print(json.dumps(result, sort_keys=True), flush=True)
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="research-engine")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -104,7 +129,17 @@ def main(argv: list[str] | None = None) -> int:
     smoke.add_argument(
         "--timeout", type=float, default=110.0, help="overall deadline in seconds (default 110)"
     )
+    db = sub.add_parser("db", help="SQLite backup and restore (one JSON line)")
+    db_sub = db.add_subparsers(dest="action", required=True)
+    db_backup = db_sub.add_parser("backup", help="online copy of DB_PATH to a new file")
+    db_backup.add_argument("--out", type=Path, required=True, help="new file to write")
+    db_restore = db_sub.add_parser("restore", help="replace DB_PATH from a validated copy")
+    db_restore.add_argument(
+        "--from", dest="source", type=Path, required=True, help="backup file to restore"
+    )
     args = parser.parse_args(argv)
+    if args.cmd == "db":
+        return _db(args.action, args.out if args.action == "backup" else args.source)
     if args.cmd == "smoke":
         return _smoke(args.url, args.timeout)
     if args.cmd == "schemas" and args.action == "export":
