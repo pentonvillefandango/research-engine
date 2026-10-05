@@ -227,8 +227,9 @@ def build_mcp(get_services: Callable[[], Services]) -> MCPServer:
 
         Waits up to wait_s seconds (0-60) for the job to finish and returns it. If
         job.status is still "queued" or "running", call get_job with job.id (and a wait_s)
-        until it is "done", "partial" or "failed". result.documents holds the pages read,
-        ranked; result.failed lists URLs that could not be read.
+        until job.status is no longer "queued" or "running". result.documents holds the pages
+        read, ranked; result.failed lists URLs that could not be read, each with its error;
+        job.errors holds job-level errors.
         """
         services = get_services()
         request = _request(

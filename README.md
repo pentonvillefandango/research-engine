@@ -23,7 +23,7 @@ V1 (search and read, fully observable) is being finished on the `v1` branch and 
 
 ## Quick start
 
-You need Docker with the Compose plugin, and `openssl`. This starts a local development stack. It needs no reverse proxy, and it runs as its own Compose project (`research-engine-dev`), so it can never replace a live `research-engine` stack on the same host.
+You need Docker with the Compose plugin, and `openssl`. The commands are for Linux; on macOS, write `sed -i ''` instead of `sed -i`. This starts a local development stack. It needs no reverse proxy, and it runs as its own Compose project (`research-engine-dev`), so it can never replace a live `research-engine` stack on the same host.
 
 ```bash
 git clone https://github.com/pentonvillefandango/research-engine.git
@@ -88,7 +88,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 
 ## API usage
 
-Send `X-API-Key` on every `/v1` request. The examples use `BASE=https://research.localhost` and `KEY` holding your API key. The full OpenAPI description is at `/openapi.json` (there is no `/docs` page, on purpose: it would load third-party JavaScript on the GUI's origin).
+Send `X-API-Key` on every `/v1` request. The examples use `BASE=https://research.localhost` and `KEY` holding your API key. For the quick-start stack, use `BASE=http://127.0.0.1:8765` (and MCP at `http://127.0.0.1:8765/mcp`). The full OpenAPI description is at `/openapi.json` (there is no `/docs` page, on purpose: it would load third-party JavaScript on the GUI's origin).
 
 ```bash
 H=(-H "X-API-Key: $KEY" -H 'Content-Type: application/json')
@@ -151,7 +151,7 @@ Tool arguments, agent patterns and a system-prompt snippet are in the [agent usa
 `research-engine-client` is a typed async client with the shared Pydantic models. Install it from this repository:
 
 ```bash
-pip install "git+https://github.com/pentonvillefandango/research-engine#subdirectory=packages/research_engine_client"
+pip install "git+https://github.com/pentonvillefandango/research-engine@v1.0.0#subdirectory=packages/research_engine_client"
 ```
 
 ```python

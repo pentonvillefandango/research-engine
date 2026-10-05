@@ -135,11 +135,19 @@ async def test_using_guide_names_every_mcp_tool() -> None:
 
 
 async def test_using_guide_names_every_v1_route(client: httpx.AsyncClient) -> None:
+    """Method and path, e.g. ``POST /v1/search`` and ``DELETE /v1/jobs/{job_id}``."""
     spec = (await client.get("/openapi.json")).json()
-    routes = [p for p in spec["paths"] if p.startswith("/v1")]
-    assert "/v1/search" in routes and "/v1/jobs/{job_id}" in routes
+    routes = [
+        f"{method.upper()} {path}"
+        for path, ops in spec["paths"].items()
+        if path.startswith("/v1")
+        for method in ops
+        if method in {"get", "post", "put", "patch", "delete"}
+    ]
+    assert "POST /v1/search" in routes and "DELETE /v1/jobs/{job_id}" in routes
     text = _read(USING)
-    missing = [r for r in routes if r not in text]
+    # whole route only: "POST /v1/search" must not be satisfied by "POST /v1/search_read"
+    missing = [r for r in routes if not re.search(re.escape(r) + r"(?![\w/{])", text)]
     assert not missing, missing
 
 

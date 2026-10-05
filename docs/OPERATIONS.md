@@ -6,7 +6,7 @@ How to run, check, deploy, back up and repair a Research Engine host. Every comm
 
 - Every operation is `make <target>`, a thin wrapper around `ops/<target>.sh`. Run them from the repository root (for example `/opt/research-engine`).
 - Progress goes to stderr. The **last line on stdout is one JSON object**, always with `ok` (true or false) and `command`. A failure adds `error`.
-- The scripts exit **0** on success, **1** when the check or command failed, and **2** on a usage or precondition error (bad argument, dirty tree, lock held). `make` reports a failing script as `make: *** [Makefile:NN: <target>] Error 1` (or `Error 2`) on stderr, and then itself exits 2. Read the JSON `ok`, or run `ops/<target>.sh` directly when you need the exact code.
+- The scripts exit **0** on success, **1** when the check or command failed, and **2** on a usage or precondition error (bad argument, dirty tree, or the shared lock is held: deploy, rollback and restore give up at once, while a backup waits up to `BACKUP_LOCK_WAIT` first). `make` reports a failing script as `make: *** [Makefile:NN: <target>] Error 1` (or `Error 2`) on stderr, and then itself exits 2. Read the JSON `ok`, or run `ops/<target>.sh` directly when you need the exact code.
 - No script prints a secret. Logs and command output pass through a redactor that masks key, token, secret and password values.
 - The scripts address the stack only as Compose project `research-engine`, with `--env-file .env`. They never touch other projects or VM-wide Docker state.
 - Useful environment overrides: `BACKUP_DIR` (default `backups/`), `BACKUP_RETENTION_DAYS` (14), `BACKUP_LOCK_WAIT` (600 seconds), `CADDY_DIR` (`/opt/caddy`), `ENV_FILE` (`.env`), `DEPLOYS_LOG` (`deploys.jsonl`), `TAIL` (500 lines, for logs).
@@ -25,7 +25,7 @@ How to run, check, deploy, back up and repair a Research Engine host. Every comm
 | `make backup` | Online SQLite backup into `backups/`, then retention. The app keeps running. | `{ok, command, file, bytes, pruned}` |
 | `make restore FILE=backups/research-engine-<ts>.sqlite` | Checks the file, takes a safety backup, stops `app`, restores the file, starts `app`, runs `health`. | `{ok, command, restored, health, safety_backup}` |
 | `make deploy` | Deploys the committed `HEAD`: worktree, build, `up --wait`, smoke, sandbox; rolls back automatically on failure. | ok: `{ok, command, from, to, smoke, sandbox}`; failed: adds `error`, `detail`, `stack_changed`, `rolled_back_to`, `rollback_target`, `rollback_ok`, `rollback_branch`, `current` |
-| `make rollback` or `make rollback SHA=<sha>` | Redeploys the last good commit (or the given one) on a new `rollback/<ts>` branch, then smoke and sandbox. | `{ok, command, from, to, branch, smoke, sandbox}` |
+| `make rollback` or `make rollback SHA=<sha>` | Redeploys the last good commit (or the given one) on a new `rollback/<ts>` branch, then smoke and sandbox. | ok: `{ok, command, from, to, branch, smoke, sandbox}`; failed: adds `error`, `switched`, `current` and `detail` |
 | `make bootstrap` | One-off, idempotent VM set-up (see below). Uses `sudo`, so the owner runs it. | `{ok, command, dry_run, actions: [{step, action, ...}]}` |
 | `make test` | Lint, format check, type check and unit tests. Touches nothing live. | (tool output) |
 
@@ -77,23 +77,25 @@ Fields: `ts` (UTC), `action` (`deploy` or `rollback`), `from`, `to`, `result` (`
 ## Backup and restore
 
 - `make backup` runs `research-engine db backup` inside `app`. It uses SQLite's online backup API, so it is safe while the app is writing, and it checks the copy with `PRAGMA integrity_check`. The file lands in `backups/research-engine-<UTC-timestamp>.sqlite` (mode 600; the directory is mode 700). Then retention deletes `research-engine-*.sqlite` files in `backups/` older than `BACKUP_RETENTION_DAYS` (default 14), and nothing else.
-- A **nightly backup** runs at 03:30 from the systemd timer `research-engine-backup.timer`, installed by `make bootstrap` (`Persistent=true`, so a run missed while the VM was off happens at the next boot). Check it with `systemctl list-timers research-engine-backup.timer`; `make status` shows `last_backup`.
+- A **nightly backup** runs at 03:30 from the systemd timer `research-engine-backup.timer`, installed by `make bootstrap` (`Persistent=true`, so a run missed while the VM was off happens at the next boot). Check it with `systemctl list-timers research-engine-backup.timer`. `make status` shows `last_backup`, the newest file in `backups/`; right after a restore that is the `-prerestore` safety copy.
 - Backups take the same lock as deploy, rollback and restore, so they never overlap. A backup waits for the lock for up to `BACKUP_LOCK_WAIT` seconds (default 600).
-- `make restore FILE=backups/research-engine-<ts>.sqlite` accepts only a `research-engine-*.sqlite` file directly inside `backups/` (exit 2 otherwise). It takes the lock, then, while the app still runs, checks the file (`integrity_check` and the tables `job`, `event` and `cache_entry`) and takes a safety backup of the current database (`research-engine-<ts>-prerestore.sqlite`, restorable like any other). If either step fails, nothing changes. Only then does it stop `app`, copy the backup into place (removing stale `-wal` and `-shm` files), start `app` and run `health`. The final JSON line names the safety copy in `safety_backup`.
-- **Back up Caddy's root CA too.** Caddy's private CA lives in the `caddy-data` volume of the shared Caddy (`/data/caddy/pki/authorities/local/`). If it is lost, Caddy makes a new CA and every client must trust the new root. Copy it off the VM once, and keep it private (it holds the root key):
+- `make restore FILE=backups/research-engine-<ts>.sqlite` accepts only a `research-engine-*.sqlite` file directly inside `backups/` (exit 2 otherwise). It takes the lock, then, while the app still runs, checks the file (`integrity_check` and the tables `job`, `event` and `cache_entry`) and takes a safety backup of the current database (`research-engine-<ts>-prerestore.sqlite`, restorable like any other). If either step fails, nothing changes. Only then does it stop `app`, copy the backup into place (removing stale `-wal` and `-shm` files), start `app` and run `health`. The final JSON line names the safety copy in `safety_backup`. The safety backup is taken while the app still runs, so anything written between it and the app stopping (a few seconds) is in neither copy. Restore refuses (exit 2) a file with a non-empty `-wal` file beside it: restore files made by `make backup`.
+- **Back up Caddy's root CA too.** Caddy's private CA lives in the `caddy-data` volume of the shared Caddy (`/data/caddy/pki/authorities/local/`). If it is lost, Caddy makes a new CA and every client must trust the new root. Copy it off the VM once, keep it private (it holds the root key), and don't leave a copy on the VM:
 
   ```bash
   cd /opt/caddy && docker compose cp caddy:/data/caddy/pki/authorities/local ./ca-backup
+  # from your own machine: scp -r <vm>:/opt/caddy/ca-backup ./caddy-ca-backup
+  rm -rf /opt/caddy/ca-backup
   ```
 
 ## Bootstrap
 
 `make bootstrap` (or `ops/bootstrap.sh --dry-run`, which prints the planned actions and changes nothing) is safe to re-run. It:
 
-1. checks for `docker`, `docker compose` and `systemctl`, and that the current user owns the repository;
+1. checks for `docker`, `docker compose`, `make` and `systemctl`, and that the current user owns the repository (exit 2 otherwise);
 2. creates `.env` from `.env.example` with four generated secrets (`API_KEY`, `SESSION_SECRET`, `SEARXNG_SECRET`, `CRAWL4AI_API_TOKEN`), mode 600, if it is missing. It never overwrites `.env` and never prints a value;
 3. creates `backups/` (mode 700);
-4. copies changed files from `deploy/caddy/` to `/opt/caddy/` (never deleting anything there, never copying a `.env`). It writes `SITE_HOST` in `/opt/caddy/.env` from the repository's `.env`, the single source. (The placeholder in a `.env` created in the same run never replaces an existing value: set `SITE_HOST` in `.env` and re-run.) When `/opt/caddy/.env` is missing it needs `LAB_SUBNET` (and optionally `TOOLBOX_HOST`) in the environment, and exits 2 saying so otherwise;
+4. copies changed files from `deploy/caddy/` to `/opt/caddy/` (never deleting anything there, never copying a `.env`). It writes `SITE_HOST` in `/opt/caddy/.env` from the repository's `.env`, the single source. The `.env.example` placeholder (`research.localhost`, in a new or never-edited `.env`) never replaces a different existing Caddy value; the JSON then carries a `site_host_note`. So set `SITE_HOST` in `.env` before the first run. When `/opt/caddy/.env` is missing, or its `LAB_SUBNET` is empty, it needs `LAB_SUBNET` (and optionally `TOOLBOX_HOST`) in the environment, and exits 2 saying so otherwise;
 5. starts Caddy, which creates the `proxy` network. If the `Caddyfile`, `compose.yaml` or `.env` changed it recreates the container; if only `sites/` changed it reloads Caddy;
 6. installs and enables the nightly backup timer with `sudo` (its only sudo use, which may ask for the password; skipped when the timer is already installed and running).
 

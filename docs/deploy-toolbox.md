@@ -47,21 +47,26 @@ git clone https://github.com/pentonvillefandango/research-engine.git /opt/resear
 cd /opt/research-engine
 ```
 
-## 5. Run `make bootstrap`
+## 5. Create `.env` and run `make bootstrap`
 
-Bootstrap creates `.env` with generated secrets, installs the shared Caddy in `/opt/caddy` (which creates the `proxy` network) and turns on the nightly backup timer. It uses `sudo` for the timer, so run it yourself. Preview it first with `ops/bootstrap.sh --dry-run`.
+`SITE_HOST` comes from the repository's `.env`, the single source, so set it **before** the first bootstrap. Then one run is enough. Bootstrap keeps an existing `.env`, so generate its secrets yourself:
+
+```bash
+cp .env.example .env && chmod 600 .env
+sed -i 's/^SITE_HOST=.*/SITE_HOST=research.toolbox.home.arpa/' .env
+for k in API_KEY SESSION_SECRET SEARXNG_SECRET CRAWL4AI_API_TOKEN; do
+  sed -i "s/^$k=.*/$k=$(openssl rand -hex 32)/" .env
+done
+```
+
+Bootstrap installs the shared Caddy in `/opt/caddy` (which creates the `proxy` network), writes `SITE_HOST` into `/opt/caddy/.env`, and turns on the nightly backup timer. It uses `sudo` for the timer, so run it yourself. Preview it first with `ops/bootstrap.sh --dry-run`.
 
 ```bash
 LAB_SUBNET='<lab-cidr>' make bootstrap
 ```
 
 - `LAB_SUBNET` is needed only the first time, when `/opt/caddy/.env` doesn't exist yet. It takes one or more space-separated CIDRs. Clients outside it get 403. `TOOLBOX_HOST=toolbox.home.arpa` is optional (the host name of the index page).
-- `SITE_HOST` comes from the repository's `.env`, the single source. A new `.env` starts with `research.localhost`, so set the real name and run bootstrap again. That writes it into `/opt/caddy/.env` and recreates Caddy:
-
-  ```bash
-  sed -i 's/^SITE_HOST=.*/SITE_HOST=research.toolbox.home.arpa/' .env
-  make bootstrap
-  ```
+- If you skip the `.env` step, bootstrap creates `.env` with generated secrets and the placeholder `research.localhost`. Then set `SITE_HOST` in `.env` and run `make bootstrap` again. The placeholder never replaces a real value already in `/opt/caddy/.env`.
 
 The two `SITE_HOST` values must stay equal. If they drift, `/mcp` returns 421, and `make health` reports `site_host_match: false`.
 
