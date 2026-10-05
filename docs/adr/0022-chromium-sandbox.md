@@ -101,7 +101,19 @@ Delete `deploy/crawl4ai/addon/`, its compose mount and `PYTHONPATH` once upstrea
 
 It already runs as `tests/integration/test_sandbox_live.py`. In step 9 it becomes part of `make smoke`, and so of `make deploy`. A Crawl4AI upgrade that breaks the add-on fails that check instead of silently disabling the sandbox. `tests/test_sandbox_addon.py` pins the add-on's behaviour: the Popen shim, binding-safe wrappers, the patchright target, warn-not-crash, the `active` line, and staying inert without the flag or without crawl4ai.
 
+### Capabilities (step 8, 2026-10-05)
+
+`crawl4ai` runs with `cap_drop: [ALL]` and `cap_add: [SYS_CHROOT]` only.
+
+- **Root cause of the 2026-10-04 failure:** under `cap_drop: [ALL]` the logs show Chromium's zygote dying with `Check failed: sys_chroot("/proc/self/fdinfo/") == 0` (`Zygote process exited prematurely`), so gunicorn's startup, which launches the permanent browser, fails. The zygote chroots into an empty directory inside its own user namespace to drop filesystem access. Inside that namespace it holds full capabilities (`CapEff=000001ffffffffff` under `unshare -Ur`, with or without `cap_drop`), so this is **not** a capability check. It's seccomp. Docker compiles the profile against the container's capability set, and moby's default (and so ours) allows `chroot` only `includes: {caps: [CAP_SYS_CHROOT]}`. Dropping the capability removes the syscall for every process. Tested with `unshare -Ur chroot /proc/self/fdinfo/`: EPERM with `cap_drop: [ALL]`, and OK with the default set or with `cap_drop: [ALL]` plus `cap_add: [SYS_CHROOT]`.
+- **Why `SYS_CHROOT` and nothing else:** the entrypoint and supervisord need no capabilities.
+  - The image's `USER` is already `appuser` (uid 999), so supervisord's `user=appuser` is a no-op and needs no SETUID or SETGID.
+  - `/var/lib/redis` is appuser-owned.
+  - No relevant binary has file capabilities (`getcap -r /` lists only `gst-ptp-helper`).
+- **The net effect is tighter than Docker's default.** `SYS_CHROOT` is one of Docker's default 14 capabilities, and the bounding set drops from `a80425fb` to `00040000`. Every process still has `CapEff=0` and `NoNewPrivs=1`, so the capability is never effective in the container's own namespace. It only keeps the seccomp `chroot` rule in place for Chromium's namespaced zygote. `scripts/check_sandbox.sh` passes with `"sandbox":"on"` on both launch paths.
+- **`read_only`:** not attempted for `crawl4ai`. Redis (`/var/lib/redis`), gunicorn's control socket (`/home/appuser/.gunicorn`), Playwright's profile and cache dirs, and Crawl4AI's own state all write under the image filesystem. Mapping them all to tmpfs or volumes is a V2 hardening item.
+- **SearXNG (same step):** the image has no `USER`, so by default it runs as root with Docker's default capabilities. Its entrypoint needs root only to `chown` `/etc/searxng` and `/var/cache/searxng` when they are not `searxng:searxng` (they are, in the image and in the named volume) and for `update-ca-certificates` (skipped when non-root). It now runs as `user: "977:977"` (the image's `searxng` user) with `cap_drop: [ALL]`, `no-new-privileges` and no capabilities added back (`CapEff=0 CapBnd=0 NoNewPrivs=1`).
+
 ### Deferred (V2)
 
 - Block the `crawl4ai` container's egress to the LAN (private ranges) at the network layer, as defence in depth behind the sandbox and the SSRF guard.
-- `cap_drop: [ALL]` (step 8): a throwaway test on 2026-10-04 left the container unhealthy, and no browser launched. The cause is unknown; every process already runs as uid 999 with `CapEff=0`. Step 8 inspects the container logs and re-runs `scripts/check_sandbox.sh`.

@@ -5,3 +5,9 @@ services:
     ports: ["127.0.0.1::8080"]
   crawl4ai:
     ports: ["127.0.0.1::11235"]
+
+# Dev runs never need the VM-wide `proxy` network: use a project-local one instead.
+networks:
+  proxy:
+    external: false
+    name: research-engine-dev-proxy

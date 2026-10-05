@@ -1,9 +1,95 @@
 name: research-engine
 
+# Co-tenant stack (REQUIREMENTS §9): no fixed host ports, no container_name, named volumes only,
+# hard limits and log rotation on every service. Policy-tested by tests/test_compose_policy.py.
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
 services:
+  app:
+    build:
+      context: .
+      args: { GIT_SHA: "${GIT_SHA:-unknown}" }
+    image: research-engine-app:${GIT_SHA:-dev}
+    restart: unless-stopped
+    # additive budget: uvicorn graceful drain (5 s) THEN lifespan shutdown incl. job runner stop (~9 s) + slack
+    stop_grace_period: 30s
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    # Explicit mapping, never env_file, so compose-only values (SEARXNG_SECRET, LAB_SUBNET) never
+    # reach the app. Covers every Settings field (config.py); tests/test_compose_policy.py fails on
+    # drift. Defaults equal the Settings defaults. Keep .env.example in sync.
+    environment:
+      # core / identity
+      API_KEY: ${API_KEY:?set API_KEY in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      SITE_HOST: ${SITE_HOST:-research.localhost}
+      GIT_SHA: ${GIT_SHA:-unknown}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      USER_AGENT: ${USER_AGENT:-ResearchEngine/0.1 (+https://github.com/pentonvillefandango/research-engine)}
+      # upstreams (fixed by compose: service names on the internal network)
+      SEARXNG_URL: http://searxng:8080
+      CRAWL4AI_URL: http://crawl4ai:11235
+      CRAWL4AI_API_TOKEN: ${CRAWL4AI_API_TOKEN:?set CRAWL4AI_API_TOKEN in .env}
+      # config files (relative to the image's /app)
+      INTENTS_FILE: ${INTENTS_FILE:-config/intents.yaml}
+      DEMOS_FILE: ${DEMOS_FILE:-config/demos.yaml}
+      # search
+      SEARCH_MIN_RESULTS: ${SEARCH_MIN_RESULTS:-10}
+      SEARCH_TIMEOUT_S: ${SEARCH_TIMEOUT_S:-30.0}
+      # fetch
+      PAGE_TIMEOUT_S: ${PAGE_TIMEOUT_S:-60}
+      THIN_WORD_THRESHOLD: ${THIN_WORD_THRESHOLD:-150}
+      MAX_RESPONSE_BYTES: ${MAX_RESPONSE_BYTES:-10485760}
+      ALLOWED_CONTENT_TYPES: ${ALLOWED_CONTENT_TYPES:-text/html,application/xhtml+xml,application/pdf,text/plain}
+      SSRF_ALLOW_HOSTS: ${SSRF_ALLOW_HOSTS:-}
+      DOMAIN_CONCURRENCY: ${DOMAIN_CONCURRENCY:-2}
+      DOMAIN_DELAY_S: ${DOMAIN_DELAY_S:-1.0}
+      # cache
+      CACHE_TTL_SEARCH_S: ${CACHE_TTL_SEARCH_S:-3600}
+      CACHE_TTL_PAGE_S: ${CACHE_TTL_PAGE_S:-86400}
+      # store / jobs / events (DB_PATH fixed: the app-data volume; .env's DB_PATH is for local runs)
+      DB_PATH: /data/research-engine.sqlite
+      JOB_WORKERS: ${JOB_WORKERS:-2}
+      JOB_FETCH_CONCURRENCY: ${JOB_FETCH_CONCURRENCY:-5}
+      JOB_TIMEOUT_S: ${JOB_TIMEOUT_S:-900}
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-30}
+    # the image's /data is owned 10001; a fresh named volume inherits that ownership
+    volumes: ["app-data:/data"]
+    depends_on:
+      searxng: { condition: service_healthy }
+      crawl4ai: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: "${APP_MEM_LIMIT:-1g}", cpus: "${APP_CPUS:-1.0}" }
+    logging: *logging
+    networks:
+      internal: {}
+      proxy:
+        aliases: [research-engine-app]
+
   searxng:
     image: searxng/searxng:2026.10.4-d48c4b555
     restart: unless-stopped
+    # The image has no USER, so it would run as root with Docker's default capabilities. Its
+    # entrypoint needs root only to chown /etc/searxng and /var/cache/searxng when they are not
+    # searxng:searxng (they are, in the image and so in the named volume) and for
+    # update-ca-certificates (skipped when non-root). Running as the image's own searxng user
+    # (977) needs no capabilities at all (verified 2026-10-05, ADR-0022 notes).
+    user: "977:977"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     environment:
       SEARXNG_SECRET: ${SEARXNG_SECRET:?set SEARXNG_SECRET in .env}
       SEARXNG_BASE_URL: http://searxng:8080/
@@ -16,6 +102,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: "${SEARXNG_MEM_LIMIT:-512m}", cpus: "${SEARXNG_CPUS:-1.0}" }
+    logging: *logging
     networks: [internal]
 
   crawl4ai:
@@ -30,10 +120,19 @@ services:
     # Docker's default seccomp allows only with extra capabilities. The profile is moby's default
     # plus that one rule (deploy/crawl4ai/README.md). The add-on (deploy/crawl4ai/addon, loaded via
     # PYTHONPATH) makes Crawl4AI 0.9.4 honour CRAWL4AI_CHROMIUM_SANDBOX on every launch path;
-    # scripts/check_sandbox.sh verifies both launch paths.
+    # scripts/check_sandbox.sh verifies both launch paths. Never remove these.
     security_opt:
       - seccomp=./deploy/crawl4ai/seccomp-chromium.json
       - no-new-privileges:true
+    cap_drop: [ALL]
+    # SYS_CHROOT is the only capability added back (ADR-0022). Docker builds the seccomp filter
+    # from the container's capability set, and the default profile allows chroot(2) only when
+    # CAP_SYS_CHROOT is held. Chromium's zygote chroots to /proc/self/fdinfo/ inside its own user
+    # namespace to drop filesystem access; without the rule it dies with
+    # `Check failed: sys_chroot(...)`. Every process runs as uid 999 with no file capabilities and
+    # no-new-privileges, so CapEff stays 0. SYS_CHROOT is in Docker's default set: this is one
+    # capability instead of fourteen. The entrypoint needs nothing else (already runs as appuser).
+    cap_add: [SYS_CHROOT]
     volumes:
       - ./deploy/crawl4ai/addon:/opt/re-addon:ro
     healthcheck:
@@ -42,10 +141,29 @@ services:
       timeout: 5s
       retries: 6
       start_period: 40s
+    deploy:
+      resources:
+        limits: { memory: "${CRAWL4AI_MEM_LIMIT:-4g}", cpus: "${CRAWL4AI_CPUS:-2.0}" }
+    logging: *logging
     networks: [internal]
+
+  # ---- V2 (not part of V1; kept as documentation of the intended shape) ----
+  # gluetun-uk:
+  #   profiles: [vpn]
+  #   image: qmcgaw/gluetun:<pinned>
+  #   cap_add: [NET_ADMIN]   # Gluetun only (§9)
+  #   devices: ["/dev/net/tun:/dev/net/tun"]
+  # ollama:
+  #   profiles: [ollama]
+  #   image: ollama/ollama:<pinned>
 
 networks:
   internal: {}
+  # VM-wide network shared with the reverse proxy (created by the step-8.4 bring-up, not here)
+  proxy:
+    external: true
+    name: proxy
 
 volumes:
+  app-data: {}
   searxng-cache: {}

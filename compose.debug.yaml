@@ -1,0 +1,5 @@
+# Debug override: publish the app on 127.0.0.1:${APP_PORT} only (loopback, never 0.0.0.0).
+# Used only when APP_PORT is set in .env (step 9's ops scripts add `-f compose.debug.yaml` then).
+services:
+  app:
+    ports: ["127.0.0.1:${APP_PORT:?set APP_PORT in .env to use compose.debug.yaml}:8000"]

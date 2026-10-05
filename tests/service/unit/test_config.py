@@ -8,7 +8,12 @@ from research_engine.config_files import IntentRegistry
 from research_engine_client.models import SearchIntent
 
 ROOT = Path(__file__).resolve().parents[3]
-COMPOSE_ONLY = {"SEARXNG_SECRET", "LAB_SUBNET"}
+COMPOSE_ONLY = {
+    "SEARXNG_SECRET",
+    "LAB_SUBNET",
+    "APP_PORT",
+    *(f"{svc}_{lim}" for svc in ("APP", "SEARXNG", "CRAWL4AI") for lim in ("MEM_LIMIT", "CPUS")),
+}
 
 
 def test_requires_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
