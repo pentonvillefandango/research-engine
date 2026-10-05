@@ -9,6 +9,8 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule: { interval: "weekly" }
-  - package-ecosystem: "docker"
-    directory: "/deploy/caddy"
+  # image pins in compose.yaml (searxng, crawl4ai). A crawl4ai bump must pass
+  # scripts/check_sandbox.sh before merging (ADR-0022): CI can't run it.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
     schedule: { interval: "weekly" }

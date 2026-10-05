@@ -1,5 +1,6 @@
-"""Policy test for compose.yaml: co-tenancy, hardening and sandbox protections (V1-20, §9)."""
+"""Policy test for the compose files: co-tenancy, hardening and sandbox protections (V1-20, §9)."""
 
+import posixpath
 import re
 from pathlib import Path
 from typing import Any
@@ -8,15 +9,27 @@ import yaml
 from research_engine.config import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE: dict[str, Any] = yaml.safe_load((ROOT / "compose.yaml").read_text())
-RAW = "\n".join(
-    line.split("#", 1)[0] for line in (ROOT / "compose.yaml").read_text().splitlines()
-)  # comments stripped
+
+
+def _load(name: str) -> dict[str, Any]:
+    return yaml.safe_load((ROOT / name).read_text())
+
+
+def _raw(name: str) -> str:
+    """The file with comments stripped."""
+    return "\n".join(line.split("#", 1)[0] for line in (ROOT / name).read_text().splitlines())
+
+
+COMPOSE = _load("compose.yaml")
+RAW = _raw("compose.yaml")
 SERVICES: dict[str, Any] = COMPOSE["services"]
+DEV = _load("compose.dev.yaml")
+DEBUG = _load("compose.debug.yaml")
 
 # Settings fields whose value compose fixes rather than taking from .env
 COMPOSE_FIXED = {"SEARXNG_URL", "CRAWL4AI_URL", "DB_PATH"}
 SECRETS = {"API_KEY", "SESSION_SECRET", "CRAWL4AI_API_TOKEN"}
+SECCOMP_PROFILE = "./deploy/crawl4ai/seccomp-chromium.json"
 
 
 def _env_example_keys() -> set[str]:
@@ -26,6 +39,44 @@ def _env_example_keys() -> set[str]:
         if line and not line.startswith("#") and "=" in line:
             keys.add(line.split("=", 1)[0])
     return keys
+
+
+def _mounts(svc: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalise short- and long-syntax volume entries to {type, source, target, read_only}."""
+    out: list[dict[str, Any]] = []
+    for v in svc.get("volumes", []):
+        if isinstance(v, dict):
+            out.append(
+                {
+                    "type": v.get("type"),
+                    "source": str(v.get("source", "")),
+                    "target": str(v.get("target", "")),
+                    "read_only": v.get("read_only") is True,
+                }
+            )
+            continue
+        parts = str(v).split(":")
+        src, tgt = (parts[0], parts[1]) if len(parts) > 1 else ("", parts[0])
+        mode = parts[2] if len(parts) > 2 else ""
+        bind = src.startswith((".", "/", "~", "$"))
+        out.append(
+            {
+                "type": "bind" if bind else ("volume" if src else "anonymous"),
+                "source": src,
+                "target": tgt,
+                "read_only": "ro" in mode.split(","),
+            }
+        )
+    return out
+
+
+def _security_opts(svc: dict[str, Any]) -> list[tuple[str, str]]:
+    """security_opt entries as (key, value); Docker accepts both `key=value` and `key:value`."""
+    out: list[tuple[str, str]] = []
+    for opt in svc.get("security_opt", []):
+        key, _, value = str(opt).strip().replace(":", "=", 1).partition("=")
+        out.append((key.strip().lower(), value.strip()))
+    return out
 
 
 def test_project_name() -> None:
@@ -41,12 +92,30 @@ def test_core_services_without_profiles() -> None:
 
 
 def test_forbidden_settings() -> None:
+    forbidden = (
+        "container_name",
+        "privileged",
+        "pid",
+        "ports",
+        "devices",
+        "network_mode",  # host, service:..., container:... all bypass the project networks
+        "volumes_from",
+    )
     for name, svc in SERVICES.items():
-        for key in ("container_name", "privileged", "pid", "ports"):
+        for key in forbidden:
             assert key not in svc, f"{name} sets {key}"
-        assert svc.get("network_mode") != "host"
-        assert not any("docker.sock" in str(v) for v in svc.get("volumes", []))
+        assert svc.get("ipc") not in ("host",) and not str(svc.get("ipc", "")).startswith(
+            ("container:", "service:")
+        ), f"{name} shares ipc"
+        assert svc.get("userns_mode") != "host", f"{name} sets userns_mode: host"
+        assert svc.get("cgroup") != "host", f"{name} sets cgroup: host"
     assert "--no-sandbox" not in RAW and "SYS_ADMIN" not in RAW and "NET_ADMIN" not in RAW
+
+
+def test_no_docker_socket() -> None:
+    for name, svc in SERVICES.items():
+        for m in _mounts(svc):
+            assert "docker.sock" not in m["source"] + m["target"], f"{name}: {m}"
 
 
 def test_every_service_is_a_good_cotenant() -> None:
@@ -57,21 +126,28 @@ def test_every_service_is_a_good_cotenant() -> None:
         assert "max-size" in opts and "max-file" in opts, name
         limits = svc["deploy"]["resources"]["limits"]
         assert "memory" in limits and "cpus" in limits, name
-        if "image" in svc:
-            assert re.search(r":[\w.\-${}:]+$", svc["image"]), name
-            assert not svc["image"].endswith(":latest"), name
+
+
+def test_images_pinned() -> None:
+    for name, svc in SERVICES.items():
+        if "image" not in svc:
+            continue
+        image = str(svc["image"])
+        tag = image.rsplit("/", 1)[-1].partition(":")[2]
+        assert tag, f"{name}: no tag"
+        assert "latest" not in tag.lower(), f"{name}: {image}"
+        for default in re.findall(r"\$\{\w+(?::?-([^}]*))?\}", tag):
+            assert default.strip(), f"{name}: interpolated tag needs a non-empty default"
 
 
 def test_hardening() -> None:
     for name in ("app", "searxng", "crawl4ai"):
         svc = SERVICES[name]
-        assert "no-new-privileges:true" in svc["security_opt"], name
+        assert ("no-new-privileges", "true") in _security_opts(svc), name
         assert svc["cap_drop"] == ["ALL"], name
     app = SERVICES["app"]
     assert app["read_only"] is True and app["user"] == "10001:10001"
     assert SERVICES["searxng"]["user"] == "977:977"  # the image's own searxng user
-    assert "cap_add" not in SERVICES["searxng"] and "cap_add" not in app
-    assert any(str(t).startswith("/tmp") for t in app["tmpfs"])  # noqa: S108 - a tmpfs mount
     assert "app-data:/data" in app["volumes"]
     assert app["stop_grace_period"] == "30s"
     assert "env_file" not in app
@@ -80,20 +156,40 @@ def test_hardening() -> None:
     assert app["depends_on"]["crawl4ai"]["condition"] == "service_healthy"
 
 
+def test_app_tmpfs() -> None:
+    tmpfs = SERVICES["app"]["tmpfs"]
+    tmpfs = [tmpfs] if isinstance(tmpfs, str) else tmpfs
+    assert len(tmpfs) == 1
+    target, _, opts = str(tmpfs[0]).partition(":")
+    assert target == "/tmp"  # noqa: S108 - a tmpfs mount target
+    assert {"noexec", "nosuid", "nodev"} <= set(opts.split(","))
+
+
+def test_capabilities() -> None:
+    # SYS_CHROOT only (ADR-0022): Docker's seccomp profile allows chroot(2) only with it, and
+    # Chromium's zygote chroots inside its user namespace. Any addition needs an ADR change.
+    assert SERVICES["crawl4ai"]["cap_add"] == ["SYS_CHROOT"]
+    assert [n for n, s in SERVICES.items() if "cap_add" in s] == ["crawl4ai"]
+
+
+def test_security_opt_never_weakened() -> None:
+    """Docker applies the last seccomp= entry: an extra `unconfined` silently disables a layer."""
+    for name, svc in SERVICES.items():
+        for key, value in _security_opts(svc):
+            assert "unconfined" not in value.lower(), f"{name}: {key}={value}"
+            assert not (key == "label" and value.lower() == "disable"), f"{name}: label disable"
+            assert key in ("no-new-privileges", "seccomp", "apparmor", "label"), f"{name}: {key}"
+        seccomp = [v for k, v in _security_opts(svc) if k == "seccomp"]
+        assert seccomp == ([SECCOMP_PROFILE] if name == "crawl4ai" else []), f"{name}: {seccomp}"
+
+
 def test_crawl4ai_sandbox_protections_present() -> None:
     """ADR-0022: the sandbox depends on these; a compose rewrite must never drop them."""
     c4 = SERVICES["crawl4ai"]
-    assert "seccomp=./deploy/crawl4ai/seccomp-chromium.json" in c4["security_opt"]
+    assert f"seccomp={SECCOMP_PROFILE}" in c4["security_opt"]
     assert "./deploy/crawl4ai/addon:/opt/re-addon:ro" in c4["volumes"]
     assert c4["environment"]["PYTHONPATH"] == "/opt/re-addon"
     assert c4["environment"]["CRAWL4AI_CHROMIUM_SANDBOX"] == "true"
-    # SYS_CHROOT: Docker's seccomp profile allows chroot(2) only with it, and Chromium's zygote
-    # chroots inside its user namespace (ADR-0022). It is in Docker's default set anyway.
-    allowed = {"CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER", "SYS_CHROOT"}
-    assert set(c4.get("cap_add", [])) <= allowed, (
-        "only documented capabilities may be added back; never SYS_ADMIN"
-    )
-    assert "SYS_ADMIN" not in c4.get("cap_add", [])
 
 
 def test_networks() -> None:
@@ -103,11 +199,18 @@ def test_networks() -> None:
 
 
 def test_volumes_named_only() -> None:
+    declared = set(COMPOSE.get("volumes") or {})
     for name, svc in SERVICES.items():
-        for v in svc.get("volumes", []):
-            src = str(v).split(":", 1)[0]
-            if src.startswith(("./", "/")):
-                assert src.startswith("./deploy/") and str(v).endswith(":ro"), f"{name}: {v}"
+        for m in _mounts(svc):
+            if m["type"] == "volume":
+                assert m["source"] in declared, f"{name}: undeclared volume {m}"
+                continue
+            assert m["type"] == "bind", f"{name}: {m}"
+            src = m["source"]
+            assert ".." not in src.split("/"), f"{name}: path escape {src}"
+            norm = posixpath.normpath(src)
+            assert norm.startswith("deploy/"), f"{name}: bind outside ./deploy: {src}"
+            assert src.startswith("./deploy/") and m["read_only"], f"{name}: {m}"
 
 
 def test_app_env_covers_every_setting() -> None:
@@ -147,3 +250,24 @@ def test_env_example_in_sync() -> None:
     assert {f.upper() for f in Settings.model_fields} <= keys
     compose_vars = set(re.findall(r"\$\{(\w+)[:}]", RAW))
     assert compose_vars <= keys, "every ${VAR} in compose.yaml is documented in .env.example"
+
+
+def test_dev_override_publishes_loopback_ephemeral_only() -> None:
+    assert set(DEV) <= {"services", "networks"}
+    for name, svc in DEV["services"].items():
+        assert set(svc) == {"ports"}, f"dev override may only add ports: {name}"
+        for p in svc["ports"]:
+            assert isinstance(p, str) and re.fullmatch(r"127\.0\.0\.1::\d+", p), f"{name}: {p}"
+    assert "app" not in DEV["services"]
+    assert set(DEV.get("networks", {})) == {"proxy"}
+    proxy = DEV["networks"]["proxy"]
+    assert proxy["external"] is False and str(proxy["name"]).startswith("research-engine-")
+
+
+def test_debug_override_app_loopback_only() -> None:
+    assert set(DEBUG) == {"services"}
+    assert set(DEBUG["services"]) == {"app"}
+    app = DEBUG["services"]["app"]
+    assert set(app) == {"ports"}
+    assert len(app["ports"]) == 1
+    assert re.fullmatch(r"127\.0\.0\.1:\$\{APP_PORT:\?[^}]+\}:8000", app["ports"][0])

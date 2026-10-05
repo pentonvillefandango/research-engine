@@ -13,22 +13,26 @@ from research_engine.config import Settings
 
 from tests.conftest import running_lifespan
 
+from .live_token import crawl4ai_token, require_token
+
 # Read at import: the settings_env fixture replaces CRAWL4AI_API_TOKEN with a test value.
-_LIVE_TOKEN = os.environ.get("CRAWL4AI_API_TOKEN", "")
+# Falls back to .env when unset (never printed).
+_LIVE_TOKEN = crawl4ai_token(os.environ)
 
 
 @pytest.fixture
 async def live_app(settings_env: None, tmp_path: Path) -> AsyncIterator[FastAPI]:
     """The real app (``create_app()``, real adapters and lifespan) on the dev stack.
 
-    Needs ``SEARXNG_LIVE_URL``, ``CRAWL4AI_LIVE_URL`` and ``CRAWL4AI_API_TOKEN`` in the
-    environment; uses a throwaway file database. No ``.env`` values are read or printed.
+    Needs ``SEARXNG_LIVE_URL`` and ``CRAWL4AI_LIVE_URL`` in the environment, and
+    ``CRAWL4AI_API_TOKEN`` there or in ``.env`` (only that key is read; never printed). Uses a
+    throwaway file database.
     """
     settings = Settings().model_copy(  # type: ignore[call-arg]
         update={
             "searxng_url": os.environ["SEARXNG_LIVE_URL"],
             "crawl4ai_url": os.environ["CRAWL4AI_LIVE_URL"],
-            "crawl4ai_api_token": SecretStr(_LIVE_TOKEN),
+            "crawl4ai_api_token": SecretStr(require_token(_LIVE_TOKEN)),
             "db_path": str(tmp_path / "live.sqlite"),
         }
     )

@@ -15,12 +15,14 @@ from research_engine.pipeline.fetch import FetchService
 from research_engine.safety.http import make_fetch_client
 from research_engine_client.models import FetchMethod, FetchRequest
 
+from .live_token import crawl4ai_token, require_token
 from .live_urls import PDF, SPA, STATIC_ARTICLE
 
 pytestmark = pytest.mark.integration
 
 # Read at import: the settings_env fixture replaces CRAWL4AI_API_TOKEN with a test value.
-_TOKEN = os.environ.get("CRAWL4AI_API_TOKEN", "")
+# Falls back to .env when unset (never printed).
+_TOKEN = crawl4ai_token(os.environ)
 _HTML_TAG = re.compile(r"<(script|style|div|span|html|body)\b", re.IGNORECASE)
 
 
@@ -29,7 +31,7 @@ async def service(settings_env: None) -> AsyncIterator[FetchService]:
     settings = Settings().model_copy(  # type: ignore[call-arg]
         update={
             "crawl4ai_url": os.environ["CRAWL4AI_LIVE_URL"],
-            "crawl4ai_api_token": SecretStr(_TOKEN),
+            "crawl4ai_api_token": SecretStr(require_token(_TOKEN)),
         }
     )
     async with httpx.AsyncClient() as http, make_fetch_client(settings.user_agent) as fetch_http:
