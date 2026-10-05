@@ -1,0 +1,13 @@
+{
+	admin 127.0.0.1:2019
+}
+
+# One file per tool in sites/ (see README.md).
+import sites/*.caddy
+
+# Index page listing the tools on this host. The default host is an example; set TOOLBOX_HOST.
+{$TOOLBOX_HOST:toolbox.home.arpa} {
+	tls internal
+	root * /srv/index
+	file_server
+}

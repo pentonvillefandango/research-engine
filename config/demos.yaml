@@ -1,0 +1,56 @@
+# Test-console demos (V1-21), shown in the "Try it" page's demo dropdown.
+# Each request must validate against its kind's public model (SearchRequest, FetchRequest or
+# SearchReadRequest); tests/service/unit/test_demos.py enforces this. List only the fields a
+# demo needs: every other form field keeps its default.
+# The fetch URLs are the live URLs verified in step 3 (tests/integration/live_urls.py); a test
+# asserts they match.
+demos:
+  - id: vector-dbs
+    label: Compare open-source vector databases
+    description: Technical search across Q&A, developer docs and code hosts.
+    kind: search
+    request:
+      query: Compare open-source vector databases
+      intent: technical
+
+  - id: vector-dbs-read
+    label: Compare open-source vector databases (search and read top 5)
+    description: The same technical search, then the top 5 results read in a background job.
+    kind: search_read
+    request:
+      search:
+        query: Compare open-source vector databases
+        intent: technical
+      top_n: 5
+
+  - id: asyncio-taskgroup
+    label: Python asyncio TaskGroup docs
+    description: A static documentation page, read without a browser.
+    kind: fetch
+    request:
+      url: https://docs.python.org/3/library/asyncio-task.html
+      mode: static
+
+  - id: js-app
+    label: JS-heavy app page
+    description: A page that renders its content with JavaScript; auto mode escalates to the browser.
+    kind: fetch
+    request:
+      url: https://quotes.toscrape.com/js/
+      mode: auto
+
+  - id: vendor-pdf
+    label: Vendor PDF with tables
+    description: A long PDF (RFC 9110) converted to markdown.
+    kind: fetch
+    request:
+      url: https://www.rfc-editor.org/rfc/rfc9110.pdf
+
+  - id: wasm-news
+    label: Latest news on WebAssembly
+    description: News search limited to the last month.
+    kind: search
+    request:
+      query: WebAssembly
+      intent: news
+      time_range: month

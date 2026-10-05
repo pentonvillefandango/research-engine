@@ -1,0 +1,17 @@
+# Dev/test override: publish internal services on ephemeral 127.0.0.1 ports so
+# fixture recording and integration tests can reach them. Never used by `make deploy`.
+services:
+  # A dev-only image name (no ${GIT_SHA}): a dev `up --build` can never overwrite a live or
+  # rollback `research-engine-app:<sha>` tag.
+  app:
+    image: research-engine-app-dev:local
+  searxng:
+    ports: ["127.0.0.1::8080"]
+  crawl4ai:
+    ports: ["127.0.0.1::11235"]
+
+# Dev runs never need the VM-wide `proxy` network: use a project-local one instead.
+networks:
+  proxy:
+    external: false
+    name: research-engine-dev-proxy

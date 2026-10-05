@@ -10,5 +10,7 @@ repos:
         args: ["--maxkb=2048"]
       - id: check-merge-conflict
       - id: end-of-file-fixer
+        exclude: ^packages/research_engine/src/research_engine/gui/static/vendor/  # byte-exact npm files
       - id: trailing-whitespace
+        exclude: ^packages/research_engine/src/research_engine/gui/static/vendor/  # byte-exact npm files
       - id: detect-private-key

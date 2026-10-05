@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>How metasearch engines merge results</title>
+  <meta name="author" content="Test Author">
+  <meta name="description" content="An explainer on how metasearch engines combine ranked lists.">
+</head>
+<body>
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/archive">Archive</a></li>
+      <li><a href="/about">About</a></li>
+    </ul>
+  </nav>
+  <main>
+    <article>
+      <h1>How metasearch engines merge results</h1>
+      <p class="byline">By Test Author, <time datetime="2026-03-14T09:00:00Z">14 March 2026</time></p>
+      <p>A metasearch engine does not crawl the web itself. Instead it forwards each query to several independent search engines, waits for their answers, and then has to decide what a single sensible list should look like. The interesting part is not the forwarding but the merging, because every engine returns its own ordering, its own scoring scale and its own idea of what counts as a duplicate.</p>
+      <h2>Normalising the inputs</h2>
+      <p>The first problem is that raw scores from different engines cannot be compared. One engine may return no score at all, while another reports a number between zero and one, and a third reports something closer to a count of matching terms. Most merging systems therefore ignore the scores entirely and look only at the rank, the position at which each result appeared in its engine's list. Rank is the one signal every engine provides, and it is easy to convert into a comparable number.</p>
+      <p>Before ranks can be combined, the addresses of the results must be made comparable too. Two engines may return the same page with and without a trailing slash, with a tracking parameter attached, or with an uppercase hostname. A careful merger canonicalises each address, removing the parts that never change which page is shown, so that identical pages collapse into one candidate.</p>
+      <h2>Combining the rankings</h2>
+      <p>A popular technique is reciprocal rank fusion. Each engine contributes a score of one divided by a constant plus the rank of the result in that engine's list. A page that appears near the top of several lists collects several large contributions, and so rises above a page that only one engine liked. The constant keeps the very first position from dominating everything else, and a value around sixty is common in practice.</p>
+      <p>This approach has attractive properties. It needs no training data, it degrades gracefully when one engine fails to respond, and it rewards agreement between independent sources. Agreement is a useful proxy for relevance, since it is unlikely that several unrelated ranking systems would all promote the same poor page by accident.</p>
+      <p>Weights can be added when some engines are trusted more than others. A weight simply multiplies that engine's contribution before the sum is taken. Operators often tune these weights by hand after reading through a few dozen queries and noticing which engines consistently surface the pages they would have chosen themselves.</p>
+      <h2>Keeping the result honest</h2>
+      <p>After merging, a good system keeps track of which engines supported each result. This provenance lets a reader see why a page ranked highly and lets the operator spot an engine that is silently returning junk. Read more in our <a href="/posts/ranking-basics">ranking basics</a> note, the <a href="/posts/dedupe">deduplication guide</a> and the <a href="/posts/timeouts">timeouts primer</a>. For the original fusion idea see the <a href="https://papers.example.org/rrf">fusion paper</a> and the <a href="https://docs.example.net/search/federation">federation notes</a>.</p>
+      <p>In short, merging is a small amount of arithmetic wrapped around a large amount of careful bookkeeping, and most of the quality comes from the bookkeeping.</p>
+    </article>
+  </main>
+  <footer>
+    <p>Copyright notice. All rights reserved. <a href="/privacy">Privacy</a> | <a href="/terms">Terms</a></p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<h2>Now</h2>
+<p class="queue">Queue depth: <strong class="queue-depth">{{ queue_depth }}</strong></p>
+{% if running %}
+<table class="running">
+  <thead><tr><th>Job</th><th>Type</th><th>Progress</th><th>Current</th></tr></thead>
+  <tbody>
+  {% for job in running %}
+    <tr>
+      <td><a href="/jobs/{{ job.id|urlencode }}">{{ job.id }}</a></td>
+      <td>{{ job.type.value }}</td>
+      <td>{{ job.progress.done }}/{{ job.progress.total }}</td>
+      <td class="current">{{ (job.progress.current or '')|truncate(80, true) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No running jobs.</p>
+{% endif %}
+<h3>Recent jobs</h3>
+{% if recent %}
+<table class="recent">
+  <thead><tr><th>Job</th><th>Type</th><th>Status</th><th>Progress</th><th>Created (UTC)</th></tr></thead>
+  <tbody>
+  {% for job in recent %}
+    <tr>
+      <td><a href="/jobs/{{ job.id|urlencode }}">{{ job.id }}</a></td>
+      <td>{{ job.type.value }}</td>
+      <td><span class="status status-{{ job.status.value }}">{{ job.status.value }}</span></td>
+      <td>{{ job.progress.done }}/{{ job.progress.total }}</td>
+      <td><time datetime="{{ job.created_at.isoformat() }}">{{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</time></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No jobs yet.</p>
+{% endif %}

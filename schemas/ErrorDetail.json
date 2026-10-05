@@ -1,0 +1,63 @@
+{
+  "$defs": {
+    "ErrorCode": {
+      "enum": [
+        "invalid_request",
+        "unauthorized",
+        "not_found",
+        "ssrf_blocked",
+        "robots_disallowed",
+        "content_type_not_allowed",
+        "response_too_large",
+        "upstream_timeout",
+        "upstream_error",
+        "engine_failed",
+        "fetch_failed",
+        "extraction_failed",
+        "job_cancelled",
+        "job_timeout",
+        "interrupted",
+        "internal_error"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/ErrorDetail.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/ErrorCode"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "retryable": {
+      "title": "Retryable",
+      "type": "boolean"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "URL, engine or component that failed",
+      "title": "Source"
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "retryable",
+    "source"
+  ],
+  "title": "ErrorDetail",
+  "type": "object"
+}

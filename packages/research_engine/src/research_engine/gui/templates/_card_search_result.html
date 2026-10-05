@@ -1,0 +1,6 @@
+{# One search result as a card. `r` is a SearchResult; every field is autoescaped. #}
+<article class="card">
+  <h3 class="headline"><span class="muted">#{{ r.rank }}</span> {% if is_http_url(r.url) %}<a href="{{ r.url }}" rel="{{ link_rel }}" target="_blank">{{ (r.title or r.url)|truncate(300, true) }}</a>{% else %}{{ (r.title or r.url)|truncate(300, true) }}{% endif %}</h3>
+  <p class="facts"><span class="domain">{{ r.domain }}</span> · engines <span class="engines">{{ r.engines|join(", ") }}</span> · score <span class="score">{{ r.score }}</span>{% if r.published_at %} · published <time datetime="{{ r.published_at.isoformat() }}">{{ r.published_at.strftime('%Y-%m-%d') }}</time>{% endif %}</p>
+  {% if r.snippet %}<p class="snippet">{{ r.snippet|truncate(400, true) }}</p>{% endif %}
+</article>

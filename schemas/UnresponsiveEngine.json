@@ -1,0 +1,21 @@
+{
+  "$id": "research-engine/1.0.0/UnresponsiveEngine.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "engine": {
+      "title": "Engine",
+      "type": "string"
+    },
+    "error": {
+      "title": "Error",
+      "type": "string"
+    }
+  },
+  "required": [
+    "engine",
+    "error"
+  ],
+  "title": "UnresponsiveEngine",
+  "type": "object"
+}

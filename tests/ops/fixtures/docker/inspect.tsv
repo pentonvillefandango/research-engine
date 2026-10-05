@@ -1,0 +1,3 @@
+/research-engine-app-1	running	healthy	0	app
+/research-engine-searxng-1	running	healthy	1	searxng
+/research-engine-crawl4ai-1	running	healthy	0	crawl4ai

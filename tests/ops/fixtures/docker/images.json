@@ -1,0 +1,2 @@
+[{"ContainerName":"research-engine-app-1","Repository":"research-engine-app","Tag":"abc1234","ID":"sha256:1","Size":100},
+ {"ContainerName":"research-engine-searxng-1","Repository":"searxng/searxng","Tag":"2026.10.4","ID":"sha256:2","Size":50}]

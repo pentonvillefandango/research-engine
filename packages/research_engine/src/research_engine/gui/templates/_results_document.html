@@ -1,0 +1,9 @@
+{# Test console: an Envelope[Document] as Cards and Rendered views (the job page's _document.html). #}
+<div data-view="cards">
+  {% include "_envelope_errors.html" %}
+  {% if data %}{% with d=data, rank=none, score=none %}{% include "_card_document.html" %}{% endwith %}{% endif %}
+</div>
+<div data-view="rendered">
+  {% include "_envelope_errors.html" %}
+  {% if data %}{% with d=data, rank=none, score=none, job_id=none %}{% include "_document.html" %}{% endwith %}{% endif %}
+</div>

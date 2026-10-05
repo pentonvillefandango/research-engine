@@ -1,0 +1,42 @@
+name: caddy
+
+# Shared, tool-agnostic reverse proxy (REQUIREMENTS §9). The ONE place fixed host ports are
+# allowed: it is the VM's front door. It creates the VM-wide `proxy` network that tools join.
+# Policy-tested by tests/test_caddy_policy.py.
+
+services:
+  caddy:
+    image: caddy:2.11.6
+    restart: unless-stopped
+    env_file: .env          # SITE_HOST, LAB_SUBNET, TOOLBOX_HOST (see .env.example)
+    ports: ["80:80", "443:443", "443:443/udp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      - ./index:/srv/index:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits: { memory: "256m", cpus: "0.5" }
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    networks: [proxy]
+
+networks:
+  proxy:
+    name: proxy
+
+volumes:
+  caddy-data: {}
+  caddy-config: {}

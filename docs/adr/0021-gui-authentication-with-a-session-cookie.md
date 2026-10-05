@@ -10,7 +10,7 @@ REST and MCP require an API key header. The GUI's test console must call the sam
 
 ## Decision
 
-A login page asks for the API key once and sets a signed (itsdangerous), HttpOnly, `SameSite=Strict` cookie with a 12-hour lifetime. The auth middleware accepts either `X-API-Key` or that cookie. Cookie-authenticated state-changing requests must also pass an Origin/Referer same-host check. Login attempts are rate-limited per client. Caddy additionally restricts the site to `LAB_SUBNET`.
+A login page asks for the API key once and sets a signed (itsdangerous), HttpOnly, `SameSite=Strict` cookie with a 12-hour lifetime. On `/v1` the auth middleware accepts either `X-API-Key` or that cookie. `/mcp` (and `/mcp/`) is key-only: the session cookie is not accepted there, because MCP clients are agents that hold the key, and the browser has no use for it. `/mcp` also serves only POST (stateless mode; GET and DELETE are 405). Cookie-authenticated state-changing requests must also pass an Origin/Referer same-host check. Login attempts are rate-limited per client. Caddy additionally restricts the site to `LAB_SUBNET`.
 
 ## Consequences
 

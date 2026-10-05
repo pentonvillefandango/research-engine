@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% import "_json.html" as j %}
+{% block title %}Job {{ job.id }} · Research Engine{% endblock %}
+{% block content %}
+<h1 class="page-title">Job <code>{{ job.id }}</code> <span class="muted">{{ job.type.value }}</span></h1>
+<p><a href="/v1/jobs/{{ job.id|urlencode }}">Raw JSON</a> <span class="muted">(public API; needs the API key)</span></p>
+
+{% include "_job_status.html" %}
+
+<section class="panel" aria-label="Request">
+  <h2>Request</h2>
+  {{ j.tree(job.request) }}
+</section>
+
+{% with job_id=job.id, live=(not terminal), omitted=omitted %}{% include "_job_timeline.html" %}{% endwith %}
+
+<section aria-label="Results">
+  <h2>Results</h2>
+  {% include "_job_results.html" %}
+</section>
+{% endblock %}

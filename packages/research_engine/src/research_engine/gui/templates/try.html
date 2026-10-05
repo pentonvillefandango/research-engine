@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Try it · Research Engine{% endblock %}
+{% block content %}
+{# Demo data for try.js: a JSON data block is never executed, so the CSP allows it; |tojson
+   escapes <, >, & and ' so no value can close the element. #}
+<script type="application/json" id="demos">{{ demos_json|tojson }}</script>
+<script src="/static/try.js" defer></script>
+
+<h1 class="page-title">Try it</h1>
+<p class="muted intro">Runs requests against the public API (<code>/v1/...</code>), the same endpoints agents use, with your login session.</p>
+
+<section class="panel try-request" aria-label="Request">
+  <div class="demo-row">
+    <label for="demo">Demo</label>
+    <select id="demo">
+      <option value="">Choose a demo…</option>
+      {% for d in demos %}<option value="{{ d.id }}">{{ d.label }}</option>{% endfor %}
+    </select>
+    <p id="demo-description" class="muted"></p>
+    {% if demo_error %}<p class="error">Demos unavailable: the demos file could not be read (see the service log).</p>{% endif %}
+  </div>
+
+  <div class="tabs kind-tabs" role="tablist" aria-label="Request type">
+    <button type="button" role="tab" data-kind="search" aria-selected="true">Search</button>
+    <button type="button" role="tab" data-kind="fetch" aria-selected="false">Fetch</button>
+    <button type="button" role="tab" data-kind="search_read" aria-selected="false">Search and read</button>
+  </div>
+
+  {# Field names are the request's JSON paths (dotted for nested objects); data-type says how
+     try.js converts the value. Defaults match the public models. #}
+  <form id="form-search" class="run-form" data-kind="search" action="/try" method="get" autocomplete="off">
+    <label class="wide">Query <input type="text" name="query" maxlength="500" required></label>
+    <label>Intent
+      <select name="intent">{% for i in intents %}<option value="{{ i.value }}"{% if i.value == "general" %} selected{% endif %}>{{ i.value }}</option>{% endfor %}</select>
+    </label>
+    <label>Time range
+      <select name="time_range"><option value="" selected>any</option>{% for t in time_ranges %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}</select>
+    </label>
+    <label>Depth
+      <select name="depth">{% for dp in depths %}<option value="{{ dp.value }}"{% if dp.value == "standard" %} selected{% endif %}>{{ dp.value }}</option>{% endfor %}</select>
+    </label>
+    <label>Max results <input type="number" name="max_results" data-type="int" min="1" max="100" value="20" required></label>
+    <label>Language <input type="text" name="language" value="en-GB" pattern="[a-z]{2,3}(-[A-Z]{2})?|all" required></label>
+    <label>Engines <input type="text" name="engines" data-type="list" placeholder="preset (comma-separated to override)"></label>
+    <label class="check"><input type="checkbox" name="use_cache" data-type="bool" checked> Use cache</label>
+    <button type="submit" class="run">Run</button>
+  </form>
+
+  <form id="form-fetch" class="run-form" data-kind="fetch" action="/try" method="get" autocomplete="off" hidden>
+    <label class="wide">URL <input type="url" name="url" maxlength="4096" required placeholder="https://…"></label>
+    <label>Mode
+      <select name="mode">{% for m in modes %}<option value="{{ m.value }}"{% if m.value == "auto" %} selected{% endif %}>{{ m.value }}</option>{% endfor %}</select>
+    </label>
+    <label>Timeout (s) <input type="number" name="timeout_s" data-type="int" min="1" max="300" value="60" required></label>
+    <label class="check"><input type="checkbox" name="formats" data-type="formats"> Include raw HTML</label>
+    <label class="check"><input type="checkbox" name="use_cache" data-type="bool" checked> Use cache</label>
+    <button type="submit" class="run">Run</button>
+  </form>
+
+  <form id="form-search_read" class="run-form" data-kind="search_read" action="/try" method="get" autocomplete="off" hidden>
+    <label class="wide">Query <input type="text" name="search.query" maxlength="500" required></label>
+    <label>Intent
+      <select name="search.intent">{% for i in intents %}<option value="{{ i.value }}"{% if i.value == "general" %} selected{% endif %}>{{ i.value }}</option>{% endfor %}</select>
+    </label>
+    <label>Time range
+      <select name="search.time_range"><option value="" selected>any</option>{% for t in time_ranges %}<option value="{{ t.value }}">{{ t.value }}</option>{% endfor %}</select>
+    </label>
+    <label>Depth
+      <select name="search.depth">{% for dp in depths %}<option value="{{ dp.value }}"{% if dp.value == "standard" %} selected{% endif %}>{{ dp.value }}</option>{% endfor %}</select>
+    </label>
+    <label>Read top <input type="number" name="top_n" data-type="int" min="1" max="20" value="5" required></label>
+    <label>Fetch mode
+      <select name="fetch.mode">{% for m in modes %}<option value="{{ m.value }}"{% if m.value == "auto" %} selected{% endif %}>{{ m.value }}</option>{% endfor %}</select>
+    </label>
+    <label class="check"><input type="checkbox" name="search.use_cache" data-type="bool" checked> Cache searches</label>
+    <label class="check"><input type="checkbox" name="fetch.use_cache" data-type="bool" checked> Cache pages</label>
+    <button type="submit" class="run">Run</button>
+  </form>
+
+  <p class="run-line"><span id="run-status" role="status" class="muted">Pick a demo or fill in a form, then Run.</span> <button type="button" id="cancel" hidden>Cancel</button></p>
+</section>
+
+<section class="panel results" aria-label="Results">
+  <div class="tabs view-tabs" role="tablist" aria-label="Result view">
+    <button type="button" role="tab" data-view="cards" aria-selected="true">Cards</button>
+    <button type="button" role="tab" data-view="rendered" aria-selected="false">Rendered</button>
+    <button type="button" role="tab" data-view="raw" aria-selected="false">Raw JSON</button>
+  </div>
+  <div id="pane-cards" class="pane" data-pane="cards"><p class="muted">Results appear here.</p></div>
+  <div id="pane-rendered" class="pane" data-pane="rendered" hidden></div>
+  <pre id="pane-raw" class="pane raw" data-pane="raw" hidden></pre>
+</section>
+
+<div class="try-columns">
+  <section class="panel trail-panel" aria-label="Live events">
+    <h2>Live events</h2>
+    <p id="trail-note" class="muted">Events for the current run stream here.</p>
+    <div id="trail" class="log trail" role="log"></div>
+    <span id="trail-status" role="status" hidden>Disconnected, reconnecting…</span>
+  </section>
+
+  <section class="panel copy-as" aria-label="Copy as">
+    <h2>Copy as</h2>
+    <p class="muted">Built from the form above. The API key is never included: set <code>RESEARCH_ENGINE_URL</code> and <code>RESEARCH_ENGINE_API_KEY</code> in your environment.</p>
+    <div class="snippet-box">
+      <div class="snippet-head"><h3>curl</h3> <button type="button" class="copy" data-target="copy-curl">Copy</button></div>
+      <pre id="copy-curl" class="code"></pre>
+    </div>
+    <div class="snippet-box">
+      <div class="snippet-head"><h3>Python client</h3> <button type="button" class="copy" data-target="copy-python">Copy</button></div>
+      <pre id="copy-python" class="code"></pre>
+    </div>
+    <div class="snippet-box">
+      <div class="snippet-head"><h3>MCP tool call</h3> <button type="button" class="copy" data-target="copy-mcp">Copy</button></div>
+      <pre id="copy-mcp" class="code"></pre>
+    </div>
+  </section>
+</div>
+
+<section class="panel" aria-label="Past runs">
+  <h2>Past runs</h2>
+  <div id="runs" hx-get="/gui/runs" hx-trigger="load, runs-changed from:body"><p class="muted">Loading…</p></div>
+</section>
+{% endblock %}

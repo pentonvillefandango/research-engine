@@ -1,0 +1,53 @@
+# Search intent presets (V1-02). Engine names must be enabled in deploy/searxng/settings.yml.
+# Engine choices were measured on 2026-10-04 from the deployment VM, one engine at a time,
+# over 3 technical and 3 product queries. We do not use proxies or header spoofing to get
+# around rate limits or CAPTCHAs, so engines blocked from this IP are left out of presets:
+# brave (too many requests), qwant (CAPTCHA), google/codeberg (access denied).
+intents:
+  general:
+    description: Broad web search across general engines.
+    categories: [general]
+    engines: []
+  technical:
+    description: Code, Q&A and developer docs.
+    categories: [general, it]
+    engines:
+      - stackoverflow      # Q&A, 3-10 results/query
+      - mdn                # web docs, 10/10
+      - microsoft learn    # vendor docs, 10/10
+      - github             # repos; 0 for long natural-language queries, 4-30 for short ones
+      - duckduckgo         # general web, 10/10
+      - bing               # general web, 10/10
+      - yep                # general web, 20/20
+      - yahoo              # general web, 7/7 (occasional parsing error)
+  library:
+    description: Software packages and their homepages.
+    categories: [it, general]
+    engines:
+      - npm                # 22-25 results for package names
+      - crates.io          # 10 results
+      - github             # 30 results
+      - docker hub         # 10 results
+      - duckduckgo         # general web, 10/10
+      - bing               # general web, 10/10
+  product:
+    description: Commercial products, vendors and pricing.
+    categories: [general]
+    engines:
+      - duckduckgo         # 10/10
+      - bing               # 10/10
+      - yep                # 20/20
+      - yahoo              # 7 on 2 of 3 queries (one parsing error)
+      - mwmbl              # 4-55, independent index
+  standard:
+    description: Specifications and standards bodies.
+    categories: [general]
+    engines: [duckduckgo, bing, yep, wikipedia]
+  news:
+    description: Recent news coverage.
+    categories: [news]
+    engines: [bing news, duckduckgo news]
+  academic:
+    description: Papers and scholarly sources.
+    categories: [science]
+    engines: [arxiv, google scholar, semantic scholar, crossref]

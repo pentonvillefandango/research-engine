@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Research Engine{% endblock %}
+{% block content %}
+<section id="health" class="health-strip" hx-get="/gui/partials/health" hx-trigger="load, every 10s" aria-label="Health">
+  <span class="muted">Checking health…</span>
+</section>
+
+<section id="now" class="panel now" hx-get="/gui/partials/now" hx-trigger="load, every 2s, htmx:sseMessage from:#log throttle:500ms" aria-label="Now">
+  <h2>Now</h2>
+  <p class="muted">Loading…</p>
+</section>
+
+<section class="panel events" aria-label="Event log">
+  <h2>Events</h2>
+  <form id="filters" class="filters" action="/" method="get">
+    <label>Level
+      <select name="level">
+        <option value="">all</option>
+        {% for lv in levels %}<option value="{{ lv.value }}">{{ lv.value }}+</option>{% endfor %}
+      </select>
+    </label>
+    <label>Job <input type="text" name="job" maxlength="64" autocomplete="off"></label>
+    <label>Kind <input type="text" name="kind" maxlength="64" pattern="[a-z_.]*" placeholder="fetch." autocomplete="off"></label>
+    <label>Text <input type="text" name="q" maxlength="200" autocomplete="off"></label>
+    <button type="submit">Apply</button>
+    <button type="button" id="pause" aria-pressed="false">Pause</button>
+    <span id="buffered" class="muted" hidden></span>
+    <span id="sse-status" role="status" hidden>Disconnected, reconnecting… (reload the page if this persists)</span>
+  </form>
+  <div id="log" class="log" role="log" hx-ext="sse" sse-connect="/gui/events/stream" sse-swap="log" hx-swap="beforeend"></div>
+</section>
+{% endblock %}

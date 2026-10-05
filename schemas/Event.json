@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "EventKind": {
+      "enum": [
+        "search.started",
+        "search.engine_failed",
+        "search.retry_broader",
+        "search.done",
+        "fetch.started",
+        "fetch.static_done",
+        "fetch.escalated",
+        "fetch.browser_done",
+        "fetch.failed",
+        "fetch.done",
+        "robots.disallowed",
+        "robots.fetched",
+        "cache.hit",
+        "cache.miss",
+        "job.queued",
+        "job.started",
+        "job.progress",
+        "job.done",
+        "job.partial",
+        "job.failed",
+        "job.cancelled",
+        "system.startup",
+        "system.shutdown",
+        "system.health"
+      ],
+      "title": "EventKind",
+      "type": "string"
+    },
+    "EventLevel": {
+      "enum": [
+        "debug",
+        "info",
+        "warning",
+        "error"
+      ],
+      "title": "EventLevel",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/Event.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "data": {
+      "additionalProperties": true,
+      "title": "Data",
+      "type": "object"
+    },
+    "id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Store-assigned sequence number",
+      "title": "Id"
+    },
+    "job_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Job Id"
+    },
+    "kind": {
+      "$ref": "#/$defs/EventKind"
+    },
+    "level": {
+      "$ref": "#/$defs/EventLevel"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "ts": {
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "ts",
+    "job_id",
+    "level",
+    "kind",
+    "message",
+    "data"
+  ],
+  "title": "Event",
+  "type": "object"
+}

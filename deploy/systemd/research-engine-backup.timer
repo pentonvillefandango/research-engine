@@ -1,0 +1,12 @@
+# Runs research-engine-backup.service daily at 03:30; Persistent=true catches up a run missed
+# while the VM was off. Installed and enabled by ops/bootstrap.sh.
+[Unit]
+Description=Daily research-engine SQLite backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=research-engine-backup.service
+
+[Install]
+WantedBy=timers.target

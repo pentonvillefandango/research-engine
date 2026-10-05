@@ -1,0 +1,56 @@
+{
+  "$id": "research-engine/1.0.0/Table.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "caption": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Caption"
+    },
+    "headers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Headers",
+      "type": "array"
+    },
+    "rows": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Rows",
+      "type": "array"
+    },
+    "source_selector": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Selector"
+    }
+  },
+  "required": [
+    "caption",
+    "headers",
+    "rows",
+    "source_selector"
+  ],
+  "title": "Table",
+  "type": "object"
+}

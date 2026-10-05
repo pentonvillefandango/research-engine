@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "DocumentFormat": {
+      "enum": [
+        "markdown",
+        "html"
+      ],
+      "title": "DocumentFormat",
+      "type": "string"
+    },
+    "FetchMode": {
+      "enum": [
+        "auto",
+        "static",
+        "browser"
+      ],
+      "title": "FetchMode",
+      "type": "string"
+    }
+  },
+  "$id": "research-engine/1.0.0/BatchFetchRequest.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "formats": {
+      "default": [
+        "markdown"
+      ],
+      "items": {
+        "$ref": "#/$defs/DocumentFormat"
+      },
+      "title": "Formats",
+      "type": "array"
+    },
+    "mode": {
+      "$ref": "#/$defs/FetchMode",
+      "default": "auto"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Session Id"
+    },
+    "timeout_s": {
+      "default": 60,
+      "maximum": 300,
+      "minimum": 1,
+      "title": "Timeout S",
+      "type": "integer"
+    },
+    "urls": {
+      "items": {
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Urls",
+      "type": "array"
+    },
+    "use_cache": {
+      "default": true,
+      "title": "Use Cache",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "urls"
+  ],
+  "title": "BatchFetchRequest",
+  "type": "object"
+}

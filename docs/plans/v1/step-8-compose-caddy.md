@@ -11,7 +11,7 @@
 - A hardened, non-root app image built with uv.
 - The full `research-engine` Compose project. It follows every co-tenancy rule, and a policy test enforces them.
 - The tool-agnostic shared Caddy project in `deploy/caddy/`.
-- A first, owner-approved bring-up at `https://research.toolbox`.
+- A first, owner-approved bring-up at `https://research.toolbox.home.arpa`.
 
 **Task order:** 8.1, then 8.2, then 8.3, then 8.4. 8.4 changes the live host and needs the owner's approval.
 
@@ -33,7 +33,7 @@
   - takes `ARG GIT_SHA=unknown` into `ENV GIT_SHA`;
   - runs as `USER 10001`, `EXPOSE 8000`;
   - `HEALTHCHECK` with `python -c` and `urllib`, against `http://127.0.0.1:8000/health`;
-  - `CMD ["uvicorn", "research_engine.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]`.
+  - `CMD ["uvicorn", "research_engine.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--timeout-graceful-shutdown", "5"]`. Shutdown budget is **additive** (uvicorn drains connections for up to T_graceful, *then* runs lifespan shutdown incl. the job runner stop ~9 s): compose `stop_grace_period: 30s` on `app` must exceed T_graceful + ~9 s + slack. The app also closes SSE streams and wakes long-polls on SIGTERM so the drain is normally sub-second.
 - [ ] `.dockerignore` excludes `.env*` (except `.env.example`), `.git`, `data`, `backups`, `logs`, `deploys.jsonl`, `.venv`, the caches, `tests` and `docs`.
 - [ ] The policy test, which parses the text, asserts all of these:
   - a pinned base image (not `latest`, with a patch version);
@@ -110,7 +110,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
 CMD ["uvicorn", "research_engine.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", \
-     "--proxy-headers", "--forwarded-allow-ips", "*"]
+     "--proxy-headers", "--forwarded-allow-ips", "*", "--timeout-graceful-shutdown", "5"]
 ```
 
 `--forwarded-allow-ips "*"` is acceptable because `app` publishes no port, so only Caddy (on the `proxy` network) and internal services can reach it. Record this in ADR-0026's notes.
@@ -220,6 +220,17 @@ def test_hardening() -> None:
     assert app["depends_on"]["crawl4ai"]["condition"] == "service_healthy"
 
 
+def test_crawl4ai_sandbox_protections_present() -> None:
+    """ADR-0022: the sandbox depends on these three things; a compose rewrite must never drop them."""
+    c4 = SERVICES["crawl4ai"]
+    assert "seccomp=./deploy/crawl4ai/seccomp-chromium.json" in c4["security_opt"]
+    assert "./deploy/crawl4ai/addon:/opt/re-addon:ro" in c4["volumes"]
+    assert c4["environment"]["PYTHONPATH"] == "/opt/re-addon"
+    assert c4["environment"]["CRAWL4AI_CHROMIUM_SANDBOX"] == "true"
+    assert set(c4.get("cap_add", [])) <= {"CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"}, \
+        "only documented entrypoint capabilities may be added back; never SYS_ADMIN"
+
+
 def test_networks() -> None:
     assert COMPOSE["networks"]["proxy"] == {"external": True, "name": "proxy"}
     on_proxy = [n for n, s in SERVICES.items() if "proxy" in (s.get("networks") or {})]
@@ -252,6 +263,7 @@ services:
       args: { GIT_SHA: "${GIT_SHA:-unknown}" }
     image: research-engine-app:${GIT_SHA:-dev}
     restart: unless-stopped
+    stop_grace_period: 30s   # additive budget: uvicorn graceful drain (5 s) THEN lifespan shutdown incl. job runner stop (~9 s) + slack
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=64m"]
@@ -314,11 +326,17 @@ services:
     image: unclecode/crawl4ai:0.9.4
     restart: unless-stopped
     shm_size: 1gb
-    security_opt: ["no-new-privileges:true"]   # plus seccomp profile if Task 3.0 needed it
-    cap_drop: [ALL]
+    # Chromium sandbox stays ON (ADR-0022): custom seccomp profile + read-only add-on. Never remove these.
+    security_opt:
+      - "no-new-privileges:true"
+      - "seccomp=./deploy/crawl4ai/seccomp-chromium.json"
+    cap_drop: [ALL]   # add back only named capabilities the entrypoint needs (see below), documented
     environment:
       CRAWL4AI_API_TOKEN: ${CRAWL4AI_API_TOKEN:?set CRAWL4AI_API_TOKEN}
       CRAWL4AI_CHROMIUM_SANDBOX: "true"
+      PYTHONPATH: /opt/re-addon
+    volumes:
+      - ./deploy/crawl4ai/addon:/opt/re-addon:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fs http://127.0.0.1:11235/health || exit 1"]
       interval: 20s
@@ -354,7 +372,9 @@ volumes:
 
 The policy test strips comments before matching, so the commented V2 stub (which mentions `NET_ADMIN`) doesn't trip it.
 
-Merge the step-3 crawl4ai settings (the seccomp `security_opt` and the `config.yml` mount, if Task 3.0 used them). If Crawl4AI's image can't run `read_only`, leave it off and record why in ADR-0022. The policy test requires `read_only` for `app` only.
+The crawl4ai block above already carries the step-3 sandbox settings (seccomp profile, read-only add-on mount via `PYTHONPATH`, `CRAWL4AI_CHROMIUM_SANDBOX`). Keep them exactly; `test_crawl4ai_sandbox_protections_present` enforces them. If Crawl4AI's image can't run `read_only`, leave it off and record why in ADR-0022. The policy test requires `read_only` for `app` only.
+
+**After any change to the crawl4ai service, re-run `scripts/check_sandbox.sh` and require `"sandbox":"on"` with `default_ok`, `builtin_ok` and `addon_active` true.** In step 3 a throwaway test showed the container went unhealthy under `cap_drop: [ALL]` before any browser started; the cause is unknown. Read the container logs to find it before adding anything back.
 
 **Crawl4AI's internal Redis** must be able to write. If `cap_drop: [ALL]` breaks the image's entrypoint (for example, it needs `SETUID`/`SETGID` to drop to `appuser`), add back only the named capabilities it needs. Find them by reading the entrypoint, not by trial and error, and document them in a comment.
 
@@ -396,7 +416,7 @@ networks:
 - [ ] `Caddyfile` contains:
   - a global block with `admin 127.0.0.1:2019`;
   - `import sites/*.caddy`;
-  - the index site `{$TOOLBOX_HOST:toolbox} { tls internal; root * /srv/index; file_server }`.
+  - the index site `{$TOOLBOX_HOST:toolbox.home.arpa} { tls internal; root * /srv/index; file_server }`.
 - [ ] `sites/research-engine.caddy`:
   - serves `{$SITE_HOST}` with `tls internal`;
   - uses `@lab remote_ip {$LAB_SUBNET}`;
@@ -417,7 +437,7 @@ networks:
 
 - [ ] **Step 1: Write the failing policy test.** Follow the style of `test_compose_policy.py`. Also assert the site file contains `flush_interval -1`, `remote_ip {$LAB_SUBNET}` and `reverse_proxy research-engine-app:8000`. Then run a regex over every file in `deploy/caddy/` for IPv4 literals (`\b\d{1,3}(\.\d{1,3}){3}\b`), allowing only `127.0.0.1` and documentation ranges in comments.
 
-- [ ] **Step 2: Write the files** as specified. `index/index.html` is a small static page: "Tools on this host", with one link to `https://research.toolbox/`. Add a comment that hostnames are examples and are edited per deployment.
+- [ ] **Step 2: Write the files** as specified. `index/index.html` is a small static page: "Tools on this host", with one link to `https://research.toolbox.home.arpa/`. Add a comment that hostnames are examples and are edited per deployment.
 
 - [ ] **Step 3: Run Verify.** Expected: pass.
 
@@ -427,7 +447,7 @@ networks:
 
 ### Task 8.4: First live bring-up (owner-approved)
 
-**Goal:** With the owner's explicit approval, install the shared Caddy at `/opt/caddy`, start the research-engine stack, and confirm `https://research.toolbox` serves the GUI and API.
+**Goal:** With the owner's explicit approval, install the shared Caddy at `/opt/caddy`, start the research-engine stack, and confirm `https://research.toolbox.home.arpa` serves the GUI and API.
 
 > **USER-ORDERED GATE: NON-SKIPPABLE.** This step starts services on the shared host and publishes ports 80 and 443. It MUST NOT run until the owner approves in the conversation. Close it only with captured evidence for every acceptance criterion.
 
@@ -435,14 +455,14 @@ networks:
 
 **Acceptance Criteria:**
 - [ ] Before anything starts, the owner has approved, and confirmed that nothing else on the VM uses ports 80/443 (`ss -ltnp '( sport = :80 or sport = :443 )'` is empty).
-- [ ] `/opt/caddy/.env` holds the owner's `SITE_HOST=research.toolbox`, `LAB_SUBNET` (their lab CIDR, supplied by them) and `TOOLBOX_HOST=toolbox`. It is mode 600 and never committed.
+- [ ] `/opt/caddy/.env` holds the owner's `SITE_HOST=research.toolbox.home.arpa`, `LAB_SUBNET` (their lab CIDR, supplied by them) and `TOOLBOX_HOST=toolbox.home.arpa`. It is mode 600 and never committed.
 - [ ] `cd /opt/caddy && docker compose up -d --wait` reports `caddy` healthy. `docker network inspect proxy` exists.
 - [ ] `cd /opt/research-engine && GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build --wait` reports `app`, `searxng` and `crawl4ai` healthy.
-- [ ] The owner has added the UniFi DNS records (A for `toolbox`, CNAME for `research.toolbox`) and trusted the Caddy root CA on their MacBook.
-- [ ] From the VM, `curl -sk --resolve research.toolbox:443:127.0.0.1 https://research.toolbox/health` returns `"status":"up"`. From a lab client, `https://research.toolbox/` shows the login page. From a non-lab IP, it returns 403. The last check can only be done if the owner can test it; if not, record it as untested.
-- [ ] The owner runs `examples/openai_agents_mcp.py` against `https://research.toolbox` and confirms the tool calls and the cited answer (B6b).
+- [ ] The owner has added the UniFi DNS records (A for `toolbox.home.arpa`, CNAME for `research.toolbox.home.arpa` → `toolbox.home.arpa`) and trusted the Caddy root CA on their MacBook.
+- [ ] From the VM, `curl -sk --resolve research.toolbox.home.arpa:443:127.0.0.1 https://research.toolbox.home.arpa/health` returns `"status":"up"`. From a lab client, `https://research.toolbox.home.arpa/` shows the login page. From a non-lab IP, it returns 403. The last check can only be done if the owner can test it; if not, record it as untested.
+- [ ] The owner runs `examples/openai_agents_mcp.py` against `https://research.toolbox.home.arpa` and confirms the tool calls and the cited answer (B6b).
 
-**Verify:** `curl -sk --resolve research.toolbox:443:127.0.0.1 https://research.toolbox/health | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["status"])'` → `up`
+**Verify:** `curl -sk --resolve research.toolbox.home.arpa:443:127.0.0.1 https://research.toolbox.home.arpa/health | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["status"])'` → `up`
 
 **Steps:**
 

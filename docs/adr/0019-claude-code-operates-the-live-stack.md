@@ -15,3 +15,7 @@ Every operator action is a scripted, idempotent, non-interactive command with a 
 ## Consequences
 
 Operations are safe to verify for an agent on the same host it develops on. The permission rules are part of the repo.
+
+## Amendment (2026-10-05)
+
+The owner gave Claude Code a standing approval for `make deploy`, `make rollback` and `make restore`; Claude reports every run. `make bootstrap` is run by the owner, because it uses `sudo`, and sudo's own prompt gates it, so `.claude/settings.json` no longer has an ask rule for it. The deny rules for destructive commands are unchanged. See `docs/OPERATIONS.md` (Guardrails).

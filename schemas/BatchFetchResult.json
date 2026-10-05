@@ -1,0 +1,464 @@
+{
+  "$defs": {
+    "Document": {
+      "additionalProperties": false,
+      "properties": {
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Author"
+        },
+        "final_url": {
+          "title": "Final Url",
+          "type": "string"
+        },
+        "html": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Raw HTML, only when 'html' is in formats",
+          "title": "Html"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Language"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/Link"
+          },
+          "title": "Links",
+          "type": "array"
+        },
+        "markdown": {
+          "title": "Markdown",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published At"
+        },
+        "quality": {
+          "$ref": "#/$defs/Quality"
+        },
+        "status": {
+          "title": "Status",
+          "type": "integer"
+        },
+        "structured_data": {
+          "$ref": "#/$defs/StructuredData"
+        },
+        "tables": {
+          "items": {
+            "$ref": "#/$defs/Table"
+          },
+          "title": "Tables",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "word_count": {
+          "minimum": 0,
+          "title": "Word Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "url",
+        "final_url",
+        "status",
+        "title",
+        "author",
+        "published_at",
+        "language",
+        "markdown",
+        "html",
+        "word_count",
+        "links",
+        "tables",
+        "structured_data",
+        "provenance",
+        "quality",
+        "warnings"
+      ],
+      "title": "Document",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "enum": [
+        "invalid_request",
+        "unauthorized",
+        "not_found",
+        "ssrf_blocked",
+        "robots_disallowed",
+        "content_type_not_allowed",
+        "response_too_large",
+        "upstream_timeout",
+        "upstream_error",
+        "engine_failed",
+        "fetch_failed",
+        "extraction_failed",
+        "job_cancelled",
+        "job_timeout",
+        "interrupted",
+        "internal_error"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "ErrorDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL, engine or component that failed",
+          "title": "Source"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable",
+        "source"
+      ],
+      "title": "ErrorDetail",
+      "type": "object"
+    },
+    "EscalationReason": {
+      "enum": [
+        "static_failed",
+        "thin_content",
+        "js_rendered",
+        "forced"
+      ],
+      "title": "EscalationReason",
+      "type": "string"
+    },
+    "FailedUrl": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ErrorDetail"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "error"
+      ],
+      "title": "FailedUrl",
+      "type": "object"
+    },
+    "FetchMethod": {
+      "enum": [
+        "static",
+        "browser",
+        "api",
+        "archive"
+      ],
+      "title": "FetchMethod",
+      "type": "string"
+    },
+    "Link": {
+      "additionalProperties": false,
+      "properties": {
+        "external": {
+          "title": "External",
+          "type": "boolean"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "text",
+        "external"
+      ],
+      "title": "Link",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "fetched_at": {
+          "format": "date-time",
+          "title": "Fetched At",
+          "type": "string"
+        },
+        "job_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job Id"
+        },
+        "method": {
+          "$ref": "#/$defs/FetchMethod"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "fetched_at",
+        "content_hash",
+        "method",
+        "job_id"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Quality": {
+      "additionalProperties": false,
+      "properties": {
+        "escalation_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EscalationReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "has_title": {
+          "title": "Has Title",
+          "type": "boolean"
+        },
+        "text_html_ratio": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Text Html Ratio",
+          "type": "number"
+        },
+        "word_count": {
+          "minimum": 0,
+          "title": "Word Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "word_count",
+        "text_html_ratio",
+        "has_title",
+        "escalation_reason"
+      ],
+      "title": "Quality",
+      "type": "object"
+    },
+    "StructuredData": {
+      "additionalProperties": false,
+      "properties": {
+        "json_ld": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Json Ld",
+          "type": "array"
+        },
+        "microdata": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Microdata",
+          "type": "array"
+        },
+        "opengraph": {
+          "additionalProperties": true,
+          "title": "Opengraph",
+          "type": "object"
+        }
+      },
+      "required": [
+        "json_ld",
+        "microdata",
+        "opengraph"
+      ],
+      "title": "StructuredData",
+      "type": "object"
+    },
+    "Table": {
+      "additionalProperties": false,
+      "properties": {
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "headers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Headers",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "source_selector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Selector"
+        }
+      },
+      "required": [
+        "caption",
+        "headers",
+        "rows",
+        "source_selector"
+      ],
+      "title": "Table",
+      "type": "object"
+    }
+  },
+  "$id": "research-engine/1.0.0/BatchFetchResult.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/Document"
+      },
+      "title": "Documents",
+      "type": "array"
+    },
+    "failed": {
+      "items": {
+        "$ref": "#/$defs/FailedUrl"
+      },
+      "title": "Failed",
+      "type": "array"
+    },
+    "kind": {
+      "const": "fetch_batch",
+      "default": "fetch_batch",
+      "title": "Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "documents",
+    "failed"
+  ],
+  "title": "BatchFetchResult",
+  "type": "object"
+}

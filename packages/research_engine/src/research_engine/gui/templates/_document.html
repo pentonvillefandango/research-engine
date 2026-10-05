@@ -1,0 +1,54 @@
+{# One fetched document. `d` is the Document, `rank`/`score` optional (search_read). All
+   untrusted text is autoescaped; page markdown goes through untrusted_markdown() only.
+   `job_id` may be none (a single fetch in the test console). #}
+{% import "_json.html" as j %}
+<details class="document panel">
+  <summary>
+    {% if rank %}<span class="muted">#{{ rank }}</span> {% endif %}<strong>{{ d.title or d.final_url }}</strong>
+    <span class="muted">{{ d.word_count }} words</span>
+  </summary>
+  <dl class="meta">
+    <dt>URL</dt><dd>{% if is_http_url(d.final_url) %}<a href="{{ d.final_url }}" rel="{{ link_rel }}" target="_blank">{{ d.final_url }}</a>{% else %}{{ d.final_url }}{% endif %}</dd>
+    <dt>Method</dt><dd>{{ d.provenance.method.value }}</dd>
+    <dt>Status</dt><dd>{{ d.status }}</dd>
+    <dt>Words</dt><dd>{{ d.word_count }}</dd>
+    {% if d.quality.escalation_reason %}<dt>Escalation</dt><dd>{{ d.quality.escalation_reason.value }}</dd>{% endif %}
+    {% if score is not none and score is defined %}<dt>Search score</dt><dd>{{ score }}</dd>{% endif %}
+  </dl>
+  {% if d.warnings %}
+  <ul class="warnings">{% for w in d.warnings %}<li class="warning">{{ w|truncate(2000, true) }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <h3>Content</h3>
+  {% set clipped = clip_markdown(d.markdown) %}
+  <div class="content">{{ untrusted_markdown(clipped[0]) }}</div>
+  {% if clipped[1] %}<p class="muted">Content truncated at {{ max_markdown_chars }} characters. {% if job_id %}<a href="/v1/jobs/{{ job_id|urlencode }}">Full JSON</a>{% else %}The full text is in the raw JSON.{% endif %}</p>{% endif %}
+
+  {% if d.tables %}
+  <h3>Tables ({{ d.tables|length }})</h3>
+  {% for t in d.tables[:max_tables] %}
+  <table class="doc-table">
+    {% if t.caption %}<caption>{{ t.caption|truncate(2000, true) }}</caption>{% endif %}
+    {% if t.headers %}<thead><tr>{% for h in t.headers %}<th>{{ h|truncate(2000, true) }}</th>{% endfor %}</tr></thead>{% endif %}
+    <tbody>{% for row in t.rows[:max_table_rows] %}<tr>{% for cell in row %}<td>{{ cell|truncate(2000, true) }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table>
+  {% if t.rows|length > max_table_rows %}<p class="muted">Showing first {{ max_table_rows }} of {{ t.rows|length }} rows.</p>{% endif %}
+  {% endfor %}
+  {% if d.tables|length > max_tables %}<p class="muted">Showing first {{ max_tables }} of {{ d.tables|length }} tables.</p>{% endif %}
+  {% endif %}
+
+  {% if d.structured_data.json_ld %}
+  <h3>JSON-LD</h3>
+  {{ j.tree(d.structured_data.json_ld) }}
+  {% endif %}
+
+  {% if d.links %}
+  <h3>Links ({{ d.links|length }})</h3>
+  <ul class="links">
+    {% for l in d.links[:max_links] %}
+    <li>{% if is_http_url(l.url) %}<a href="{{ l.url }}" rel="{{ link_rel }}" target="_blank">{{ (l.text or l.url)|truncate(2000, true) }}</a>{% else %}{{ (l.text or l.url)|truncate(2000, true) }} <span class="muted">({{ l.url }})</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% if d.links|length > max_links %}<p class="muted">Showing first {{ max_links }} of {{ d.links|length }} links.</p>{% endif %}
+  {% endif %}
+</details>

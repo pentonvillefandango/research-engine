@@ -1,0 +1,2 @@
+{# Macro wrapper for jsonview.to_tree: the tree is Markup with every key and value escaped. #}
+{% macro tree(obj) %}<div class="json-tree">{{ json_tree(obj) }}</div>{% endmacro %}

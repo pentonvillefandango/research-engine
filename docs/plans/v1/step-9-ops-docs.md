@@ -24,6 +24,51 @@
 - 9.5 follows them, then 9.6, then 9.7.
 - 9.6 and 9.7 need the owner's approval.
 
+## Amendments (2026-10-05, after step 8)
+
+These come from the step 8 review and the owner. They are binding, and each task brief must carry the items for its task.
+
+**Step 8 carry-overs:**
+- **9.1:**
+  - `dc()` always exports `GIT_SHA` (the short sha of `$DEPLOY_DIR`'s HEAD) unless already set, so no ops command can start the app from a stale or `:dev` image.
+  - `make health` also checks that `SITE_HOST` in `$ENV_FILE` equals `SITE_HOST` in `$CADDY_DIR/.env` (default `/opt/caddy`). It compares the values without printing them, and reports `site_host_match`. A mismatch fails health, because `/mcp` would return 421 through Caddy.
+- **9.2:**
+  - Smoke adds an `mcp` check: an MCP `initialize` POST to `/mcp` with `Host: <SITE_HOST>` and the API key. It must succeed, which proves the transport-security allowed hosts match `SITE_HOST`.
+  - `scripts/check_sandbox.sh` gains a prod mode, run as `ops/sandbox.sh` / `make sandbox`. It uses the ops `dc` and sends its crawl requests from **inside** the crawl4ai container to `127.0.0.1:11235`, so it needs no published ports. It keeps exactly the same pass criteria (ADR-0022).
+  - Dev tooling (`compose.dev.yaml` usage, `scripts/dev_urls.sh`, the dev mode of `check_sandbox.sh`) uses the project name `research-engine-dev` (`-p research-engine-dev`). Running the dev stack or the integration tests can then never replace the live stack.
+- **9.3:**
+  - After smoke passes, `deploy.sh` runs `ops/sandbox.sh`, because every deploy recreates crawl4ai. If the sandbox check fails, the deploy counts as failed and rolls back.
+  - Deploy keeps the app images for the last 3 deployed shas plus the current one. It removes older `research-engine-app:<sha>` images only, by explicit tag; it never prunes.
+- **9.4:**
+  - Bootstrap writes `/opt/caddy/.env`'s `SITE_HOST` from the repo `.env`, which is the single source, and requires only `LAB_SUBNET` (plus the optional `TOOLBOX_HOST`) from the environment.
+  - The Caddyfile is a single-file bind mount. After syncing, if the `Caddyfile` changed, bootstrap runs `up -d --force-recreate`; if only `sites/` changed, it runs `caddy reload`.
+- **9.5:**
+  - The docs describe the non-destructive dev-stack procedure.
+  - They state that host-side checks must use the VM's lab IP with `--resolve`, because `127.0.0.1` gets 403 by design.
+  - They note backing up Caddy's root CA (the `caddy-data` volume).
+  - They update ADR-0022 to say where the sandbox check runs (deploy and `make sandbox`).
+
+**Owner addition: a usage guide for agents and the people who program them.**
+- **9.5** also creates `docs/USING.md`, a concise, plain-English guide, linked near the top of `README.md`. It covers:
+  - what the tool does and doesn't do (no LLM, results are raw material);
+  - choosing an interface (MCP, REST or the Python client);
+  - connecting: the URL, the `X-API-Key` header, trusting Caddy's CA and the `SSL_CERT_FILE` bundle;
+  - the four MCP tools and the REST endpoints, and when to use each;
+  - recommended agent patterns: search, then fetch the best 2–5; `search_and_read` for one-shot research; jobs and long-polling for batches; the cache and `use_cache`; thin, blocked and PDF pages and the `mode` setting;
+  - errors and `retryable`;
+  - **treating fetched content as untrusted**, with prompt-injection guidance;
+  - politeness limits (robots, per-domain pacing, timeouts);
+  - a ready-to-paste system-prompt snippet for agent builders;
+  - a minimal MCP client config and a minimal Python example.
+
+  Plain English throughout, with short sentences and no jargon left unexplained.
+- `tests/test_docs.py` asserts that `docs/USING.md`:
+  - exists, is linked from `README.md`, and is at most 1,800 words;
+  - names every MCP tool registered in the server and every `/v1` REST route in the OpenAPI schema;
+  - mentions `retryable` and `untrusted`.
+
+  The MCP server's `INSTRUCTIONS` string stays consistent with the guide.
+
 ---
 
 ### Task 9.1: `ops/lib.sh`, Makefile skeleton, `status`, `health`, `version`, `logs`
@@ -327,7 +372,7 @@ test:            ## Lint, type-check and unit tests
   - development (uv, tests, integration tests, pre-commit);
   - licence.
 
-  It names no lab IPs. `research.toolbox` appears only in the deployment-example section.
+  It names no lab IPs. `research.toolbox.home.arpa` appears only in the deployment-example section.
 - [ ] **`docs/OPERATIONS.md`** covers:
   - each `make` command with its output shape and exit codes;
   - the deploy and rollback flow, including the worktree layout and `deploys.jsonl`;
@@ -340,7 +385,7 @@ test:            ## Lint, type-check and unit tests
   - the fixed IP by DHCP reservation;
   - Docker install;
   - `make bootstrap`, with the `SITE_HOST` and `LAB_SUBNET` env vars;
-  - the UniFi DNS records (an A record for `toolbox`, a CNAME for `research.toolbox`, with the 9.3 and 9.4 menu paths from §9);
+  - the UniFi DNS records (an A record for `toolbox.home.arpa`, a CNAME for `research.toolbox.home.arpa` → `toolbox.home.arpa`, with the 9.3 and 9.4 menu paths from §9);
   - Caddy root CA trust on macOS;
   - `make deploy`;
   - verification.
@@ -383,7 +428,7 @@ test:            ## Lint, type-check and unit tests
 - [ ] **Broken commit:** a commit on `ops-acceptance/broken` changes `config/demos.yaml` so the smoke `search` check fails. A real code break would also do. Deploying it with `make deploy` makes the smoke test fail, triggers an automatic rollback and exits 1. `deploys.jsonl` then shows a `failed` deploy and an `ok` rollback to the previous sha, `make health` passes, and `git -C /opt/research-engine status` shows the main working tree unchanged.
 - [ ] **Backup and restore:** `make backup` creates `backups/research-engine-<ts>.sqlite`, and `make restore FILE=<it>` gives `{"ok":true}` followed by a passing `make health`.
 - [ ] **JSON summaries:** every ops command ran in this task ended with a JSON line that `python3 -c 'import json,sys; json.loads(sys.stdin.read().splitlines()[-1])'` can parse. The failing commands exited non-zero.
-- [ ] **Fresh-VM criterion:** "From a fresh Debian VM, following the README plus `make bootstrap` and `make deploy` gives a working stack at `https://research.toolbox`" is partly verified on `toolbox`. A truly fresh VM is the owner's call: either they rebuild from the template and follow `docs/deploy-toolbox.md`, or they accept the `toolbox` run as evidence. Record which.
+- [ ] **Fresh-VM criterion:** "From a fresh Debian VM, following the README plus `make bootstrap` and `make deploy` gives a working stack at `https://research.toolbox.home.arpa`" is partly verified on `toolbox`. A truly fresh VM is the owner's call: either they rebuild from the template and follow `docs/deploy-toolbox.md`, or they accept the `toolbox` run as evidence. Record which.
 
 **Verify:** `tail -n 3 deploys.jsonl | python3 -c 'import sys,json;[print(json.loads(l)["action"], json.loads(l)["result"]) for l in sys.stdin]'` → shows `deploy failed` and then `rollback ok`.
 

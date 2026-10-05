@@ -1,6 +1,6 @@
 [project]
 name = "research-engine-workspace"
-version = "0.1.0"
+version = "1.0.0"
 requires-python = ">=3.12"
 description = "Workspace root for the Research Engine"
 license = "MIT"
@@ -27,15 +27,32 @@ dev = [
   "pyright>=1.1.414",
   "jsonschema>=4.26.0",
   "pre-commit>=4.6.2",
+  "types-pyyaml>=6.0.12.20260906",
+  "openai-agents>=0.23.1",
 ]
 
 [tool.pytest]
 minversion = "9.0"
+faulthandler_timeout = "300"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = ["integration: needs the live compose stack (run with -m integration)"]
 addopts = ["-m", "not integration", "--strict-markers", "-ra"]
+filterwarnings = [
+    # A task cancelled mid-query makes SQLAlchemy invalidate its aiosqlite connection by
+    # terminating (not closing) it; the sqlite3 handle is closed later by GC, which emits
+    # "ResourceWarning: unclosed database in <sqlite3.Connection ...>". Upstream behaviour,
+    # same for file and :memory: engines; the job runner cancels handlers by design.
+    # Both engines' connections are research_engine.store.db.RollbackOnCloseConnection, a
+    # sqlite3.Connection subclass, so the class name in the message is either.
+    'ignore:unclosed database in <(sqlite3\.Connection|research_engine\.store\.db\.RollbackOnCloseConnection):ResourceWarning',
+    # Under ``-W error::ResourceWarning`` it is raised inside sqlite3.Connection.__del__ and
+    # pytest re-reports it as an unraisable-exception warning whose message embeds the
+    # traceback; match only that wrapper (":" is written "." as it is the field separator).
+    # tests/conftest.py re-applies the sqlite entries as marks so they also hold under -W error.
+    'ignore:(?s)Exception ignored in. <(sqlite3\.Connection|research_engine\.store\.db\.RollbackOnCloseConnection) object.*ResourceWarning. unclosed database:pytest.PytestUnraisableExceptionWarning',
+]
 
 [tool.ruff]
 line-length = 100
@@ -49,6 +66,7 @@ select = ["E", "F", "W", "I", "B", "UP", "ASYNC", "S", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
 "scripts/**" = ["S603", "S607"]
+"tests/ops/**" = ["S603", "S607"]
 
 [tool.pyright]
 pythonVersion = "3.12"

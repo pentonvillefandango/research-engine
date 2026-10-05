@@ -1,0 +1,35 @@
+{
+  "$id": "research-engine/1.0.0/StructuredData.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "json_ld": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Json Ld",
+      "type": "array"
+    },
+    "microdata": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Microdata",
+      "type": "array"
+    },
+    "opengraph": {
+      "additionalProperties": true,
+      "title": "Opengraph",
+      "type": "object"
+    }
+  },
+  "required": [
+    "json_ld",
+    "microdata",
+    "opengraph"
+  ],
+  "title": "StructuredData",
+  "type": "object"
+}

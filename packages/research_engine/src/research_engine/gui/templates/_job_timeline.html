@@ -1,0 +1,10 @@
+<section class="panel" aria-label="Timeline">
+  <h2>Timeline</h2>
+  <div id="timeline" class="log timeline" role="log"{% if live %} hx-ext="sse" sse-connect="/gui/events/stream?job={{ job_id|urlencode }}" sse-swap="log" hx-swap="beforeend"{% endif %}>
+    {%- for r in rows -%}
+    {%- if r is none %}<div class="gap muted">… {{ omitted }} events omitted …</div>{% else -%}
+    {%- with e=r.e, time=r.time, data_json=r.data_json %}{% include "_event_row.html" %}{% endwith -%}{%- endif -%}
+    {%- endfor -%}
+  </div>
+  {% if live %}<span id="sse-status" role="status" hidden>Disconnected, reconnecting… (reload the page if this persists)</span>{% endif %}
+</section>

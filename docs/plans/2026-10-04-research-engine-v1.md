@@ -47,7 +47,7 @@ Every task and every reviewer must hold to these.
 
 1. **No model or LLM calls in V1** (D5). Never add `litellm`, `openai`, `anthropic` or `instructor` to the service package. `openai-agents` is allowed **only** as a dev dependency for tests and examples.
 2. **No secrets or lab-specific values committed.**
-   - No IPs, real hostnames other than the documented example `research.toolbox`, usernames, API keys or tokens.
+   - No IPs, real hostnames other than the documented example `research.toolbox.home.arpa`, usernames, API keys or tokens.
    - All of these come from `.env`, with neutral defaults (`SITE_HOST=research.localhost`).
    - gitleaks must pass on every commit.
 3. **Never configure Chromium with `--no-sandbox`** (§12 and B3).
@@ -113,6 +113,7 @@ class ServiceError(Exception):
     def __init__(self, detail: ErrorDetail, http_status: int = 502) -> None: ...
     detail: ErrorDetail
     http_status: int
+    upstream_status: int | None      # HTTP status from the fetched site, when known (drives escalation)
 
 # events/base.py
 class EventSink(Protocol):
@@ -151,14 +152,16 @@ class SearchProvider(Protocol):
                    html: str | None, markdown: str | None, method: FetchMethod,
                    redirects: list[str])
 class Fetcher(Protocol):
-    async def fetch(self, url: str, *, timeout_s: float) -> RawPage: ...
+    async def fetch(self, url: str, *, timeout_s: float, on_hop: HopHook | None = None) -> RawPage: ...
     async def health(self) -> bool: ...
+# HopHook: async callback around EVERY request the fetcher sends (first request of each attempt and each redirect hop); FetchService uses it for per-hop robots + the single per-stage limiter slot
 # adapters/static_fetch.py: StaticFetcher(client, guard: SsrfGuard, settings)
 # adapters/crawl4ai.py:     Crawl4AIFetcher(base_url, token, client, guard: SsrfGuard)
 
 # adapters/extract.py
 @dataclass Extracted(title, author, published_at, language, markdown, word_count, links: list[Link],
-                     tables: list[Table], structured_data: StructuredData, html_len: int, text_len: int)
+                     tables: list[Table], structured_data: StructuredData, html_len: int, text_len: int,
+                     warnings: list[str] = [])   # truncation/degradation notes; FetchService copies into Document.warnings
 class HtmlExtractor(Protocol):  def extract(self, html: str, base_url: str) -> Extracted: ...   # sync; caller uses to_thread
 class PdfExtractor(Protocol):   def extract(self, body: bytes, url: str) -> Extracted: ...
 # adapters/html_extract.py: DefaultHtmlExtractor   adapters/pdf_extract.py: PypdfExtractor
@@ -166,20 +169,25 @@ class PdfExtractor(Protocol):   def extract(self, body: bytes, url: str) -> Extr
 # safety/ssrf.py
 class SsrfGuard:
     def __init__(self, allow_hosts: frozenset[str], resolver: Resolver | None = None) -> None: ...
-    async def check(self, url: str) -> None: ...   # raises ServiceError(code=ssrf_blocked)
+    async def check(self, url: str) -> httpx.URL: ...   # returns the parsed, userinfo-free URL to request; raises ServiceError(code=ssrf_blocked)
 # safety/robots.py
 class RobotsPolicy:
     async def check(self, url: str, em: Emitter | None = None) -> None: ...   # raises ServiceError(code=robots_disallowed); applies crawl-delay via DomainLimiter.set_delay
 # safety/limiter.py
 class DomainLimiter:
+    def __init__(self, concurrency: int, delay_s: float, *, clock=..., sleep=...) -> None: ...
     def slot(self, url: str) -> AbstractAsyncContextManager[None]: ...  # per-domain semaphore + min interval
+# limiter_key(url) -> str: the slot key = httpx IDNA-2008 punycode host minus "www."; RobotsPolicy sets crawl-delay on the same key
 
-# pipeline/urls.py:   canonicalize_url(url: str) -> str ; domain_of(url: str) -> str
+# pipeline/urls.py:   canonicalize_url(url: str) -> str (search dedupe) ; domain_of(url: str) -> str ;
+#                     fetch_cache_url(url: str) -> str (page cache: keeps ref, #/ and #! fragments, path/query as given)
+# pipeline/fetch.py:  page_cache_key(req: FetchRequest) -> str (formats order-normalised, timeout_s excluded)
 # pipeline/ranking.py: merge_and_score(pages: list[RawSearchPage], max_results: int) -> list[SearchResult]
 # pipeline/search.py: SearchService(provider, intents: IntentRegistry, cache, events: EventSink, settings)
 #                     async def search(self, req: SearchRequest, *, job_id: str | None = None) -> tuple[SearchResponse, bool]  # (response, cache_hit)
 # pipeline/fetch.py:  FetchService(static: Fetcher, browser: Fetcher, html: HtmlExtractor, pdf: PdfExtractor,
-#                                  robots: RobotsPolicy, limiter: DomainLimiter, cache, events: EventSink, settings)
+#                                  robots: RobotsChecker, limiter: DomainLimiter, cache, events: EventSink, settings)
+#                     (RobotsChecker: Protocol in pipeline/fetch.py with RobotsPolicy.check's signature; RobotsPolicy implements it)
 #                     async def fetch(self, req: FetchRequest, *, job_id: str | None = None) -> tuple[Document, bool]
 # pipeline/search_read.py (step 5): run_search_read(...), run_batch_fetch(...)
 
@@ -192,13 +200,15 @@ class DomainLimiter:
 
 # api/deps.py: Services dataclass on app.state.services, get_services() dependency.
 #   Fields grow per step (step 2: settings, intents, events, cache, search; step 3: fetch; step 4: engine, jobs, job_store;
-#   step 5: health_checks, health_timeout_s). Required fields always precede defaulted ones (http, extra, health_timeout_s).
+#   step 5: health_checks, health_timeout_s). Required fields always precede defaulted ones (http, fetch_http, extra, health_timeout_s).
+#   http: app client for internal services (SearXNG, Crawl4AI); fetch_http: safety.http.make_fetch_client (robots + static fetcher).
 #   testing.build_test_services(settings) mirrors build_services with fakes + ':memory:' SQLite and is updated in the same task.
 # api/envelope.py: ok(request: Request, data, *, cache_hit=False) -> Envelope  (request_id + start time set on request.state by RequestContextMiddleware); error envelopes via exception handlers
 # api/auth.py: ApiKeyMiddleware(app, api_key)  -> step 6: ApiKeyMiddleware(app, api_key, codec: SessionCodec, site_host)
 #   (pure ASGI; X-API-Key header OR signed re_session cookie + Origin check; GUI paths redirect to /login)
 # config_files.py: IntentRegistry.load(path) -> IntentRegistry; .get(intent) -> IntentPreset; .all() -> dict[SearchIntent, IntentPreset]
 # app.py: create_app(settings: Settings | None = None, *, services: Services | None = None) -> FastAPI
+#         build_fetch_service(settings, *, http, fetch_http, cache, events) -> FetchService  (also used by the live tests)
 ```
 
 ### Error codes (`ErrorCode`)

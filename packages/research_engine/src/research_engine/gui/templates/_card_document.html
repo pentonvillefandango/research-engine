@@ -1,0 +1,7 @@
+{# One fetched document as a card. `d` is a Document; `rank`/`score` optional (search_read). #}
+<article class="card">
+  <h3 class="headline">{% if rank %}<span class="muted">#{{ rank }}</span> {% endif %}{% if is_http_url(d.final_url) %}<a href="{{ d.final_url }}" rel="{{ link_rel }}" target="_blank">{{ (d.title or d.final_url)|truncate(300, true) }}</a>{% else %}{{ (d.title or d.final_url)|truncate(300, true) }}{% endif %}</h3>
+  <p class="facts"><span class="domain">{{ url_host(d.final_url) }}</span> · {{ d.provenance.method.value }} · HTTP {{ d.status }} · {{ d.word_count }} words · text/HTML {{ '%.2f'|format(d.quality.text_html_ratio) }}{% if d.quality.escalation_reason %} · escalated: {{ d.quality.escalation_reason.value }}{% endif %}{% if score is defined and score is not none %} · search score {{ score }}{% endif %}</p>
+  <p class="facts muted">{{ d.tables|length }} tables · {{ d.links|length }} links · {{ d.structured_data.json_ld|length }} JSON-LD items{% if d.language %} · {{ d.language }}{% endif %}{% if d.author %} · by {{ d.author|truncate(200, true) }}{% endif %}{% if d.published_at %} · <time datetime="{{ d.published_at.isoformat() }}">{{ d.published_at.strftime('%Y-%m-%d') }}</time>{% endif %}</p>
+  {% if d.warnings %}<p class="warning">{{ d.warnings|length }} warning{{ 's' if d.warnings|length != 1 }}: {{ d.warnings[0]|truncate(300, true) }}</p>{% endif %}
+</article>

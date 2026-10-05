@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "InfoboxLink": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "url"
+      ],
+      "title": "InfoboxLink",
+      "type": "object"
+    }
+  },
+  "$id": "research-engine/1.0.0/Infobox.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "content": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Content"
+    },
+    "engine": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Engine"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "urls": {
+      "items": {
+        "$ref": "#/$defs/InfoboxLink"
+      },
+      "title": "Urls",
+      "type": "array"
+    }
+  },
+  "required": [
+    "title",
+    "content",
+    "engine",
+    "urls"
+  ],
+  "title": "Infobox",
+  "type": "object"
+}
