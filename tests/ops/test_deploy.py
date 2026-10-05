@@ -52,7 +52,7 @@ def commit(repo: Path, content: str) -> str:
     (repo / "app.txt").write_text(content)
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", content)
-    return git(repo, "rev-parse", "--short", "HEAD")
+    return git(repo, "rev-parse", "--short=12", "HEAD")
 
 
 class Deployer:
@@ -91,7 +91,7 @@ class Deployer:
     def current(self) -> str:
         link = self.repo / ".deploy" / "current"
         assert link.is_symlink()
-        return git(link.resolve(), "rev-parse", "--short", "HEAD")
+        return git(link.resolve(), "rev-parse", "--short=12", "HEAD")
 
     def snapshot(self) -> tuple[str, str, str, str]:
         return (
@@ -160,6 +160,7 @@ def test_successful_deploy_appends_ok(dep: Deployer) -> None:
     r = dep.run("deploy")
     assert r.code == 0, (r.stdout, r.stderr)
     assert r.last["ok"] is True and r.last["command"] == "deploy" and r.last["to"] == c1
+    assert len(c1) == 12  # fixed short length: image tag, worktree name and log agree
     wt = dep.repo / ".deploy" / c1
     assert (wt / "app.txt").read_text() == "v1"
     assert dep.current() == c1
@@ -238,7 +239,7 @@ def test_failed_deploy_rolls_back_to_previous_good(
     branches = git(dep.repo, "branch", "--list", "rollback/*", "--format=%(refname:short)")
     [branch] = branches.splitlines()
     assert re.fullmatch(r"rollback/\d{8}T\d{6}Z", branch)
-    assert git(dep.repo, "rev-parse", "--short", branch) == c1
+    assert git(dep.repo, "rev-parse", "--short=12", branch) == c1
     assert dep.current() == c1
     # two bring-ups after the first deploy: the failed one, then the old sha
     assert dep.up_shas() == [c1, c2, c1]
@@ -302,7 +303,7 @@ def test_rollback_defaults_to_last_good_other_than_current(dep: Deployer) -> Non
     assert (r.last["from"], r.last["to"]) == (c2, c1)
     assert dep.current() == c1
     branch = str(r.last["branch"])
-    assert git(dep.repo, "rev-parse", "--short", branch) == c1
+    assert git(dep.repo, "rev-parse", "--short=12", branch) == c1
     entry = dep.entries()[-1]
     assert entry["action"] == "rollback" and entry["result"] == "ok"
     assert (entry["from"], entry["to"]) == (c2, c1) and entry["smoke"] == "pass"
@@ -406,3 +407,143 @@ def test_seeded_running_image_is_kept_until_it_ages_out(dep: Deployer) -> None:
         rms_after.append([c for c in dep.env.docker_calls() if c.startswith("image rm")])
     assert rms_after[2] == []  # current + 3 older: c1, c0 and the seeded abc1234
     assert rms_after[3] == ["image rm research-engine-app:abc1234"]
+
+
+# ---- fix round 1: explicit error checks, verified worktree reuse --------------------------
+
+
+def assert_current_is_worktree(dep: Deployer, sha: str) -> None:
+    link = dep.repo / ".deploy" / "current"
+    target = link.resolve()
+    assert target.is_dir() and (target / ".git").is_file(), "current must be a real worktree"
+    assert git(target, "rev-parse", "--show-toplevel") == str(target)
+    assert dep.current() == sha
+
+
+def test_auto_rollback_to_a_pruned_worktree_recreates_it_on_the_branch(dep: Deployer) -> None:
+    c1 = commit(dep.repo, "v1")
+    assert dep.run("deploy").code == 0
+    git(dep.repo, "worktree", "remove", str(dep.repo / ".deploy" / c1))  # as retention would
+    c2 = commit(dep.repo, "v2")
+    r = dep.run("deploy", FAIL_SMOKE_SHA=c2)
+    assert r.code == 1 and r.last["rolled_back_to"] == c1 and r.last["rollback_ok"] is True
+    assert_current_is_worktree(dep, c1)
+    wt = dep.repo / ".deploy" / c1
+    assert git(wt, "symbolic-ref", "--short", "HEAD") == r.last["rollback_branch"]
+    assert dep.up_shas() == [c1, c2, c1]
+
+
+def test_failure_switching_to_rollback_target_keeps_current_usable(dep: Deployer) -> None:
+    """The target is still registered as a worktree but its directory is gone: `worktree add`
+    refuses. The rollback must fail cleanly, never leave a file at .deploy/<sha> or repoint
+    `current` at anything but a verified worktree."""
+    import shutil
+
+    c1 = commit(dep.repo, "v1")
+    assert dep.run("deploy").code == 0
+    shutil.rmtree(dep.repo / ".deploy" / c1)
+    c2 = commit(dep.repo, "v2")
+    before = dep.snapshot()
+    r = dep.run("deploy", FAIL_SMOKE_SHA=c2)
+    assert r.code == 1 and r.last["ok"] is False
+    assert r.last["rolled_back_to"] is None and r.last["rollback_ok"] is False
+    assert r.last["rollback_target"] == c1 and r.last["current"] == c2
+    assert not (dep.repo / ".deploy" / c1).exists(), "no placeholder at .deploy/<sha>"
+    assert_current_is_worktree(dep, c2)
+    assert dep.up_shas() == [c1, c2]  # never brought up from a non-worktree
+    _, failed, rolled = dep.entries()
+    assert failed["result"] == "failed" and failed["to"] == c2
+    assert rolled["action"] == "rollback" and rolled["result"] == "failed"
+    assert rolled["to"] == c1 and rolled["smoke"] == "skipped"
+    detail = rolled["detail"]
+    assert isinstance(detail, dict) and detail["step"] == "worktree"
+    assert dep.snapshot() == before
+    # the ops tools still work afterwards
+    assert dep.run("status").code == 0
+    r2 = dep.run("rollback")
+    assert r2.code == 1 and r2.last["ok"] is False and r2.last["command"] == "rollback"
+    assert_current_is_worktree(dep, c2)
+
+
+def test_dirty_rollback_target_worktree_fails_the_rollback_not_the_tools(dep: Deployer) -> None:
+    c1 = commit(dep.repo, "v1")
+    assert dep.run("deploy").code == 0
+    (dep.repo / ".deploy" / c1 / "app.txt").write_text("edited in the worktree")
+    c2 = commit(dep.repo, "v2")
+    r = dep.run("deploy", FAIL_SMOKE_SHA=c2)
+    assert r.code == 1, (r.stdout, r.stderr)
+    assert r.last["rolled_back_to"] is None and r.last["rollback_ok"] is False
+    assert r.last["rollback_target"] == c1
+    assert "not a clean checkout" in str(r.last["rollback_error"])
+    assert (dep.repo / ".deploy" / c1 / "app.txt").read_text() == "edited in the worktree"
+    assert_current_is_worktree(dep, c2)
+    rolled = dep.entries()[-1]
+    assert rolled["action"] == "rollback" and rolled["result"] == "failed"
+
+
+def test_empty_directory_at_worktree_path_is_replaced(dep: Deployer) -> None:
+    """An empty .deploy/<sha> (e.g. a killed `worktree add`) resolves to the main repo under
+    `git -C`; it must never be accepted as the worktree. Being empty, it is safely replaced."""
+    c1 = commit(dep.repo, "v1")
+    (dep.repo / ".deploy" / c1).mkdir(parents=True)
+    r = dep.run("deploy")
+    assert r.code == 0, (r.stdout, r.stderr)
+    assert_current_is_worktree(dep, c1)
+    assert (dep.repo / ".deploy" / c1 / "app.txt").read_text() == "v1"
+
+
+def test_non_worktree_directory_at_worktree_path_is_refused(dep: Deployer) -> None:
+    c1 = commit(dep.repo, "v1")
+    (dep.repo / ".deploy" / c1).mkdir(parents=True)
+    (dep.repo / ".deploy" / c1 / "stray.txt").write_text("x")
+    before = dep.snapshot()
+    r = dep.run("deploy")
+    assert r.code == 1 and r.last["ok"] is False and r.last["rolled_back_to"] is None
+    assert r.last["stack_changed"] is False
+    assert "not a clean checkout" in str(r.last["error"])
+    assert dep.up_calls() == []
+    assert not (dep.repo / ".deploy" / "current").exists()
+    assert (dep.repo / ".deploy" / c1 / "stray.txt").read_text() == "x"
+    [entry] = dep.entries()
+    assert entry["result"] == "failed" and entry["smoke"] == "skipped"
+    assert dep.snapshot() == before
+
+
+def test_rollback_sha_prefix_is_normalised(dep: Deployer) -> None:
+    c1 = commit(dep.repo, "v1")
+    commit(dep.repo, "v2")
+    assert dep.run("deploy").code == 0
+    r = dep.run("rollback", SHA=c1[:7])
+    assert r.code == 0 and r.last["to"] == c1
+    assert_current_is_worktree(dep, c1)
+    assert dep.up_shas()[-1] == c1
+
+
+def test_no_candidate_rollback_suggests_the_running_sha(dep: Deployer) -> None:
+    c1 = commit(dep.repo, "v1")
+    assert dep.run("deploy", FAIL_SMOKE_SHA=c1).code == 1  # first deploy fails, seeded abc1234
+    r = dep.run("rollback")
+    assert r.code == 2 and "SHA=abc1234" in str(r.last["error"])
+    assert r.last["suggested_sha"] == "abc1234"
+
+
+def test_cleanup_failures_never_fail_a_successful_deploy(dep: Deployer) -> None:
+    shas = [commit(dep.repo, f"v{i}") for i in range(1)]
+    for i in range(1, 5):
+        assert dep.run("deploy").code == 0
+        shas.append(commit(dep.repo, f"v{i}"))
+    r = dep.run("deploy", FAKE_IMAGE_TAGS=" ".join(shas), FAKE_IMAGE_RM_FAIL="1")
+    assert r.code == 0 and r.last["ok"] is True, (r.stdout, r.stderr)
+    assert "warning" in r.stderr.lower()
+
+
+def test_claude_temp_settings_files_are_ignored() -> None:
+    from .conftest import ROOT
+
+    p = subprocess.run(
+        ["git", "check-ignore", "-q", ".claude/settings.local.json.tmp.20589.bc07ca4332b9"],
+        cwd=ROOT,
+    )
+    assert p.returncode == 0
+    q = subprocess.run(["git", "check-ignore", "-q", ".claude/settings.json"], cwd=ROOT)
+    assert q.returncode == 1, "shared settings stay tracked"

@@ -35,8 +35,9 @@ build/
 .vscode/
 .DS_Store
 
-# Claude Code: keep shared settings, ignore personal ones
-.claude/settings.local.json
+# Claude Code: keep shared settings, ignore personal ones (and the .tmp.* files written while
+# saving them, which would otherwise make `make deploy` refuse a "dirty" tree)
+.claude/settings.local.json*
 
 # Ops: deploy worktrees
 .deploy/

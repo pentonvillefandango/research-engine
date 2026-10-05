@@ -69,7 +69,7 @@ case "$1" in
   image)
     case "$2" in
       ls) for t in ${FAKE_IMAGE_TAGS:-}; do echo "$t"; done ;;
-      rm) echo "Untagged: $3" ;;
+      rm) [ -z "${FAKE_IMAGE_RM_FAIL:-}" ] || exit 1; echo "Untagged: $3" ;;
       *) echo "fake docker: unhandled: $*" >&2; exit 99 ;;
     esac ;;
   ps) for i in ${FAKE_PS_IMAGES:-}; do echo "$i"; done ;;

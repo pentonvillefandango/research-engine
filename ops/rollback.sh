@@ -11,21 +11,24 @@ require_cmd git
 require_cmd docker
 take_lock
 
-if [ -L "$DEPLOY_ROOT/current" ]; then
-  CURRENT="$(git -C "$DEPLOY_ROOT/current" rev-parse --short HEAD 2>/dev/null || echo none)"
-else
-  CURRENT="$(last_good_sha)"
-fi
+CURRENT="$(current_sha)"
+[ "$CURRENT" != none ] || CURRENT="$(last_good_sha)"
 
 if [ -n "${SHA:-}" ]; then
   [[ "$SHA" =~ ^[0-9a-f]{4,40}$ ]] || fail 2 rollback "SHA must be a hex commit id"
-  g rev-parse --verify --quiet "$SHA^{commit}" >/dev/null || fail 2 rollback "unknown commit"
-  TARGET="$SHA"
+  full="$(resolve_commit "$SHA")" || fail 2 rollback "unknown commit"
+  TARGET="$(short_sha "$full")" # normalised: a 7-char SHA=67374da works too
 else
   TARGET="$(last_good_sha "$CURRENT")"
-  [ "$TARGET" != none ] || fail 2 rollback "no previous good deploy to roll back to" \
-    current="$CURRENT"
-  g rev-parse --verify --quiet "$TARGET^{commit}" >/dev/null ||
+  if [ "$TARGET" = none ]; then
+    hint="$(seeded_running_sha)"
+    if [ -n "$hint" ]; then
+      fail 2 rollback "no previous good deploy to roll back to; the version running before the \
+first worktree deploy was $hint: make rollback SHA=$hint" current="$CURRENT" suggested_sha="$hint"
+    fi
+    fail 2 rollback "no previous good deploy to roll back to" current="$CURRENT"
+  fi
+  resolve_commit "$TARGET" >/dev/null ||
     fail 2 rollback "last good commit is not in this repository" target="$TARGET"
 fi
 
@@ -34,6 +37,7 @@ if rollback_to "$TARGET" "$CURRENT"; then
     branch="$ROLLBACK_BRANCH" smoke="$SMOKE" sandbox="$SANDBOX"
   exit 0
 fi
-json_out ok:=false command=rollback error="rollback failed" from="$CURRENT" to="$ROLLBACK_TO" \
+json_out ok:=false command=rollback error="rollback failed: $ROLLBACK_ERROR" from="$CURRENT" \
+  to="$ROLLBACK_TO" switched:=$ROLLBACK_ACTIVATED current="$(current_sha)" \
   branch="$ROLLBACK_BRANCH" smoke="$SMOKE" sandbox="$SANDBOX" detail:="$DETAIL"
 exit 1

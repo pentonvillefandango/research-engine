@@ -294,7 +294,7 @@ def test_git_sha_defaults_from_deploy_dir(fake_env: FakeEnv) -> None:
         check=True,
     )
     sha = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
+        ["git", "rev-parse", "--short=12", "HEAD"],
         cwd=fake_env.repo,
         capture_output=True,
         text=True,
@@ -304,6 +304,7 @@ def test_git_sha_defaults_from_deploy_dir(fake_env: FakeEnv) -> None:
     assert r.code == 0, r.stderr
     seen = set(Path(f"{fake_env.calls}.sha").read_text().split())
     assert seen == {sha}, "dc must export the DEPLOY_DIR HEAD short sha as GIT_SHA"
+    assert len(sha) == 12, "fixed short length, so a sha's image tag never changes"
 
 
 def test_app_port_adds_debug_compose_file(fake_env: FakeEnv) -> None:

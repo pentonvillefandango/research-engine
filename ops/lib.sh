@@ -114,9 +114,11 @@ for line in sys.stdin:
 '
 redact() { python3 -c "$_REDACT_PY"; }
 
-# GIT_SHA: never let an ops command start the app from a stale or :dev image.
+# GIT_SHA: never let an ops command start the app from a stale or :dev image. A fixed short
+# length, so a commit's image tag and .deploy/ name never change as the repo grows.
+SHORT_SHA_LEN=12
 if [ -z "${GIT_SHA:-}" ]; then
-  GIT_SHA="$(git -C "$DEPLOY_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+  GIT_SHA="$(git -C "$DEPLOY_DIR" rev-parse --short=$SHORT_SHA_LEN HEAD 2>/dev/null || true)"
   [ -n "$GIT_SHA" ] || fail 2 "${CMD:-ops}" "cannot determine GIT_SHA from $DEPLOY_DIR"
 fi
 export GIT_SHA
