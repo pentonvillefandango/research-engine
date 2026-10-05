@@ -269,3 +269,106 @@ async def test_wait_for_job_cancellation_propagates() -> None:
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
+
+
+SECRET = "sk-very-secret-key"
+
+
+def _all_text(exc: BaseException) -> str:
+    return repr(exc) + str(exc) + repr(vars(exc)) + repr(exc.args)
+
+
+@pytest.mark.parametrize(
+    ("raised", "code", "message"),
+    [
+        (httpx.ReadTimeout, ErrorCode.UPSTREAM_TIMEOUT, "request timed out"),
+        (httpx.ConnectTimeout, ErrorCode.UPSTREAM_TIMEOUT, "request timed out"),
+        (
+            httpx.ConnectError,
+            ErrorCode.UPSTREAM_ERROR,
+            "could not reach the Research Engine: ConnectError",
+        ),
+        (
+            httpx.RemoteProtocolError,
+            ErrorCode.UPSTREAM_ERROR,
+            "could not reach the Research Engine: RemoteProtocolError",
+        ),
+    ],
+)
+async def test_transport_errors_become_typed(
+    raised: type[httpx.TransportError], code: ErrorCode, message: str
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise raised("boom", request=request)
+
+    async with ResearchEngineClient(BASE, SECRET, transport=httpx.MockTransport(handler)) as c:
+        with pytest.raises(ResearchEngineError) as ei:
+            await c.search(SearchRequest(query="q"))
+    exc = ei.value
+    assert exc.status == 0 and exc.retryable and exc.request_id is None
+    assert exc.errors[0].code is code and exc.errors[0].message == message
+    assert exc.__cause__ is None and exc.__suppress_context__ is True
+    assert SECRET not in _all_text(exc)
+
+
+async def test_server_supplied_error_text_is_redacted() -> None:
+    body = env(
+        None,
+        [
+            {
+                "code": "invalid_request",
+                "message": f"bad key {SECRET}",
+                "retryable": False,
+                "source": SECRET,
+            }
+        ],
+    )
+    transport = httpx.MockTransport(lambda r: httpx.Response(400, json=body))
+    async with ResearchEngineClient(BASE, SECRET, transport=transport) as c:
+        with pytest.raises(ResearchEngineError) as ei:
+            await c.version()
+    assert SECRET not in _all_text(ei.value) and "***" in ei.value.errors[0].message
+    assert ei.value.errors[0].source == "***"
+
+
+class ClosingTransport(httpx.MockTransport):
+    closed = False
+
+    async def aclose(self) -> None:
+        self.closed = True
+        await super().aclose()
+
+
+async def test_client_owns_and_closes_injected_transport() -> None:
+    transport = ClosingTransport(lambda r: httpx.Response(200, json=env(SEARCH)))
+    c = ResearchEngineClient(BASE, "k", transport=transport)
+    await c.aclose()
+    assert transport.closed
+
+
+async def test_aexit_closes_even_when_body_raises() -> None:
+    transport = ClosingTransport(lambda r: httpx.Response(200, json=env(SEARCH)))
+    with pytest.raises(RuntimeError):
+        async with ResearchEngineClient(BASE, "k", transport=transport):
+            raise RuntimeError("boom")
+    assert transport.closed
+
+
+@pytest.mark.parametrize(("given", "sent"), [(500, "60.0"), (-5, None), (12.5, "12.5")])
+@respx.mock
+async def test_get_job_clamps_wait(given: float, sent: str | None) -> None:
+    route = respx.get(f"{BASE}/v1/jobs/j").respond(json=detail("running"))
+    async with ResearchEngineClient(BASE, "k") as c:
+        await c.get_job("j", wait_s=given)
+    assert route.calls.last.request.url.params.get("wait") == sent
+
+
+@respx.mock
+async def test_wait_for_job_deadline_with_early_nonterminal_returns() -> None:
+    respx.get(f"{BASE}/v1/jobs/j").respond(json=detail("queued"))
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+    async with ResearchEngineClient(BASE, "k") as c:
+        with pytest.raises(TimeoutError):
+            await c.wait_for_job("j", timeout_s=0.5)
+    assert 0.4 < loop.time() - start < 2.0

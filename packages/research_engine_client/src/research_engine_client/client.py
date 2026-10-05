@@ -35,6 +35,8 @@ MIN_POLL_GAP_S = 0.25
 """A non-terminal poll that returns sooner than this (a server ignoring ``wait``) is not
 repeated immediately, so ``wait_for_job`` can never busy-loop."""
 BODY_SNIPPET_CHARS = 200
+MAX_WAIT_S = 60.0
+"""The server rejects ``wait`` outside 0-60 with a 422."""
 
 
 class ResearchEngineError(Exception):
@@ -54,6 +56,12 @@ class ResearchEngineClient:
 
     ``base_url`` may end with or without ``/`` and may carry a path prefix (``https://h/re``).
     The API key is sent as ``X-API-Key`` and is never logged, printed or shown in ``repr``.
+
+    The client takes ownership of an injected ``transport``: ``aclose()`` (and leaving the
+    ``async with`` block, also on an exception) closes it, so don't share one between clients.
+    Every failure surfaces as ``ResearchEngineError``; transport failures (timeout, connection
+    refused) have ``status == 0`` and never chain the httpx exception, whose request object
+    carries the API key header.
     """
 
     def __init__(
@@ -94,16 +102,36 @@ class ResearchEngineClient:
     async def aclose(self) -> None:
         await self._http.aclose()
 
+    def _redact(self, text: str) -> str:
+        return text.replace(self._api_key, "***") if self._api_key else text
+
+    def _error(
+        self, status: int, errors: list[ErrorDetail], request_id: str | None
+    ) -> ResearchEngineError:
+        """The one place a ``ResearchEngineError`` is built: the API key is scrubbed from it."""
+        clean = [
+            e.model_copy(
+                update={
+                    "message": self._redact(e.message),
+                    "source": None if e.source is None else self._redact(e.source),
+                }
+            )
+            for e in errors
+        ]
+        return ResearchEngineError(status, clean, request_id)
+
+    def _transport_error(self, code: ErrorCode, message: str) -> ResearchEngineError:
+        return self._error(0, [ErrorDetail(code=code, message=message, retryable=True)], None)
+
     def _upstream_error(self, resp: httpx.Response) -> ResearchEngineError:
         """A body that is not a valid envelope (proxy page, crash): a typed ``upstream_error``."""
-        snippet = resp.text.replace(self._api_key, "***") if self._api_key else resp.text
-        message = snippet[:BODY_SNIPPET_CHARS] or resp.reason_phrase
+        message = self._redact(resp.text)[:BODY_SNIPPET_CHARS] or resp.reason_phrase
         error = ErrorDetail(
             code=ErrorCode.UPSTREAM_ERROR,
             message=message,
             retryable=resp.status_code >= 500,
         )
-        return ResearchEngineError(resp.status_code, [error], resp.headers.get("x-request-id"))
+        return self._error(resp.status_code, [error], resp.headers.get("x-request-id"))
 
     async def _call[T: BaseModel](
         self,
@@ -121,16 +149,23 @@ class ResearchEngineClient:
         ``data_on_error`` returns ``data`` even from a non-2xx response (``/health`` answers
         503 with a full report); without data it still raises.
         """
-        resp = await self._http.request(
-            method,
-            path,
-            params=params,
-            content=body.model_dump_json() if body is not None else None,
-            headers={"Content-Type": "application/json"} if body is not None else None,
-            timeout=request_timeout_s
-            if request_timeout_s is not None
-            else httpx.USE_CLIENT_DEFAULT,
-        )
+        try:
+            resp = await self._http.request(
+                method,
+                path,
+                params=params,
+                content=body.model_dump_json() if body is not None else None,
+                headers={"Content-Type": "application/json"} if body is not None else None,
+                timeout=request_timeout_s
+                if request_timeout_s is not None
+                else httpx.USE_CLIENT_DEFAULT,
+            )
+        except httpx.TimeoutException:
+            # ``from None``: the httpx exception's ``request`` holds the API key header.
+            raise self._transport_error(ErrorCode.UPSTREAM_TIMEOUT, "request timed out") from None
+        except httpx.TransportError as exc:
+            message = f"could not reach the Research Engine: {type(exc).__name__}"
+            raise self._transport_error(ErrorCode.UPSTREAM_ERROR, message) from None
         try:
             env = Envelope[model].model_validate_json(resp.content)  # type: ignore[valid-type]
         except ValidationError:
@@ -145,7 +180,7 @@ class ResearchEngineClient:
                 retryable=resp.status_code >= 500,
             )
         ]
-        raise ResearchEngineError(resp.status_code, errors, env.meta.request_id)
+        raise self._error(resp.status_code, errors, env.meta.request_id)
 
     async def search(self, req: SearchRequest) -> SearchResponse:
         return await self._call("POST", "/v1/search", SearchResponse, body=req)
@@ -161,6 +196,7 @@ class ResearchEngineClient:
 
     async def get_job(self, job_id: str, wait_s: float = 0) -> JobDetail:
         """With ``wait_s`` > 0 the server long-polls (max 60 s) until the job is terminal."""
+        wait_s = max(0.0, min(MAX_WAIT_S, wait_s))
         return await self._call(
             "GET",
             f"/v1/jobs/{job_id}",
@@ -180,6 +216,8 @@ class ResearchEngineClient:
         deadline = time.monotonic() + timeout_s
         while True:
             started = time.monotonic()
+            # When the deadline has passed, remaining is clamped to 0: a plain (non-waiting)
+            # final poll, so a job that finished in the meantime is still returned.
             remaining = deadline - started
             detail = await self.get_job(job_id, wait_s=max(0.0, min(LONG_POLL_S, remaining)))
             if detail.job.status.is_terminal:
