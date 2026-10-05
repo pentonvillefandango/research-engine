@@ -1,5 +1,6 @@
 """Service container hung on app.state (composition root fills it)."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,6 +17,9 @@ from research_engine.jobs.store import JobStore
 from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
 
+HEALTH_TIMEOUT_S = 5.0
+HEALTH_TTL_S = 5.0
+
 
 @dataclass
 class Services:
@@ -28,10 +32,15 @@ class Services:
     engine: AsyncEngine
     jobs: JobRunner
     job_store: JobStore
+    health_checks: dict[str, Callable[[], Awaitable[bool]]]
+    """Name -> adapter ``health`` callable (searxng, crawl4ai); wired in the composition root."""
     http: httpx.AsyncClient | None = None
     """App-wide client for internal services (SearXNG, Crawl4AI)."""
     fetch_http: httpx.AsyncClient | None = None
     """Cookie-less, no-redirect client for third-party pages (robots + static fetcher)."""
+    health_timeout_s: float = HEALTH_TIMEOUT_S
+    health_ttl_s: float = HEALTH_TTL_S
+    """How long ``/health`` reuses a dependency check (it is unauthenticated and polled)."""
     extra: dict[str, Any] = field(default_factory=dict[str, Any])
 
 

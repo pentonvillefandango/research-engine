@@ -138,7 +138,8 @@ def build_test_services(settings: Settings) -> Services:
         events,
         settings,
     )
-    search = SearchService(FakeSearchProvider(), intents, cache, events, settings)
+    provider = FakeSearchProvider()
+    search = SearchService(provider, intents, cache, events, settings)
     register_job_handlers(runner, settings, search, fetch)
     return Services(
         settings=settings,
@@ -150,4 +151,5 @@ def build_test_services(settings: Settings) -> Services:
         engine=engine,
         jobs=runner,
         job_store=job_store,
+        health_checks={"searxng": provider.health, "crawl4ai": fetch.browser_health},
     )

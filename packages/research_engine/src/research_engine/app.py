@@ -17,6 +17,7 @@ from research_engine.adapters.pdf_extract import PypdfExtractor
 from research_engine.adapters.searxng import SearxngProvider
 from research_engine.adapters.static_fetch import StaticFetcher
 from research_engine.api import fetch as fetch_api
+from research_engine.api import health as health_api
 from research_engine.api import jobs as jobs_api
 from research_engine.api import jobs_submit as jobs_submit_api
 from research_engine.api import search as search_api
@@ -126,6 +127,7 @@ def build_services(settings: Settings) -> Services:
         engine=engine,
         jobs=runner,
         job_store=job_store,
+        health_checks={"searxng": provider.health, "crawl4ai": fetch.browser_health},
         http=http,
         fetch_http=fetch_http,
     )
@@ -223,6 +225,8 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     app.include_router(fetch_api.router)
     app.include_router(jobs_api.router)
     app.include_router(jobs_submit_api.router)
+    app.include_router(health_api.router)
+    app.include_router(health_api.schemas_router)
     # Middleware order: last added is outermost. RequestContext must wrap everything (so even
     # the 401 carries a request_id), then the catch-all, then auth.
     app.add_middleware(ApiKeyMiddleware, api_key=settings.api_key.get_secret_value())

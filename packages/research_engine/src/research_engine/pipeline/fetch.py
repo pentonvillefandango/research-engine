@@ -148,6 +148,10 @@ class FetchService:
         self._robots, self._limiter, self._cache = robots, limiter, cache
         self._events, self._settings = events, settings
 
+    async def browser_health(self) -> bool:
+        """Is the browser-rendering backend reachable (for ``/health``)."""
+        return await self._browser.health()
+
     async def fetch(self, req: FetchRequest, *, job_id: str | None = None) -> tuple[Document, bool]:
         em = Emitter(self._events, job_id)
         key = page_cache_key(req)

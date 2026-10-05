@@ -28,3 +28,14 @@ async def test_search_read_vector_databases(live_client: httpx.AsyncClient) -> N
     assert len(docs) >= 2
     assert all(d["document"]["word_count"] >= 100 for d in docs)
     assert [d["search_rank"] for d in docs] == sorted(d["search_rank"] for d in docs)
+
+
+async def test_health_reports_live_dependencies_up(live_app) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=live_app), base_url="http://research.localhost"
+    ) as c:
+        r = await c.get("/health")
+    deps = r.json()["data"]["dependencies"]
+    assert r.status_code == 200
+    assert deps["searxng"]["state"] == "up" and deps["crawl4ai"]["state"] == "up"
+    assert deps["database"]["state"] == "up"
