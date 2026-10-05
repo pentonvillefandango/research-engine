@@ -118,14 +118,19 @@ path_ok() { # crawl_ok no_sandbox new sandboxed
 # A per-run viewport_width (an allowlisted, harmless BrowserConfig field) gives each crawl a new
 # pool signature, so Crawl4AI does a FRESH launch on both paths and the renderers checked are
 # guaranteed new. Pooled browsers would otherwise reuse renderers (Chrome reuses same-site
-# processes). The extra browsers are reaped by Crawl4AI's pool janitor (idle_ttl_sec: 300).
-# The width must not repeat within the pool lifetime (~345 s): a repeat reuses a pooled entry, and
-# in builtin mode every browser shares CDP port 9222, so the janitor closing any other builtin
-# entry kills the Chrome behind a reused one ("Target page, context or browser has been closed").
-# So W is derived from the epoch seconds, not RANDOM: 2000..7999 repeats only every 6000 s, never
-# collides with the default 1080, and stays inside Chrome's valid viewport range. Runs under 1 s
-# apart would collide; the probe itself takes ~20 s.
-width_at() { echo $((2000 + ($(date +%s) + $1) % 6000)); }
+# processes). The extra browsers are reaped by Crawl4AI's pool janitor: a cold entry after
+# idle_ttl_sec (300 s), a hot one (promoted after 3 uses) after 2 x that (600 s), checked every
+# 60 s, so an entry can live ~660 s idle.
+# The width must not repeat within that lifetime: a repeat reuses a pooled entry (no new renderers,
+# so the path fails), and in builtin mode every browser shares CDP port 9222, so the janitor
+# closing any other builtin entry kills the Chrome behind a reused one ("Target page, context or
+# browser has been closed").
+# Crawl4AI clamps untrusted viewport_width to 1..4000 (async_configs.py _MAX_VIEWPORT), so any
+# W above 4000 collapses to the same signature: W must stay at or below 3999.
+# So W is derived from the epoch seconds, not RANDOM: 1100..3999 repeats only every 2900 s, never
+# collides with the default 1080, and stays inside the clamp. Runs under 1 s apart would collide;
+# the probe itself takes ~20 s.
+width_at() { echo $((1100 + ($(date +%s) + $1) % 2900)); }
 W=$(width_at 0)
 CFG='"crawler_config":{"type":"CrawlerRunConfig","params":{"cache_mode":"bypass"}}'
 URL='"urls":["https://example.com"]'
@@ -144,7 +149,7 @@ builtin_retried=false
 if [ "$b_crawl" != true ] && [ "$b_ns" -eq 0 ] &&
   grep -qiE '(target|page|context|browser)[^"]{0,40}(has been )?closed' "$out"; then
   builtin_retried=true
-  read -r b_crawl b_ns b_new b_sb < <(run_path builtin "$(builtin_body "$(width_at 3000)")")
+  read -r b_crawl b_ns b_new b_sb < <(run_path builtin "$(builtin_body "$(width_at 1450)")")
 fi
 default_ok=$(path_ok "$d_crawl" "$d_ns" "$d_new" "$d_sb")
 builtin_ok=$(path_ok "$b_crawl" "$b_ns" "$b_new" "$b_sb")
