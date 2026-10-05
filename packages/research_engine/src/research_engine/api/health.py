@@ -70,6 +70,23 @@ async def _timed(check: Callable[[], Awaitable[bool]], timeout_s: float) -> Depe
     )
 
 
+async def _cache_health(services: Services) -> DependencyHealth:
+    """Cache detail, under the same timeout. A cache problem degrades ``cache`` only; it
+    never marks the database down. Only ``timeout`` / ``unavailable`` is reported."""
+
+    async def detail() -> str:
+        entries, _ = await services.cache.size()
+        return f"hit_rate={services.cache.stats().hit_rate:.2f} entries={entries}"
+
+    try:
+        text_ = await asyncio.wait_for(detail(), services.health_timeout_s)
+    except TimeoutError:
+        return DependencyHealth(state=DependencyState.DEGRADED, detail="timeout")
+    except Exception:
+        return DependencyHealth(state=DependencyState.DEGRADED, detail="unavailable")
+    return DependencyHealth(state=DependencyState.UP, detail=text_)
+
+
 async def _check_dependencies(services: Services) -> dict[str, DependencyHealth]:
     async def db() -> bool:
         async with services.engine.connect() as conn:
@@ -79,11 +96,7 @@ async def _check_dependencies(services: Services) -> dict[str, DependencyHealth]
     checks = {**services.health_checks, "database": db}
     results = await asyncio.gather(*(_timed(c, services.health_timeout_s) for c in checks.values()))
     deps = dict(zip(checks, results, strict=True))
-    entries, _ = await services.cache.size()
-    deps["cache"] = DependencyHealth(
-        state=DependencyState.UP,
-        detail=f"hit_rate={services.cache.stats().hit_rate:.2f} entries={entries}",
-    )
+    deps["cache"] = await _cache_health(services)
     return deps
 
 
@@ -92,15 +105,7 @@ async def _dependencies(services: Services) -> dict[str, DependencyHealth]:
     async with state.lock:
         now = time.monotonic()
         if state.checked_at is None or now - state.checked_at >= services.health_ttl_s:
-            try:
-                state.deps = await _check_dependencies(services)
-            except Exception as exc:
-                # e.g. cache.size() failing: report it as the database being unusable.
-                state.deps = {
-                    "database": DependencyHealth(
-                        state=DependencyState.DOWN, detail=type(exc).__name__
-                    )
-                }
+            state.deps = await _check_dependencies(services)
             state.checked_at = time.monotonic()
         return state.deps
 
@@ -123,7 +128,8 @@ async def health(
 ) -> Envelope[HealthReport]:
     """Dependency states and overall status; HTTP 503 only when the database is down.
 
-    Results are reused for a few seconds so polling cannot amplify load on dependencies.
+    Results (database included) are reused for up to 5 s so polling cannot amplify load on
+    dependencies; a dependency change can therefore show up to 5 s late.
     """
     deps = await _dependencies(services)
     overall = _overall(deps)

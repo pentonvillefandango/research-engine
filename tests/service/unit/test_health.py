@@ -130,3 +130,44 @@ async def test_schemas_need_auth(app) -> None:
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
         assert (await c.get("/v1/schemas")).status_code == 401
         assert (await c.get("/v1/schemas/Document")).status_code == 401
+
+
+async def _get_health(app):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        return await asyncio.wait_for(c.get("/health"), 3)
+
+
+async def test_hanging_cache_size_degrades_cache_only(app, monkeypatch) -> None:
+    async def hang() -> tuple[int, int]:
+        await asyncio.sleep(30)
+        return 0, 0
+
+    monkeypatch.setattr(app.state.services.cache, "size", hang)
+    app.state.services.health_timeout_s = 0.1
+    r = await _get_health(app)
+    deps = r.json()["data"]["dependencies"]
+    assert r.status_code == 200 and r.json()["data"]["status"] == "up"
+    assert deps["cache"] == {"state": "degraded", "latency_ms": None, "detail": "timeout"}
+    assert deps["database"]["state"] == "up"
+    assert deps["searxng"]["state"] == "up" and deps["crawl4ai"]["state"] == "up"
+
+
+async def test_raising_cache_size_degrades_cache_only(app, monkeypatch) -> None:
+    async def boom() -> tuple[int, int]:
+        raise RuntimeError("secret-host.lab exploded")
+
+    monkeypatch.setattr(app.state.services.cache, "size", boom)
+    r = await _get_health(app)
+    deps = r.json()["data"]["dependencies"]
+    assert r.status_code == 200
+    assert deps["cache"]["state"] == "degraded" and deps["cache"]["detail"] == "unavailable"
+    assert deps["database"]["state"] == "up" and "secret" not in r.text
+
+
+async def test_unknown_or_hostile_schema_name_is_404_envelope(client: httpx.AsyncClient) -> None:
+    for name in ("Nope", "..%2Fx"):
+        r = await client.get(f"/v1/schemas/{name}")
+        body = r.json()
+        assert r.status_code == 404, name
+        assert body["data"] is None and body["errors"][0]["code"] == "not_found", name
+        assert body["meta"]["request_id"], name
