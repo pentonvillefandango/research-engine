@@ -8,7 +8,7 @@ Research quality comes before speed. The reasoning stays in the calling agent: t
 
 ## Status
 
-V1.0.0 (search and read, fully observable) is released: tag `v1.0.0` on `main`. V2 and V3 are planned in [REQUIREMENTS.md](REQUIREMENTS.md).
+V1.0.1 (search and read, fully observable) is released: tag `v1.0.1` on `main` (patch fixes on top of `v1.0.0`). V2 and V3 are planned in [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Features (V1)
 
