@@ -686,8 +686,9 @@ async def test_cookie_non_safe_methods_are_origin_checked(app, method: str) -> N
         c.cookies.set(COOKIE, cookie)
         r = await c.request(method, "/v1/search", headers={"Origin": "http://evil.example"})
         assert r.status_code == 403, method
+        # /mcp ignores the GUI cookie altogether (key only): 401, not an Origin check.
         r = await c.request(method, "/mcp", headers={"Origin": "http://evil.example"})
-        assert r.status_code == 403, method
+        assert r.status_code == 401, method
 
 
 @pytest.mark.parametrize("method", ["GET", "HEAD", "OPTIONS"])

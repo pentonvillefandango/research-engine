@@ -4,8 +4,9 @@ Precedence for every HTTP request:
 1. open path -> pass;
 2. valid ``X-API-Key`` -> pass (no Origin check: not a browser credential);
 3. valid ``re_session`` cookie -> pass, but every method other than GET, HEAD and OPTIONS must
-   also pass the Origin check (``gui.session.same_origin``), else 403 (envelope on /v1 and
-   /mcp, plain page elsewhere);
+   also pass the Origin check (``gui.session.same_origin``), else 403 (envelope on /v1, plain
+   page elsewhere). Not on ``/mcp``: MCP clients authenticate with the key only, never the
+   GUI cookie, so there the cookie is ignored;
 4. otherwise 401 envelope on /v1 and /mcp, and 303 to ``/login?next=<path>`` for anything else.
 
 WebSocket connections accept only ``X-API-Key`` and are closed with 1008 otherwise; every other
@@ -30,11 +31,17 @@ from research_engine.gui.session import (
 
 OPEN_PATHS = ("/health", "/version", "/openapi.json", "/login", "/static/")
 API_PREFIXES = ("/v1", "/mcp")
+KEY_ONLY_PREFIXES = ("/mcp",)
 
 
 def is_api_path(path: str) -> bool:
     """``/v1`` and ``/mcp`` (and below) speak envelopes, never HTML or redirects."""
     return any(path == p or path.startswith(p + "/") for p in API_PREFIXES)
+
+
+def is_key_only_path(path: str) -> bool:
+    """``/mcp`` (and below) accepts only ``X-API-Key``; the GUI session cookie is ignored."""
+    return any(path == p or path.startswith(p + "/") for p in KEY_ONLY_PREFIXES)
 
 
 def key_matches(supplied: bytes | str, expected: bytes) -> bool:
@@ -97,7 +104,7 @@ class ApiKeyMiddleware:
             await send({"type": "websocket.close", "code": 1008})
             return
         path: str = scope["path"]
-        if self._has_session(scope):
+        if not is_key_only_path(path) and self._has_session(scope):
             if scope["method"] in SAFE_METHODS or self._origin_ok(scope):
                 await self.app(scope, receive, send)
                 return

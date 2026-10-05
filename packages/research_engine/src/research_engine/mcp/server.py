@@ -24,6 +24,9 @@ SDK facts checked against the installed versions (mcp 2.3.0, openai-agents 0.23.
 - ``TransportSecuritySettings(enable_dns_rebinding_protection, allowed_hosts,
   allowed_origins)``: exact match, or ``<value>:*`` for any port. A bad Host gives 421, a bad
   Origin 403; no Origin header passes (non-browser clients).
+- ``MCPServer(..., version=..., subscriptions=False)``: ``version`` fills
+  ``serverInfo.version``; ``subscriptions=False`` removes the 2026-07-28
+  ``subscriptions/listen`` handler (see ``build_mcp``).
 - ``agents.mcp.MCPServerStreamableHttp(params={"url", "headers", ...}, name=...,
   client_session_timeout_seconds=5, ...)``; ``list_tools()`` and ``call_tool(name, args)``.
 
@@ -59,6 +62,7 @@ from research_engine_client.models import (
 )
 from starlette.routing import Route
 
+from research_engine import __version__
 from research_engine.api.deps import Services
 from research_engine.api.jobs import valid_job_id
 from research_engine.errors import ServiceError
@@ -151,7 +155,13 @@ def _job_not_found(job_id: str) -> _ToolFailure:
 def build_mcp(get_services: Callable[[], Services]) -> MCPServer:
     """The MCP server; tools resolve ``Services`` at call time (they exist only once the app's
     lifespan has started)."""
-    mcp = MCPServer("research-engine", instructions=INSTRUCTIONS)
+    # subscriptions=False: mcp 2.3.0 also serves the 2026-07-28 revision, whose
+    # ``subscriptions/listen`` opens a never-ending SSE stream (even with json_response=True)
+    # that begin_shutdown cannot end, so it would hold uvicorn's 5 s graceful drain. Our tool
+    # list is static, so there is nothing to subscribe to: the method is not served.
+    mcp = MCPServer(
+        "research-engine", instructions=INSTRUCTIONS, version=__version__, subscriptions=False
+    )
 
     @mcp.tool()
     @_tool_errors
@@ -251,7 +261,13 @@ def build_mcp(get_services: Callable[[], Services]) -> MCPServer:
 
 
 def transport_security(hosts: list[str]) -> TransportSecuritySettings:
-    """DNS-rebinding protection: only these hosts (any port), and only same-host Origins."""
+    """DNS-rebinding protection: only these hosts (any port), and only same-host Origins.
+
+    The SDK's ``<host>:*`` wildcard is a prefix match (``host.startswith("<host>:")``), so an
+    odd Host such as ``research.localhost:80@evil`` passes it. That is not a rebinding vector:
+    a browser derives Host from the URL's authority and cannot send such a value, and
+    non-browser clients need the API key anyway.
+    """
     hosts = list(dict.fromkeys(hosts))
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
@@ -280,4 +296,8 @@ def mount_mcp(app: FastAPI, mcp: MCPServer, allowed_hosts: list[str]) -> None:
     )
     endpoint = StreamableHTTPASGIApp(mcp.session_manager)
     for path in MCP_PATHS:
-        app.router.routes.append(Route(path, endpoint=endpoint, include_in_schema=False))
+        # POST only: stateless mode has no use for GET (an idle, never-ending SSE stream that
+        # would hold the graceful drain) or DELETE (ending a session). Others get 405.
+        app.router.routes.append(
+            Route(path, endpoint=endpoint, methods=["POST"], include_in_schema=False)
+        )

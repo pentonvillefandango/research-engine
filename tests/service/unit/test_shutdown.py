@@ -7,6 +7,9 @@ import signal
 import sys
 import threading
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from types import FrameType
 
@@ -110,15 +113,52 @@ uvicorn.run(app, host="127.0.0.1", port=0, log_level="info", timeout_graceful_sh
 """
 
 
-async def test_sigterm_with_open_sse_stream_exits_fast() -> None:
-    """Real uvicorn process: without the hook it would sit in its 5 s graceful wait for the
-    open stream; with it the stream ends at once, lifespan shutdown runs, the process exits."""
+# As _SERVER, but every search hangs, so an MCP search_and_read is really in flight at SIGTERM.
+_MCP_SERVER = """
+import asyncio
+import contextlib
+
+import uvicorn
+from research_engine.app import create_app
+from research_engine.config import Settings
+from research_engine.testing import build_test_services
+
+settings = Settings()
+services = build_test_services(settings)
+
+
+async def hang(*args, **kwargs):
+    await asyncio.Event().wait()
+
+
+services.search.search = hang
+app = create_app(settings, services=services)
+uvicorn.run(app, host="127.0.0.1", port=0, log_level="info", timeout_graceful_shutdown=5)
+"""
+
+
+@dataclass
+class _Server:
+    proc: asyncio.subprocess.Process
+    port: int
+    stderr_lines: list[str]
+    stdout_task: asyncio.Task[bytes]
+    stderr_task: asyncio.Task[bytes]
+
+    async def logs(self) -> tuple[str, str]:
+        err = "".join(self.stderr_lines) + (await self.stderr_task).decode()
+        return err, (await self.stdout_task).decode()
+
+
+@asynccontextmanager
+async def _uvicorn_process(script: str) -> AsyncIterator[_Server]:
+    """A real uvicorn process running ``script``; killed on exit if still alive."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("API_", "SESSION_"))}
     env |= TEST_ENV | {"LOG_LEVEL": "INFO", "PYTHONUNBUFFERED": "1"}
     proc = await asyncio.create_subprocess_exec(
         sys.executable,
         "-c",
-        _SERVER,
+        script,
         cwd=ROOT,
         env=env,
         stdout=asyncio.subprocess.PIPE,
@@ -137,6 +177,18 @@ async def test_sigterm_with_open_sse_stream_exits_fast() -> None:
                     port = int(line.split("127.0.0.1:")[1].split()[0])
                     break
         stderr_task = asyncio.create_task(proc.stderr.read())
+        yield _Server(proc, port, stderr_lines, stdout_task, stderr_task)
+    finally:
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+
+
+async def test_sigterm_with_open_sse_stream_exits_fast() -> None:
+    """Real uvicorn process: without the hook it would sit in its 5 s graceful wait for the
+    open stream; with it the stream ends at once, lifespan shutdown runs, the process exits."""
+    async with _uvicorn_process(_SERVER) as server:
+        proc, port = server.proc, server.port
         cookie = SessionCodec(TEST_ENV["SESSION_SECRET"]).issue()
         async with (
             httpx.AsyncClient(
@@ -159,16 +211,78 @@ async def test_sigterm_with_open_sse_stream_exits_fast() -> None:
             elapsed = time.perf_counter() - t0
         print(f"\nSIGTERM to process exit with an open SSE stream: {elapsed * 1000:.0f} ms")
         assert elapsed < 2.0
-        err = "".join(stderr_lines) + (await stderr_task).decode()
-        out = (await stdout_task).decode()
+        err, out = await server.logs()
         # uvicorn logs this only after our lifespan shutdown (runner stop etc.) has returned.
         assert "Waiting for application shutdown." in err, err
         assert "Application shutdown complete." in err, err
         assert "shutdown begun" in out  # the hook ran
-    finally:
-        if proc.returncode is None:
-            proc.kill()
-            await proc.wait()
+
+
+_MCP_HEADERS = {
+    "Accept": "application/json, text/event-stream",
+    "X-API-Key": "test-key",
+    "MCP-Protocol-Version": "2025-06-18",
+}
+_MODERN_META = {
+    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+    "io.modelcontextprotocol/clientCapabilities": {},
+    "io.modelcontextprotocol/clientInfo": {"name": "t", "version": "0"},
+}
+
+
+async def test_sigterm_with_in_flight_mcp_requests_exits_fast() -> None:
+    """Real uvicorn process (V1-12): a ``search_and_read`` long-poll in flight, plus attempts
+    at the two never-ending MCP streams (a stateless GET and a 2026-07-28
+    ``subscriptions/listen``), must not hold uvicorn's 5 s graceful drain."""
+    async with _uvicorn_process(_MCP_SERVER) as server:
+        async with httpx.AsyncClient(
+            base_url=f"http://127.0.0.1:{server.port}", headers=_MCP_HEADERS, timeout=10
+        ) as c:
+            call = asyncio.create_task(
+                c.post(
+                    "/mcp",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "search_and_read",
+                            "arguments": {"query": "x", "wait_s": 60},
+                        },
+                    },
+                )
+            )
+            get = await c.get("/mcp")
+            assert get.status_code == 405  # no idle GET stream
+            listen = await c.post(
+                "/mcp",
+                headers={
+                    "MCP-Protocol-Version": "2026-07-28",
+                    "Mcp-Method": "subscriptions/listen",
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 7,
+                    "method": "subscriptions/listen",
+                    "params": {"notifications": {"toolsListChanged": True}, "_meta": _MODERN_META},
+                },
+            )  # returns (an error), so no stream stays open
+            assert "error" in listen.json()
+            await asyncio.sleep(0.5)
+            assert not call.done()  # the tool call is in flight, waiting on its job
+            t0 = time.perf_counter()
+            server.proc.send_signal(signal.SIGTERM)
+            resp = await asyncio.wait_for(call, 2)
+            await asyncio.wait_for(server.proc.wait(), 2)
+            elapsed = time.perf_counter() - t0
+        print(f"\nSIGTERM to process exit with an in-flight MCP call: {elapsed * 1000:.0f} ms")
+        assert elapsed < 2.0
+        assert resp.status_code == 200
+        status = resp.json()["result"]["structuredContent"]["job"]["status"]
+        assert status in ("queued", "running")  # woken by the hook, not finished
+        err, out = await server.logs()
+        assert "Application shutdown complete." in err, err
+        assert "shutdown begun" in out
 
 
 # --- aiosqlite worker threads are joined at shutdown (D9) ---------------------------------------
