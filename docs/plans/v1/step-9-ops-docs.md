@@ -327,7 +327,7 @@ test:            ## Lint, type-check and unit tests
   - development (uv, tests, integration tests, pre-commit);
   - licence.
 
-  It names no lab IPs. `research.toolbox` appears only in the deployment-example section.
+  It names no lab IPs. `research.toolbox.home.arpa` appears only in the deployment-example section.
 - [ ] **`docs/OPERATIONS.md`** covers:
   - each `make` command with its output shape and exit codes;
   - the deploy and rollback flow, including the worktree layout and `deploys.jsonl`;
@@ -340,7 +340,7 @@ test:            ## Lint, type-check and unit tests
   - the fixed IP by DHCP reservation;
   - Docker install;
   - `make bootstrap`, with the `SITE_HOST` and `LAB_SUBNET` env vars;
-  - the UniFi DNS records (an A record for `toolbox`, a CNAME for `research.toolbox`, with the 9.3 and 9.4 menu paths from §9);
+  - the UniFi DNS records (an A record for `toolbox.home.arpa`, a CNAME for `research.toolbox.home.arpa` → `toolbox.home.arpa`, with the 9.3 and 9.4 menu paths from §9);
   - Caddy root CA trust on macOS;
   - `make deploy`;
   - verification.
@@ -383,7 +383,7 @@ test:            ## Lint, type-check and unit tests
 - [ ] **Broken commit:** a commit on `ops-acceptance/broken` changes `config/demos.yaml` so the smoke `search` check fails. A real code break would also do. Deploying it with `make deploy` makes the smoke test fail, triggers an automatic rollback and exits 1. `deploys.jsonl` then shows a `failed` deploy and an `ok` rollback to the previous sha, `make health` passes, and `git -C /opt/research-engine status` shows the main working tree unchanged.
 - [ ] **Backup and restore:** `make backup` creates `backups/research-engine-<ts>.sqlite`, and `make restore FILE=<it>` gives `{"ok":true}` followed by a passing `make health`.
 - [ ] **JSON summaries:** every ops command ran in this task ended with a JSON line that `python3 -c 'import json,sys; json.loads(sys.stdin.read().splitlines()[-1])'` can parse. The failing commands exited non-zero.
-- [ ] **Fresh-VM criterion:** "From a fresh Debian VM, following the README plus `make bootstrap` and `make deploy` gives a working stack at `https://research.toolbox`" is partly verified on `toolbox`. A truly fresh VM is the owner's call: either they rebuild from the template and follow `docs/deploy-toolbox.md`, or they accept the `toolbox` run as evidence. Record which.
+- [ ] **Fresh-VM criterion:** "From a fresh Debian VM, following the README plus `make bootstrap` and `make deploy` gives a working stack at `https://research.toolbox.home.arpa`" is partly verified on `toolbox`. A truly fresh VM is the owner's call: either they rebuild from the template and follow `docs/deploy-toolbox.md`, or they accept the `toolbox` run as evidence. Record which.
 
 **Verify:** `tail -n 3 deploys.jsonl | python3 -c 'import sys,json;[print(json.loads(l)["action"], json.loads(l)["result"]) for l in sys.stdin]'` → shows `deploy failed` and then `rollback ok`.
 

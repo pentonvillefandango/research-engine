@@ -47,7 +47,7 @@ Every task and every reviewer must hold to these.
 
 1. **No model or LLM calls in V1** (D5). Never add `litellm`, `openai`, `anthropic` or `instructor` to the service package. `openai-agents` is allowed **only** as a dev dependency for tests and examples.
 2. **No secrets or lab-specific values committed.**
-   - No IPs, real hostnames other than the documented example `research.toolbox`, usernames, API keys or tokens.
+   - No IPs, real hostnames other than the documented example `research.toolbox.home.arpa`, usernames, API keys or tokens.
    - All of these come from `.env`, with neutral defaults (`SITE_HOST=research.localhost`).
    - gitleaks must pass on every commit.
 3. **Never configure Chromium with `--no-sandbox`** (§12 and B3).

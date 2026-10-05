@@ -447,7 +447,7 @@ In the lifespan, wrap the `yield` with `async with app.state.mcp.session_manager
   - It never prints any key.
 - [ ] `examples/README.md` explains both examples, says that `OPENAI_API_KEY` is the owner's own and is used only by the example (the service makes no model calls, per D5), and notes that the TLS trust for `tls internal` must be set up or `SSL_CERT_FILE` pointed at Caddy's root certificate.
 - [ ] `tests/test_examples.py` imports both modules and runs the agent example's `main()` with `OPENAI_API_KEY` unset, asserting the skip message.
-- [ ] **Manual (owner):** after step 8 deploys the stack, the owner runs `uv run python examples/openai_agents_mcp.py` against `https://research.toolbox`. They see at least one `web_search` and one `web_fetch` or `search_and_read` tool call, and a cited answer. The step-8 or step-9 report records the owner's confirmation. This closes the V1 acceptance criterion "an agent built with the OpenAI Agents SDK can use the MCP tools end to end".
+- [ ] **Manual (owner):** after step 8 deploys the stack, the owner runs `uv run python examples/openai_agents_mcp.py` against `https://research.toolbox.home.arpa`. They see at least one `web_search` and one `web_fetch` or `search_and_read` tool call, and a cited answer. The step-8 or step-9 report records the owner's confirmation. This closes the V1 acceptance criterion "an agent built with the OpenAI Agents SDK can use the MCP tools end to end".
 
 **Verify:** `uv run pytest tests/test_examples.py -v` → pass
 

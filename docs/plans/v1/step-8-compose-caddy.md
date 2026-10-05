@@ -11,7 +11,7 @@
 - A hardened, non-root app image built with uv.
 - The full `research-engine` Compose project. It follows every co-tenancy rule, and a policy test enforces them.
 - The tool-agnostic shared Caddy project in `deploy/caddy/`.
-- A first, owner-approved bring-up at `https://research.toolbox`.
+- A first, owner-approved bring-up at `https://research.toolbox.home.arpa`.
 
 **Task order:** 8.1, then 8.2, then 8.3, then 8.4. 8.4 changes the live host and needs the owner's approval.
 
@@ -416,7 +416,7 @@ networks:
 - [ ] `Caddyfile` contains:
   - a global block with `admin 127.0.0.1:2019`;
   - `import sites/*.caddy`;
-  - the index site `{$TOOLBOX_HOST:toolbox} { tls internal; root * /srv/index; file_server }`.
+  - the index site `{$TOOLBOX_HOST:toolbox.home.arpa} { tls internal; root * /srv/index; file_server }`.
 - [ ] `sites/research-engine.caddy`:
   - serves `{$SITE_HOST}` with `tls internal`;
   - uses `@lab remote_ip {$LAB_SUBNET}`;
@@ -437,7 +437,7 @@ networks:
 
 - [ ] **Step 1: Write the failing policy test.** Follow the style of `test_compose_policy.py`. Also assert the site file contains `flush_interval -1`, `remote_ip {$LAB_SUBNET}` and `reverse_proxy research-engine-app:8000`. Then run a regex over every file in `deploy/caddy/` for IPv4 literals (`\b\d{1,3}(\.\d{1,3}){3}\b`), allowing only `127.0.0.1` and documentation ranges in comments.
 
-- [ ] **Step 2: Write the files** as specified. `index/index.html` is a small static page: "Tools on this host", with one link to `https://research.toolbox/`. Add a comment that hostnames are examples and are edited per deployment.
+- [ ] **Step 2: Write the files** as specified. `index/index.html` is a small static page: "Tools on this host", with one link to `https://research.toolbox.home.arpa/`. Add a comment that hostnames are examples and are edited per deployment.
 
 - [ ] **Step 3: Run Verify.** Expected: pass.
 
@@ -447,7 +447,7 @@ networks:
 
 ### Task 8.4: First live bring-up (owner-approved)
 
-**Goal:** With the owner's explicit approval, install the shared Caddy at `/opt/caddy`, start the research-engine stack, and confirm `https://research.toolbox` serves the GUI and API.
+**Goal:** With the owner's explicit approval, install the shared Caddy at `/opt/caddy`, start the research-engine stack, and confirm `https://research.toolbox.home.arpa` serves the GUI and API.
 
 > **USER-ORDERED GATE: NON-SKIPPABLE.** This step starts services on the shared host and publishes ports 80 and 443. It MUST NOT run until the owner approves in the conversation. Close it only with captured evidence for every acceptance criterion.
 
@@ -455,14 +455,14 @@ networks:
 
 **Acceptance Criteria:**
 - [ ] Before anything starts, the owner has approved, and confirmed that nothing else on the VM uses ports 80/443 (`ss -ltnp '( sport = :80 or sport = :443 )'` is empty).
-- [ ] `/opt/caddy/.env` holds the owner's `SITE_HOST=research.toolbox`, `LAB_SUBNET` (their lab CIDR, supplied by them) and `TOOLBOX_HOST=toolbox`. It is mode 600 and never committed.
+- [ ] `/opt/caddy/.env` holds the owner's `SITE_HOST=research.toolbox.home.arpa`, `LAB_SUBNET` (their lab CIDR, supplied by them) and `TOOLBOX_HOST=toolbox.home.arpa`. It is mode 600 and never committed.
 - [ ] `cd /opt/caddy && docker compose up -d --wait` reports `caddy` healthy. `docker network inspect proxy` exists.
 - [ ] `cd /opt/research-engine && GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build --wait` reports `app`, `searxng` and `crawl4ai` healthy.
-- [ ] The owner has added the UniFi DNS records (A for `toolbox`, CNAME for `research.toolbox`) and trusted the Caddy root CA on their MacBook.
-- [ ] From the VM, `curl -sk --resolve research.toolbox:443:127.0.0.1 https://research.toolbox/health` returns `"status":"up"`. From a lab client, `https://research.toolbox/` shows the login page. From a non-lab IP, it returns 403. The last check can only be done if the owner can test it; if not, record it as untested.
-- [ ] The owner runs `examples/openai_agents_mcp.py` against `https://research.toolbox` and confirms the tool calls and the cited answer (B6b).
+- [ ] The owner has added the UniFi DNS records (A for `toolbox.home.arpa`, CNAME for `research.toolbox.home.arpa` → `toolbox.home.arpa`) and trusted the Caddy root CA on their MacBook.
+- [ ] From the VM, `curl -sk --resolve research.toolbox.home.arpa:443:127.0.0.1 https://research.toolbox.home.arpa/health` returns `"status":"up"`. From a lab client, `https://research.toolbox.home.arpa/` shows the login page. From a non-lab IP, it returns 403. The last check can only be done if the owner can test it; if not, record it as untested.
+- [ ] The owner runs `examples/openai_agents_mcp.py` against `https://research.toolbox.home.arpa` and confirms the tool calls and the cited answer (B6b).
 
-**Verify:** `curl -sk --resolve research.toolbox:443:127.0.0.1 https://research.toolbox/health | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["status"])'` → `up`
+**Verify:** `curl -sk --resolve research.toolbox.home.arpa:443:127.0.0.1 https://research.toolbox.home.arpa/health | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["status"])'` → `up`
 
 **Steps:**
 
