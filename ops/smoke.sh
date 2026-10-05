@@ -13,8 +13,9 @@ code=0
 out="$(dc exec -T app research-engine smoke --url http://127.0.0.1:8000 2>/dev/null)" || code=$?
 
 # The CLI's result is its last stdout line; anything else (a traceback, a docker error) is
-# reported only as a generic failure, never echoed.
-line="$(printf '%s\n' "$out" | tail -n 1 | redact)"
+# reported only as a generic failure, never echoed. Redaction runs on the parsed JSON's string
+# values (redact_json), so a masked detail can never break the line's JSON.
+line="$(printf '%s\n' "$out" | tail -n 1 | redact_json)"
 result="$(LINE="$line" CODE="$code" python3 - <<'PY'
 import json, os
 try:

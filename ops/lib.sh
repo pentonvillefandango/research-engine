@@ -118,21 +118,49 @@ names_json() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1].split()
 # redact: stdin -> stdout, masks values of key/token/secret/password-like names (case-insensitive)
 # in NAME=value and name: value (a quoted value, or an unquoted one up to the end of the line),
 # JSON "name": "value", and X-API-Key / Authorization / Cookie / Set-Cookie headers.
-_REDACT_PY='
-import re, sys
+# The name pattern is start-anchored and its parts never overlap, so long lines (base64, JWTs)
+# stay linear-time instead of backtracking for seconds.
+_REDACT_DEFS='
+import json, re, sys
 M = "***REDACTED***"
 kw = r"(?:key|token|secret|password|passwd)"
+KW = re.compile(kw, re.I)
 j = re.compile(r"(\"[^\"]*" + kw + r"[^\"]*\"\s*:\s*)(\"(?:[^\"\\]|\\.)*\"|[^,}\s]+)", re.I)
 h = re.compile(r"(?<![\"\w-])((?:x-api-key|authorization|proxy-authorization|set-cookie|cookie)\s*:\s*)[^\r\n]*", re.I)
-v = r"(\"(?:[^\"\\]|\\.)*\"|\x27[^\x27]*\x27|[^\r\n]*\S)"
-e = re.compile(r"([A-Za-z0-9_.-]*" + kw + r"[A-Za-z0-9_.-]*\s*[=:]\s*)" + v, re.I)
-for line in sys.stdin:
+e = re.compile(
+    r"(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]*?" + kw + r"[A-Za-z0-9_.-]*\s*[=:][ \t]*)"
+    r"(\"(?:[^\"\\]|\\.)*\"|\x27[^\x27]*\x27|\S(?:[^\r\n]*\S)?)",
+    re.I,
+)
+def redact(line):
     line = j.sub(lambda m: m.group(1) + "\"" + M + "\"", line)
     line = h.sub(lambda m: m.group(1) + M, line)
-    line = e.sub(lambda m: m.group(1) + M, line)
-    sys.stdout.write(line)
+    return e.sub(lambda m: m.group(1) + M, line)
+def redact_value(v, name=""):
+    if isinstance(v, dict):
+        return {k: redact_value(x, k) for k, x in v.items()}
+    if isinstance(v, list):
+        return [redact_value(x) for x in v]
+    if KW.search(name) and v is not None and not isinstance(v, bool):
+        return M
+    return redact(v) if isinstance(v, str) else v
 '
-redact() { python3 -c "$_REDACT_PY"; }
+redact() {
+  python3 -c "$_REDACT_DEFS
+for line in sys.stdin:
+    sys.stdout.write(redact(line))"
+}
+# redact_json: one JSON document on stdin -> the same document with every string value redacted
+# (and values of secret-named keys masked), re-serialised on one line: always valid JSON.
+# Prints nothing if stdin is not JSON (callers treat that as "no result", never echo it).
+redact_json() {
+  python3 -c "$_REDACT_DEFS
+try:
+    doc = json.loads(sys.stdin.read())
+except ValueError:
+    sys.exit(0)
+print(json.dumps(redact_value(doc), sort_keys=True))"
+}
 
 # GIT_SHA: never let an ops command start the app from a stale or :dev image. A fixed short
 # length, so a commit's image tag and .deploy/ name never change as the repo grows.

@@ -1,0 +1,1 @@
+{"checks": [{"detail": "ValueError: invalid key: x", "ms": 5, "name": "fetch", "ok": false}, {"detail": "upstream said token=SEKRIT-1 rest", "ms": 1, "name": "search", "ok": false}, {"api_key": "SEKRIT-2", "name": "x", "ok": true}], "command": "smoke", "ok": false, "took_ms": 9}

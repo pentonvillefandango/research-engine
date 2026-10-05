@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -415,6 +416,19 @@ def test_redact_masks_spaced_colon_and_cookie_forms(fake_env: FakeEnv, line: str
 def test_redact_colon_form_keeps_the_name(fake_env: FakeEnv) -> None:
     p = lib(fake_env, "redact", stdin="Set-Cookie: sid=SEKRIT-1\npassword: SEKRIT-2\n")
     assert p.stdout == "Set-Cookie: ***REDACTED***\npassword: ***REDACTED***\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["a" * 20_000, "key" * 1000, "key=" + " " * 20_000, "x_token: " + "ab " * 7000],
+    ids=["20k-plain", "key-x1000", "key=-20k-spaces", "20k-value"],
+)
+def test_redact_is_fast_on_pathological_lines(fake_env: FakeEnv, line: str) -> None:
+    """No catastrophic backtracking: a long base64 blob or JWT must not stall logs/deploy."""
+    t0 = time.monotonic()
+    p = lib(fake_env, "redact", stdin=line + "\n")
+    assert time.monotonic() - t0 < 1.0
+    assert p.returncode == 0 and p.stdout.endswith("\n")
 
 
 def test_redact_keeps_harmless_lines(fake_env: FakeEnv) -> None:
