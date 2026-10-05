@@ -33,7 +33,7 @@
   - takes `ARG GIT_SHA=unknown` into `ENV GIT_SHA`;
   - runs as `USER 10001`, `EXPOSE 8000`;
   - `HEALTHCHECK` with `python -c` and `urllib`, against `http://127.0.0.1:8000/health`;
-  - `CMD ["uvicorn", "research_engine.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]`.
+  - `CMD ["uvicorn", "research_engine.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--timeout-graceful-shutdown", "15"]` (≥ the job runner's worst-case stop of ~9 s; also set compose `stop_grace_period: 20s` on `app`).
 - [ ] `.dockerignore` excludes `.env*` (except `.env.example`), `.git`, `data`, `backups`, `logs`, `deploys.jsonl`, `.venv`, the caches, `tests` and `docs`.
 - [ ] The policy test, which parses the text, asserts all of these:
   - a pinned base image (not `latest`, with a patch version);
@@ -110,7 +110,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
 CMD ["uvicorn", "research_engine.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", \
-     "--proxy-headers", "--forwarded-allow-ips", "*"]
+     "--proxy-headers", "--forwarded-allow-ips", "*", "--timeout-graceful-shutdown", "15"]
 ```
 
 `--forwarded-allow-ips "*"` is acceptable because `app` publishes no port, so only Caddy (on the `proxy` network) and internal services can reach it. Record this in ADR-0026's notes.
@@ -263,6 +263,7 @@ services:
       args: { GIT_SHA: "${GIT_SHA:-unknown}" }
     image: research-engine-app:${GIT_SHA:-dev}
     restart: unless-stopped
+    stop_grace_period: 20s   # > uvicorn --timeout-graceful-shutdown 15 > job runner worst-case stop (~9 s)
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:size=64m"]
