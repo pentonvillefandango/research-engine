@@ -45,16 +45,17 @@ Development:
 - `uv run ruff check && uv run ruff format --check && uv run pyright`. Or use `make test`.
 - When diagnosing test crashes, run with `PYTHONFAULTHANDLER=1` and keep the full output (redirect to a file); never pipe it through `| tail`, which discards the fatal-error dump.
 - `uv run research-engine schemas export [--check]` regenerates `schemas/`, and CI checks that it's current.
-- **Integration tests** run against the dev stack, which has no Caddy and uses ephemeral loopback ports:
-  1. `docker compose -f compose.yaml -f compose.dev.yaml up -d --wait`
+- **Integration tests** run against the dev stack, which has its own Compose project `research-engine-dev`, no Caddy and ephemeral loopback ports:
+  1. `docker compose -p research-engine-dev -f compose.yaml -f compose.dev.yaml up -d --wait searxng crawl4ai`
   2. `source <(scripts/dev_urls.sh)`, which exports `SEARXNG_LIVE_URL` and `CRAWL4AI_LIVE_URL`
-  3. `uv run pytest -m integration`
-- **Live-host warning (`toolbox`):** the dev override shares the `research-engine` project name with production, so `docker compose -f compose.yaml -f compose.dev.yaml up` REPLACES the live stack (app from a stale `:dev` image, off the `proxy` network, so Caddy returns 502). There, running the dev stack or integration tests needs owner approval like a deploy and must be followed by a redeploy, until step 9 provides a non-destructive way.
+  3. `uv run pytest -m integration` (includes `scripts/check_sandbox.sh dev`)
+  4. `docker compose -p research-engine-dev -f compose.yaml -f compose.dev.yaml down` (never `-v`; its volumes `research-engine-dev_*` are throwaway and may be left)
+- **Live-host note (`toolbox`):** always pass `-p research-engine-dev` with `compose.dev.yaml`. Without it the dev override would use the `research-engine` project and REPLACE the live stack. With it the dev stack runs alongside production and never touches it. It costs RAM: a second SearXNG and Crawl4AI (about 1.6 GB together after a few crawls; Crawl4AI is limited to 4 GB). Check `free -m` first and don't start it with less than ~6 GB available.
 - Never run bare `docker compose up` on the live host without `GIT_SHA=$(git rev-parse --short HEAD)` exported (else the stale `:dev` image may be used). Step 9's ops scripts will wrap this.
 - **Fixtures** come from real upstreams via `scripts/record_fixtures.py`. Scrub them for lab data before committing.
 
 Operations (added in build step 9; see `docs/OPERATIONS.md`). Each command prints a final JSON line and exits non-zero on failure:
-- **Read-only, run freely:** `make status`, `make health`, `make logs SERVICE=app SINCE=30m`, `make version`, `make smoke`, `make backup`.
+- **Read-only, run freely:** `make status`, `make health`, `make logs SERVICE=app SINCE=30m`, `make version`, `make smoke`, `make sandbox`, `make backup`.
 - **Restart or restore the live service: ask the owner every time:** `make deploy`, `make rollback`, `make restore FILE=…`, `make bootstrap`. The project's `.claude/settings.json` makes these prompt.
 - **Never, unless the owner explicitly asks:** `docker compose down -v`, deleting volumes or backups, or force-pushing. These are also denied in `.claude/settings.json`.
 - Changes go live only by committing and then running `make deploy`.

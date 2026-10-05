@@ -32,7 +32,7 @@ This is Docker's default seccomp profile with exactly **one rule appended** at t
   open("deploy/crawl4ai/seccomp-chromium.json", "w").write(json.dumps(d, indent="\t") + "\n")
   EOF
   diff /tmp/default.json deploy/crawl4ai/seccomp-chromium.json   # only the appended rule (+ final newline)
-  scripts/check_sandbox.sh                                       # must print "sandbox":"on"
+  scripts/check_sandbox.sh dev     # dev stack; on the live stack: make sandbox. Must print "sandbox": "on"
   ```
 
 ## `addon/sitecustomize.py`
@@ -51,10 +51,10 @@ On install it prints `[research-engine sandbox add-on] active (...)` to stderr. 
 
 ## Verify
 
-`scripts/check_sandbox.sh` crawls once on the default launch path and once with `browser_mode=builtin`. Each crawl uses a per-run `viewport_width`, which forces a fresh launch. It must print:
+`scripts/check_sandbox.sh dev|prod` crawls once on the default launch path and once with `browser_mode=builtin`. Each crawl uses a per-run `viewport_width`, which forces a fresh launch. The crawl requests are sent from inside the crawl4ai container to `127.0.0.1:11235`, with that container's own token, so no published port is needed. `dev` checks the dev stack (project `research-engine-dev`); `prod` checks the live stack and runs as `make sandbox` (`ops/sandbox.sh`). It must print a final JSON line with:
 
 ```
-{"sandbox":"on","no_sandbox_procs":0,"default_ok":true,...,"builtin_ok":true,...,"addon_active":true,"addon_warnings":0,"crawl_ok":true}
+{"ok": true, "command": "sandbox", "sandbox": "on", "no_sandbox_procs": 0, "default_ok": true, "builtin_ok": true, "addon_active": true, "addon_warnings": 0, "crawl_ok": true, ...}
 ```
 
-It also runs as `tests/integration/test_sandbox_live.py`.
+The dev mode also runs as `tests/integration/test_sandbox_live.py`.

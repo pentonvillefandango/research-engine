@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
-# Verifies Crawl4AI renders with Chromium's sandbox ON (ADR-0022). Prints one JSON line; exit 0
-# only if everything holds:
+# Verifies Crawl4AI renders with Chromium's sandbox ON (ADR-0022).
+# Usage: scripts/check_sandbox.sh dev|prod
+#   dev   the dev stack: docker compose -p research-engine-dev -f compose.yaml -f compose.dev.yaml
+#   prod  the live stack through the ops `dc` (project research-engine); run as ops/sandbox.sh
+# Both modes send their crawl requests from INSIDE the crawl4ai container to 127.0.0.1:11235 with
+# the container's own CRAWL4AI_API_TOKEN (read there from its environment: never on this host,
+# never on a command line, never printed), so no published port is needed.
+# Ops contract (ops/lib.sh): one final JSON line, exit 0 only if everything holds, 1 if not,
+# 2 on bad usage:
 #   - the add-on announced itself ("active") in the container logs since start, with no WARNING;
 #   - for each launch path (default Playwright launch, and browser_mode=builtin, which goes through
 #     ManagedBrowser's own Popen), a crawl of https://example.com succeeds with non-empty markdown,
@@ -10,12 +17,23 @@
 #     different from that browser's;
 #   - no Chromium process carries --no-sandbox at any sample during either crawl.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-source <(scripts/dev_urls.sh)
-TOKEN=$(grep -E '^CRAWL4AI_API_TOKEN=' .env | cut -d= -f2-)
-dc() { docker compose -f compose.yaml -f compose.dev.yaml "$@"; }
+CMD=sandbox
+. "$(dirname "${BASH_SOURCE[0]}")/../ops/lib.sh"
+MODE="${1:-}"
+case "$MODE" in
+  dev)
+    # Its own project: running the dev stack (or this check) can never replace the live stack.
+    dc() {
+      docker compose -p research-engine-dev --project-directory "$REPO_DIR" \
+        -f "$REPO_DIR/compose.yaml" -f "$REPO_DIR/compose.dev.yaml" --env-file "$ENV_FILE" "$@"
+    }
+    ;;
+  prod) ;;  # ops/lib.sh's dc: project research-engine, the deployed checkout
+  *) fail 2 sandbox "usage: check_sandbox.sh dev|prod" ;;
+esac
+require_cmd docker
 out=$(mktemp)
-trap 'rm -f "$out"' EXIT
+on_exit_hook() { rm -f "$out"; }
 
 # In-container probe. `python3 -I` ignores PYTHONPATH, so the add-on is not loaded here. It snapshots
 # the renderer PIDs, prints "ready", then samples /proc every 50 ms until it reads a line on stdin,
@@ -82,16 +100,27 @@ print(json.dumps({"no_sandbox": len(nosb), "new_renderers": len(seen),
                   "sandboxed": sum(seen.values())}), flush=True)
 '
 
+# In-container crawl: POST the body (argv[1], no secret in it) to the local Crawl4AI with the
+# container's own token, read from its environment. Prints the response body (also on HTTP errors).
+crawl='
+import os, sys, urllib.error, urllib.request
+req = urllib.request.Request("http://127.0.0.1:11235/crawl", data=sys.argv[1].encode(), headers={
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + os.environ["CRAWL4AI_API_TOKEN"]})
+try:
+    r = urllib.request.urlopen(req, timeout=120)
+except urllib.error.HTTPError as e:
+    r = e
+sys.stdout.write(r.read().decode(errors="replace"))
+'
+
 # run_path <default|builtin> <crawl body JSON>: prints "<crawl_ok> <no_sandbox> <new_renderers> <sandboxed>"
 run_path() {
   local kind=$1 body=$2 ready="" result="" ok
   coproc PROBE { dc exec -T crawl4ai python3 -I -c "$probe" "$kind" 2>/dev/null; }
   local pin=${PROBE[1]} pout=${PROBE[0]} ppid=$PROBE_PID
   read -r -t 60 ready <&"$pout" || true
-  # token goes in through stdin (-H @-), never onto a command line
-  printf 'Authorization: Bearer %s\n' "$TOKEN" |
-    curl -s -m 120 -H @- -H 'Content-Type: application/json' -d "$body" \
-      "$CRAWL4AI_LIVE_URL/crawl" > "$out" || true
+  dc exec -T crawl4ai python3 -I -c "$crawl" "$body" > "$out" 2>/dev/null || true
   sleep 1  # let the probe catch the tail of the crawl
   echo stop >&"$pin" || true
   read -r -t 30 result <&"$pout" || true
@@ -154,7 +183,7 @@ fi
 default_ok=$(path_ok "$d_crawl" "$d_ns" "$d_new" "$d_sb")
 builtin_ok=$(path_ok "$b_crawl" "$b_ns" "$b_new" "$b_sb")
 
-started=$(docker inspect -f '{{.State.StartedAt}}' "$(dc ps -q crawl4ai)" 2>/dev/null || true)
+started=$(docker inspect --format '{{.State.StartedAt}}' "$(dc ps -q crawl4ai)" 2>/dev/null || true)
 logs=$(dc logs --no-color ${started:+--since "$started"} crawl4ai 2>&1 || true)
 addon_active=$(grep -qF '[research-engine sandbox add-on] active' <<< "$logs" && echo true || echo false)
 addon_warnings=$(grep -cF '[research-engine sandbox add-on] WARNING' <<< "$logs" || true)
@@ -166,5 +195,9 @@ if [ "$default_ok" = true ] && [ "$builtin_ok" = true ] && [ "$addon_active" = t
   [ "$addon_warnings" -eq 0 ] && [ "$no_sandbox" -eq 0 ]; then
   sandbox=on
 fi
-echo "{\"sandbox\":\"$sandbox\",\"no_sandbox_procs\":$no_sandbox,\"default_ok\":$default_ok,\"default_new_renderers\":$d_new,\"builtin_ok\":$builtin_ok,\"builtin_new_renderers\":$b_new,\"addon_active\":$addon_active,\"addon_warnings\":$addon_warnings,\"crawl_ok\":$crawl_ok,\"builtin_retried\":$builtin_retried}"
-[ "$sandbox" = on ] && [ "$crawl_ok" = true ]
+ok=$([ "$sandbox" = on ] && [ "$crawl_ok" = true ] && echo true || echo false)
+json_out ok:="$ok" command=sandbox mode="$MODE" sandbox="$sandbox" no_sandbox_procs:="$no_sandbox" \
+  default_ok:="$default_ok" default_new_renderers:="$d_new" builtin_ok:="$builtin_ok" \
+  builtin_new_renderers:="$b_new" addon_active:="$addon_active" addon_warnings:="$addon_warnings" \
+  crawl_ok:="$crawl_ok" builtin_retried:="$builtin_retried"
+[ "$ok" = true ] || exit 1

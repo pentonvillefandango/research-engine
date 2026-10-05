@@ -27,8 +27,10 @@ FINAL_EMITTED=0
 
 # Any unexpected failure still ends with exactly one JSON line (never the failing command line,
 # which could carry secrets) and exit 1. A script that already emitted its JSON line is left alone.
+# A script may define on_exit_hook (e.g. temp-file clean-up); it runs first, on every exit.
 _on_exit() {
   local code=$?
+  if declare -F on_exit_hook >/dev/null; then on_exit_hook || true; fi
   if [ "$code" -ne 0 ] && [ "$FINAL_EMITTED" -ne 1 ]; then
     FINAL_EMITTED=1
     python3 -c 'import json,sys; print(json.dumps({"ok": False, "command": sys.argv[1], "error": "unexpected failure (exit " + sys.argv[2] + ")"}, sort_keys=True))' "${CMD:-ops}" "$code" || true

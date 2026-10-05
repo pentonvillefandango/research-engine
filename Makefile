@@ -1,4 +1,4 @@
-.PHONY: help bootstrap deploy rollback status health smoke logs backup restore version test
+.PHONY: help bootstrap deploy rollback status health smoke sandbox logs backup restore version test
 SERVICE ?= app
 SINCE ?= 30m
 FILE ?=
@@ -19,6 +19,8 @@ health:          ## /health plus container healthchecks (read-only)
 	@ops/health.sh
 smoke:           ## Demo set against the live API, <2 min (read-only)
 	@ops/smoke.sh
+sandbox:         ## Chromium sandbox check in the live crawl4ai, ADR-0022 (read-only)
+	@ops/sandbox.sh
 logs:            ## Recent logs: make logs SERVICE=app SINCE=30m (read-only)
 	@ops/logs.sh "$$SERVICE" "$$SINCE"
 backup:          ## Online SQLite backup to backups/ with retention

@@ -10,7 +10,7 @@ updates:
     directory: "/"
     schedule: { interval: "weekly" }
   # image pins in compose.yaml (searxng, crawl4ai). A crawl4ai bump must pass
-  # scripts/check_sandbox.sh before merging (ADR-0022): CI can't run it.
+  # scripts/check_sandbox.sh dev before merging (ADR-0022): CI can't run it.
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule: { interval: "weekly" }
