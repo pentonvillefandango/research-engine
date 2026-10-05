@@ -8,8 +8,8 @@
 # 3. creates $BACKUP_DIR (mode 700)
 # 4. syncs deploy/caddy/ into $CADDY_DIR, copying only changed files and never deleting anything
 #    there; $CADDY_DIR/.env is never copied over. Its SITE_HOST is set from the repo .env (the
-#    single source) - but only from a .env that existed before this run: one just created from
-#    .env.example holds a placeholder and never replaces an existing value. LAB_SUBNET (and the optional TOOLBOX_HOST) come from the environment only when
+#    single source) - but never the .env.example placeholder (a .env just created from the
+#    example, or one never edited) over a different existing value, on any run. LAB_SUBNET (and the optional TOOLBOX_HOST) come from the environment only when
 #    the Caddy env lacks them. Existing values are never changed, and no value is ever printed.
 # 5. starts Caddy (`docker compose up -d --wait` in $CADDY_DIR, which creates the `proxy` network).
 #    The Caddyfile is a single-file bind mount: if it (or compose.yaml or .env) changed, the
@@ -106,11 +106,16 @@ if [ ! -e "$cenv" ]; then
 else
   [ -r "$cenv" ] || die 2 "$cenv is not readable by $RUN_USER"
   site_note=""
-  if [ "$env_action" = create ]; then
-    # the new .env's SITE_HOST is the .env.example placeholder: never let it replace a real one
-    site_note="SITE_HOST not changed: .env was just created from .env.example; set SITE_HOST in .env and re-run"
-  elif [ "$(env_get SITE_HOST "$cenv" || true)" != "$site" ]; then
-    cenv_keys+=(SITE_HOST)
+  caddy_site="$(env_get SITE_HOST "$cenv" || true)"
+  placeholder="$(env_get SITE_HOST "$EXAMPLE" 2>/dev/null || true)"
+  if [ "$caddy_site" != "$site" ]; then
+    if [ "$env_action" = create ] || { [ -n "$placeholder" ] && [ "$site" = "$placeholder" ]; }; then
+      # The repo .env still holds the .env.example placeholder (just created, or never edited):
+      # on any run, it never replaces a different, real Caddy SITE_HOST (nor recreates Caddy).
+      site_note="SITE_HOST not changed: the repo .env still has the .env.example placeholder; set SITE_HOST in $ENV_FILE and re-run"
+    else
+      cenv_keys+=(SITE_HOST)
+    fi
   fi
   if [ -z "$(env_get LAB_SUBNET "$cenv" || true)" ]; then
     [ -n "${LAB_SUBNET:-}" ] || die 2 "LAB_SUBNET is empty in $cenv (Caddy would refuse every client): set LAB_SUBNET in the environment and re-run"

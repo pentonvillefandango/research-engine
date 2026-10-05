@@ -5,6 +5,8 @@
 # While the app still runs: validate FILE (check-only CLI run), then take a pre-restore safety
 # backup (research-engine-<ts>-prerestore.sqlite, restorable like any other). Either failing
 # aborts with the app untouched. Only then: stop app, restore, start app, health.
+# The safety backup is taken while the app still runs, so writes in the short window between it
+# and `dc stop app` are in neither the safety copy nor the restored database.
 CMD=restore
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

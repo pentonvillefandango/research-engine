@@ -415,3 +415,30 @@ def test_unit_uses_the_resolved_make(boot: Boot) -> None:
     assert r.code == 0, r.stderr
     svc = (boot.systemd / UNITS[0]).read_text()
     assert f"ExecStart={fake_make} -C {boot.repo} backup" in svc
+
+
+def test_placeholder_site_host_never_replaces_caddy_on_any_run(installed: Boot) -> None:
+    """A pre-existing repo .env still at the .env.example SITE_HOST (read from the example, not
+    hard-coded) never overwrites a different Caddy SITE_HOST, nor recreates Caddy."""
+    placeholder = env_values(installed.repo / ".env.example")["SITE_HOST"]
+    (installed.repo / ".env").write_text(f"API_KEY=k\nSITE_HOST={placeholder}\n")
+    cenv_before = (installed.caddy / ".env").read_bytes()
+    for args in (("--dry-run",), (), ()):
+        r = installed.run(*args)
+        assert r.code == 0, r.stderr
+        a = actions(r)
+        assert a["env"]["action"] == "keep"
+        assert a["caddy_env"]["action"] == "keep" and a["caddy_env"]["keys"] == []
+        assert "set SITE_HOST" in a["caddy_env"]["site_host_note"]
+        assert a["caddy"]["action"] == "up"
+    assert (installed.caddy / ".env").read_bytes() == cenv_before
+    assert not any("force-recreate" in c for c in installed.calls(""))
+
+
+def test_placeholder_site_host_matching_caddy_needs_no_note(installed: Boot) -> None:
+    placeholder = env_values(installed.repo / ".env.example")["SITE_HOST"]
+    (installed.repo / ".env").write_text(f"API_KEY=k\nSITE_HOST={placeholder}\n")
+    cenv = installed.caddy / ".env"
+    cenv.write_text(cenv.read_text().replace("research.lab.example.test", placeholder))
+    r = installed.run()
+    assert r.code == 0 and "site_host_note" not in actions(r)["caddy_env"]
