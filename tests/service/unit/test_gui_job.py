@@ -343,6 +343,26 @@ async def test_long_timeline_shows_oldest_and_newest_250(app) -> None:
     assert ids == sorted(ids, key=int) and len(set(ids)) == len(ids)
 
 
+async def test_20k_event_timeline_shows_exact_omitted_count(app) -> None:
+    from research_engine.store.tables import EventRow
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
+    jid = await _job_with_events(app, 0)  # 3 job events
+    now = datetime.now(UTC)
+    rows = [
+        EventRow(ts=now, job_id=jid, level="debug", kind="job.progress", message=f"bulk-{i}")
+        for i in range(20_000)
+    ]
+    async with AsyncSession(app.state.services.events._engine) as s:
+        s.add_all(rows)
+        await s.commit()
+    async with logged_in(app) as c:
+        html = (await c.get(f"/jobs/{jid}")).text
+    assert html.count('class="ev ') == 500
+    assert "… 19503 events omitted …" in html  # 20,003 total - 500 shown, exact
+    assert "omitted …" in html and "+ events" not in html
+
+
 async def test_short_timeline_has_no_marker_or_duplicates(app) -> None:
     jid = await _job_with_events(app, 397)  # 400 events with the job's own three
     async with logged_in(app) as c:

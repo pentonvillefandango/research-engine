@@ -59,6 +59,15 @@ class EventStore(EventBus, Protocol):
         newest: bool = False,
     ) -> list[Event]: ...
 
+    async def count(
+        self,
+        *,
+        job_id: str | None = None,
+        level: EventLevel | None = None,
+        kind_prefix: str | None = None,
+        text: str | None = None,
+    ) -> int: ...
+
     async def tail(self, n: int) -> list[Event]: ...
 
     async def prune(self, older_than_days: int) -> int: ...

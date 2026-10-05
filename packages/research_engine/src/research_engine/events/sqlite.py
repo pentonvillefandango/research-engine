@@ -2,9 +2,10 @@
 
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from research_engine_client.models import Event, EventKind, EventLevel
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -63,6 +64,28 @@ class SqliteEventBus:
         """End all live subscriptions, now and later (shutdown has begun)."""
         self._live.close_subscribers()
 
+    @staticmethod
+    def _filtered(
+        stmt: Any,
+        *,
+        level: EventLevel | None,
+        job_id: str | None,
+        kind_prefix: str | None,
+        text: str | None,
+    ) -> Any:
+        """The filters shared by ``query`` and ``count``, so they always agree."""
+        if level is not None:
+            allowed = [lv.value for lv in _ORDER[_ORDER.index(level) :]]
+            stmt = stmt.where(col(EventRow.level).in_(allowed))
+        if job_id is not None:
+            stmt = stmt.where(EventRow.job_id == job_id)
+        if kind_prefix:
+            stmt = stmt.where(col(EventRow.kind).startswith(kind_prefix, autoescape=True))
+        if text:
+            # autoescape escapes %, _ and the escape char itself, so user text matches literally.
+            stmt = stmt.where(col(EventRow.message).icontains(text, autoescape=True))
+        return stmt
+
     async def query(
         self,
         *,
@@ -74,17 +97,9 @@ class SqliteEventBus:
         limit: int = 100,
         newest: bool = False,
     ) -> list[Event]:
-        stmt = select(EventRow)
-        if level is not None:
-            allowed = [lv.value for lv in _ORDER[_ORDER.index(level) :]]
-            stmt = stmt.where(col(EventRow.level).in_(allowed))
-        if job_id is not None:
-            stmt = stmt.where(EventRow.job_id == job_id)
-        if kind_prefix:
-            stmt = stmt.where(col(EventRow.kind).startswith(kind_prefix, autoescape=True))
-        if text:
-            # autoescape escapes %, _ and the escape char itself, so user text matches literally.
-            stmt = stmt.where(col(EventRow.message).icontains(text, autoescape=True))
+        stmt = self._filtered(
+            select(EventRow), level=level, job_id=job_id, kind_prefix=kind_prefix, text=text
+        )
         if after_id is not None:
             stmt = stmt.where(col(EventRow.id) > after_id)
         # ``newest``: the last ``limit`` matches instead of the first; ascending order either way.
@@ -93,6 +108,25 @@ class SqliteEventBus:
         async with AsyncSession(self._engine) as s:
             rows = list((await s.exec(stmt)).all())
         return [_to_model(r) for r in (reversed(rows) if newest else rows)]
+
+    async def count(
+        self,
+        *,
+        job_id: str | None = None,
+        level: EventLevel | None = None,
+        kind_prefix: str | None = None,
+        text: str | None = None,
+    ) -> int:
+        """Number of events ``query`` would match with the same filters and no limit."""
+        stmt = self._filtered(
+            select(func.count()).select_from(EventRow),
+            level=level,
+            job_id=job_id,
+            kind_prefix=kind_prefix,
+            text=text,
+        )
+        async with AsyncSession(self._engine) as s:
+            return (await s.exec(stmt)).one()
 
     async def tail(self, n: int) -> list[Event]:
         """The newest ``n`` events, in ascending id order."""

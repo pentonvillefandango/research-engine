@@ -427,8 +427,6 @@ async def health_partial(
 
 TIMELINE_HALF = 250
 """A long job's timeline shows this many oldest and this many newest events."""
-_COUNT_PAGES = 20
-"""Pages of 1000 scanned to count the omitted middle; beyond that the count is a lower bound."""
 MAX_MARKDOWN_CHARS = 200_000
 MAX_LINKS = 50
 MAX_TABLES = 20
@@ -467,30 +465,20 @@ def _job_not_found(request: Request) -> HTMLResponse:
     )
 
 
-async def _timeline_events(services: Services, job_id: str) -> tuple[list[Event | None], int, bool]:
+async def _timeline_events(services: Services, job_id: str) -> tuple[list[Event | None], int]:
     """Oldest and newest ``TIMELINE_HALF`` events, ascending, with ``None`` standing for the gap
-    between them; also the number omitted and whether that number is exact."""
+    between them; also the exact number omitted (one indexed ``COUNT``)."""
     oldest = await services.events.query(job_id=job_id, newest=False, limit=TIMELINE_HALF)
     if len(oldest) < TIMELINE_HALF:
-        return list(oldest), 0, True
+        return list(oldest), 0
     newest = await services.events.query(job_id=job_id, newest=True, limit=TIMELINE_HALF)
     last_old = oldest[-1].id or 0
     tail = [e for e in newest if (e.id or 0) > last_old]  # de-dupe: the halves may overlap
-    if len(tail) < len(newest):
-        return [*oldest, *tail], 0, True
-    first_new = tail[0].id or 0
-    omitted, cursor, exact = 0, last_old, False
-    for _ in range(_COUNT_PAGES):
-        page = await services.events.query(job_id=job_id, after_id=cursor, newest=False, limit=1000)
-        between = [e for e in page if (e.id or 0) < first_new]
-        omitted += len(between)
-        if len(between) < len(page) or len(page) < 1000:
-            exact = True
-            break
-        cursor = between[-1].id or 0
+    shown = len(oldest) + len(tail)
+    omitted = max(0, await services.events.count(job_id=job_id) - shown)
     if omitted == 0:
-        return [*oldest, *tail], 0, True
-    return [*oldest, None, *tail], omitted, exact
+        return [*oldest, *tail], 0
+    return [*oldest, None, *tail], omitted
 
 
 @router.get("/jobs/{job_id}", response_class=HTMLResponse)
@@ -501,13 +489,13 @@ async def job_detail(
     if detail is None:
         return _job_not_found(request)
     job = detail.job
-    events, omitted, exact = await _timeline_events(services, job_id)
+    events, omitted = await _timeline_events(services, job_id)
     context = {
         "job": job,
         "terminal": job.status.is_terminal,
         "result": detail.result,
         "rows": [None if e is None else _event_context(e) for e in events],
-        "omitted": f"{omitted}" if exact else f"{omitted}+",
+        "omitted": omitted,
     }
     return templates.TemplateResponse(request, "job.html", context, headers=_NO_STORE)
 

@@ -147,3 +147,40 @@ async def test_concurrent_emits_on_file_database(tmp_path: Path) -> None:
         assert len(ids) == 50 and ids == sorted(set(ids))
     finally:
         await engine.dispose()
+
+
+@pytest.fixture(params=["memory", "file"])
+async def counting_bus(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> AsyncIterator[SqliteEventBus]:
+    engine = create_engine_for(":memory:" if request.param == "memory" else str(tmp_path / "e.db"))
+    await init_db(engine)
+    yield SqliteEventBus(engine)
+    await engine.dispose()
+
+
+async def test_count_matches_query_filters(counting_bus: SqliteEventBus) -> None:
+    bus = counting_bus
+    assert await bus.count() == 0
+    a, b = Emitter(bus, "ja"), Emitter(bus, "jb")
+    await a.debug(EventKind.FETCH_STARTED, "100%_sure")
+    await a.info(EventKind.FETCH_DONE, "Hello World")
+    await a.warning(EventKind.FETCH_FAILED, "bad")
+    await b.error(EventKind.JOB_FAILED, "boom")
+    await Emitter(bus).info(EventKind.SYSTEM_STARTUP, "up")
+    filters: list[dict[str, object]] = [
+        {},
+        {"job_id": "ja"},
+        {"job_id": "jb"},
+        {"job_id": "nope"},
+        {"level": EventLevel.WARNING},
+        {"job_id": "ja", "level": EventLevel.INFO},
+        {"kind_prefix": "fetch."},
+        {"kind_prefix": "%"},
+        {"text": "hello"},  # case-insensitive
+        {"text": "100%_"},  # wildcards are literal
+        {"job_id": "ja", "kind_prefix": "fetch.", "text": "BAD"},
+    ]
+    for f in filters:
+        assert await bus.count(**f) == len(await bus.query(limit=1000, **f)), f  # type: ignore[arg-type]
+    assert await bus.count() == 5 and await bus.count(job_id="ja") == 3
