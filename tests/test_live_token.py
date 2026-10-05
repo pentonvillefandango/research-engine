@@ -42,6 +42,10 @@ def test_require_token_fails_fast_without_leaking() -> None:
         'export CRAWL4AI_API_TOKEN="tok-en"',
         "CRAWL4AI_API_TOKEN=tok-en\r",
         'CRAWL4AI_API_TOKEN="tok-en"\r',
+        "export\tCRAWL4AI_API_TOKEN=tok-en",
+        "CRAWL4AI_API_TOKEN=tok-en # inline comment",
+        "CRAWL4AI_API_TOKEN=tok-en\t# inline comment",
+        'CRAWL4AI_API_TOKEN="tok-en" # inline comment',
     ],
 )
 def test_env_file_value_is_normalised(tmp_path: Path, line: str) -> None:
@@ -49,3 +53,12 @@ def test_env_file_value_is_normalised(tmp_path: Path, line: str) -> None:
     env_file = tmp_path / ".env"
     env_file.write_bytes(f"OTHER=x\n{line}\nNEXT=y\n".encode())
     assert crawl4ai_token({}, env_file) == "tok-en"
+
+
+def test_hash_inside_value_is_kept(tmp_path: Path) -> None:
+    """Only whitespace-then-# starts a comment (as in Compose); a quoted # is data."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("CRAWL4AI_API_TOKEN=tok#en\n")
+    assert crawl4ai_token({}, env_file) == "tok#en"
+    env_file.write_text('CRAWL4AI_API_TOKEN="tok # en" # comment\n')
+    assert crawl4ai_token({}, env_file) == "tok # en"
