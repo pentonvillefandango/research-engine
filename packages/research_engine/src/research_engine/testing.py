@@ -10,6 +10,7 @@ from research_engine.adapters.html_extract import DefaultHtmlExtractor
 from research_engine.adapters.pdf_extract import PypdfExtractor
 from research_engine.adapters.search import RawHit, RawSearchPage
 from research_engine.api.deps import Services
+from research_engine.app import register_job_handlers
 from research_engine.cache.sqlite import SqliteCache
 from research_engine.config import Settings
 from research_engine.config_files import IntentRegistry
@@ -137,6 +138,7 @@ def build_test_services(settings: Settings) -> Services:
         events,
         settings,
     )
+    register_job_handlers(runner, settings, fetch)
     return Services(
         settings=settings,
         intents=intents,

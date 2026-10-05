@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 from fastapi import FastAPI
-from research_engine_client.models import Event, EventKind, EventLevel
+from research_engine_client.models import Event, EventKind, EventLevel, JobType
 
 from research_engine import __version__
 from research_engine.adapters.crawl4ai import Crawl4AIFetcher
@@ -18,6 +18,7 @@ from research_engine.adapters.searxng import SearxngProvider
 from research_engine.adapters.static_fetch import StaticFetcher
 from research_engine.api import fetch as fetch_api
 from research_engine.api import jobs as jobs_api
+from research_engine.api import jobs_submit as jobs_submit_api
 from research_engine.api import search as search_api
 from research_engine.api.auth import ApiKeyMiddleware
 from research_engine.api.deps import Services
@@ -38,6 +39,7 @@ from research_engine.logging import configure_logging
 from research_engine.maintenance import maintenance_loop
 from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
+from research_engine.pipeline.search_read import run_batch_fetch
 from research_engine.safety.http import make_fetch_client
 from research_engine.safety.limiter import DomainLimiter
 from research_engine.safety.robots import RobotsPolicy
@@ -83,6 +85,14 @@ def build_fetch_service(
     )
 
 
+def register_job_handlers(runner: JobRunner, settings: Settings, fetch: FetchService) -> None:
+    """Register every job type's handler (shared by the real and the test composition roots)."""
+    runner.register(
+        JobType.FETCH_BATCH,
+        lambda ctx: run_batch_fetch(ctx, fetch, concurrency=settings.job_fetch_concurrency),
+    )
+
+
 def build_services(settings: Settings) -> Services:
     http = httpx.AsyncClient(headers={"User-Agent": settings.user_agent}, follow_redirects=False)
     fetch_http = make_fetch_client(settings.user_agent)
@@ -95,15 +105,17 @@ def build_services(settings: Settings) -> Services:
         job_store, events, workers=settings.job_workers, timeout_s=settings.job_timeout_s
     )
     provider = SearxngProvider(settings.searxng_url, http, settings.search_timeout_s)
+    fetch = build_fetch_service(
+        settings, http=http, fetch_http=fetch_http, cache=cache, events=events
+    )
+    register_job_handlers(runner, settings, fetch)
     return Services(
         settings=settings,
         intents=intents,
         events=events,
         cache=cache,
         search=SearchService(provider, intents, cache, events, settings),
-        fetch=build_fetch_service(
-            settings, http=http, fetch_http=fetch_http, cache=cache, events=events
-        ),
+        fetch=fetch,
         engine=engine,
         jobs=runner,
         job_store=job_store,
@@ -203,6 +215,7 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     app.include_router(search_api.router)
     app.include_router(fetch_api.router)
     app.include_router(jobs_api.router)
+    app.include_router(jobs_submit_api.router)
     # Middleware order: last added is outermost. RequestContext must wrap everything (so even
     # the 401 carries a request_id), then the catch-all, then auth.
     app.add_middleware(ApiKeyMiddleware, api_key=settings.api_key.get_secret_value())
