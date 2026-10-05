@@ -4,14 +4,19 @@ Every fetch's effective timeout is ``min(request timeout_s, PAGE_TIMEOUT_S)``, o
 fetch path and for job page fetches (batch fetch, search_read) alike.
 """
 
+from collections.abc import AsyncIterator
+
 import httpx
 import pytest
+from agents.mcp import MCPServerStreamableHttp
 from fastapi import FastAPI
 from research_engine.adapters.fetch import Fetcher, HopHook, RawPage
 from research_engine.config import Settings
-from research_engine_client.models import FetchMode, FetchRequest
+from research_engine_client.models import FetchMethod, FetchMode, FetchRequest
 
-from .test_fetch_service import html_page, make
+from tests.conftest import TEST_API_KEY
+
+from .test_fetch_service import _thin, html_page, make
 
 CAP = 7
 
@@ -65,6 +70,49 @@ async def test_auto_mode_budget_split_uses_capped_timeout(settings_env: None) ->
     svc, s, _, _ = make({url: html_page(url, "article.html")}, {}, settings)
     await svc.fetch(FetchRequest(url=url, timeout_s=300))
     assert s.timeouts == [10]  # a third of the capped 30 s, not 100 (a third of 300)
+
+
+async def test_browser_mode_is_capped(settings_env: None) -> None:
+    """The browser (Crawl4AI ``page_timeout``) gets the capped budget, less the reserve."""
+    settings = Settings(page_timeout_s=CAP)  # type: ignore[call-arg]
+    url = "https://app.example/"
+    rendered = html_page(url, "article.html", FetchMethod.BROWSER, markdown="word " * 300)
+    svc, _, b, _ = make({}, {url: rendered}, settings)
+    await svc.fetch(FetchRequest(url=url, mode=FetchMode.BROWSER, timeout_s=120))
+    assert len(b.timeouts) == 1 and CAP - 1.5 < b.timeouts[0] <= CAP
+
+
+async def test_escalated_browser_gets_capped_remainder(settings_env: None) -> None:
+    settings = Settings(page_timeout_s=CAP)  # type: ignore[call-arg]
+    url = "https://thin.example/"
+    rendered = html_page(url, "article.html", FetchMethod.BROWSER, markdown="word " * 300)
+    svc, s, b, _ = make({url: _thin(url)}, {url: rendered}, settings)
+    doc, _ = await svc.fetch(FetchRequest(url=url, timeout_s=120))
+    assert doc.provenance.method is FetchMethod.BROWSER
+    assert s.timeouts[0] <= CAP * 2 / 3
+    assert 0 < b.timeouts[0] <= CAP
+
+
+@pytest.fixture
+async def capped_mcp(capped: None, live_server: str) -> AsyncIterator[MCPServerStreamableHttp]:
+    server = MCPServerStreamableHttp(
+        name="re",
+        params={"url": f"{live_server}/mcp", "headers": {"X-API-Key": TEST_API_KEY}},
+        client_session_timeout_seconds=20,
+    )
+    async with server:
+        yield server
+
+
+async def test_mcp_web_fetch_is_capped(
+    capped: None, app: FastAPI, capped_mcp: MCPServerStreamableHttp
+) -> None:
+    rec = _record_static(app)
+    res = await capped_mcp.call_tool(
+        "web_fetch", {"url": "https://blog.example/post", "mode": "static"}
+    )
+    assert not res.is_error
+    assert rec.timeouts == [CAP]  # web_fetch's default 60 s request, capped
 
 
 async def test_rest_fetch_is_capped(capped: None, app: FastAPI, client: httpx.AsyncClient) -> None:
