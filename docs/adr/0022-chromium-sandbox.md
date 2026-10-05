@@ -99,7 +99,12 @@ Delete `deploy/crawl4ai/addon/`, its compose mount and `PYTHONPATH` once upstrea
 - the add-on's `active` line is in the container logs since start;
 - no add-on `WARNING` is.
 
-It already runs as `tests/integration/test_sandbox_live.py`. In step 9 it becomes part of `make smoke`, and so of `make deploy`. A Crawl4AI upgrade that breaks the add-on fails that check instead of silently disabling the sandbox. `tests/test_sandbox_addon.py` pins the add-on's behaviour: the Popen shim, binding-safe wrappers, the patchright target, warn-not-crash, the `active` line, and staying inert without the flag or without crawl4ai.
+It runs in three places:
+- **Dev stack:** `tests/integration/test_sandbox_live.py` runs it in dev mode (`scripts/check_sandbox.sh dev`, project `research-engine-dev`).
+- **Every deploy and rollback:** `make deploy` and `make rollback` run it as `ops/sandbox.sh` after the smoke test passes, because every deploy recreates `crawl4ai`. A failed check fails the deploy, which then rolls back.
+- **On demand:** `make sandbox` checks the live stack at any time.
+
+It is **not** part of `make smoke`. In prod mode it uses the ops Compose wrapper and sends its crawl requests from inside the `crawl4ai` container to `127.0.0.1:11235`, so it needs no published port and the token never leaves the container. The pass criteria are the same in both modes. A Crawl4AI upgrade that breaks the add-on fails the deploy instead of silently disabling the sandbox. `tests/test_sandbox_addon.py` pins the add-on's behaviour: the Popen shim, binding-safe wrappers, the patchright target, warn-not-crash, the `active` line, and staying inert without the flag or without crawl4ai.
 
 ### Capabilities (step 8, 2026-10-05)
 
@@ -111,7 +116,7 @@ It already runs as `tests/integration/test_sandbox_live.py`. In step 9 it become
   - `/var/lib/redis` is appuser-owned.
   - No relevant binary has file capabilities (`getcap -r /` lists only `gst-ptp-helper`).
 - **The net effect is tighter than Docker's default.** `SYS_CHROOT` is one of Docker's default 14 capabilities, and the bounding set drops from `a80425fb` to `00040000`. Every process still has `CapEff=0` and `NoNewPrivs=1`, so the capability is never effective in the container's own namespace. It only keeps the seccomp `chroot` rule in place for Chromium's namespaced zygote. `scripts/check_sandbox.sh` passes with `"sandbox":"on"` on both launch paths.
-- **`read_only`:** not attempted for `crawl4ai`. Redis (`/var/lib/redis`), gunicorn's control socket (`/home/appuser/.gunicorn`), Playwright's profile and cache dirs, and Crawl4AI's own state all write under the image filesystem. Mapping them all to tmpfs or volumes is a V2 hardening item.
+- **`read_only`:** not attempted for `crawl4ai`. Redis (`/var/lib/redis`), gunicorn's control socket (`.gunicorn` in appuser's home directory), Playwright's profile and cache dirs, and Crawl4AI's own state all write under the image filesystem. Mapping them all to tmpfs or volumes is a V2 hardening item.
 - **`read_only` for `searxng`:** not applied in step 8 either; it's out of the brief's scope (the policy test requires `read_only` for `app` only). It's probably cheap: SearXNG writes only to `/tmp` and the existing `searxng-cache` volume, and its settings are already a read-only bind. It needs a `/tmp` tmpfs and a check that granian and the entrypoint start with a read-only root (the entrypoint's `cp` and `sed` on settings.yml run only when the file is missing, and it never is). This is a V2 hardening item, with `read_only` for `crawl4ai`.
 - **SearXNG (same step):** the image has no `USER`, so by default it runs as root with Docker's default capabilities. Its entrypoint needs root only to `chown` `/etc/searxng` and `/var/cache/searxng` when they are not `searxng:searxng` (they are, in the image and in the named volume) and for `update-ca-certificates` (skipped when non-root). It now runs as `user: "977:977"` (the image's `searxng` user) with `cap_drop: [ALL]`, `no-new-privileges` and no capabilities added back (`CapEff=0 CapBnd=0 NoNewPrivs=1`).
 

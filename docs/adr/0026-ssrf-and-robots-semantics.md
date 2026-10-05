@@ -24,3 +24,12 @@ Residual risk: DNS can change between the check and the connection (rebinding). 
 - **429 is not retried** inside `fetch`. It is `fetch_failed` with `retryable=true`, so the caller may retry later. 5xx and network errors are retried (3 attempts), all inside one `timeout_s` budget; expiry raises `upstream_timeout`.
 - **Unchanged:** the DNS-rebinding window between check and connect remains.
 - **Container proxy-header trust.** The app image runs uvicorn with `--forwarded-allow-ips "*"`. This is acceptable because `app` publishes no port: only Caddy (on the `proxy` network) and internal services can reach it, so `X-Forwarded-*` headers cannot be spoofed from outside. **Caveat (co-tenancy, step 8):** "only Caddy" is an approximation. The `proxy` network is VM-wide and shared, so any other co-tenant container on it can reach `research-engine-app:8000` directly. That bypasses Caddy's `LAB_SUBNET` gate, and such a container can send any `X-Forwarded-For`, which uvicorn then trusts. Two things are affected: the GUI login rate limiter, which is keyed on the client IP (`gui/routes.py:_client_ip`), so a co-tenant could rotate the key or throttle another IP; and the client IP in logs and events. **Accepted for V1** because every route still requires the API key or a session, and the co-tenants are the owner's own tools. Restricting `--forwarded-allow-ips` to Caddy's address would need a fixed subnet on `proxy`. That is a VM-wide choice, outside this project, so it's left for V2. Rate limiting that doesn't rely on the forwarded IP alone is the other V2 option.
+
+## Caller-facing behaviour (step 9)
+
+Documented for agents in `docs/USING.md` and in the README's security notes:
+
+- Both refusals are HTTP 403 with `retryable: false`: `ssrf_blocked` and `robots_disallowed`. Over MCP the tool error text is `<code>: <message> (retryable=false)`. A caller should choose another source rather than retry.
+- There is no per-request override for either. `SSRF_ALLOW_HOSTS` is the operator's only exemption, and robots.txt has none.
+- The robots.txt user-agent token is the first word of `USER_AGENT` (`ResearchEngine` by default). Crawl-delay raises that domain's pacing for every caller, up to 30 s, on top of `DOMAIN_CONCURRENCY` and `DOMAIN_DELAY_S`.
+- A robots.txt that can't be fetched (5xx or network error) blocks the whole origin for 10 minutes. Callers see `robots_disallowed` for that period, even if the site has no robots rules.
