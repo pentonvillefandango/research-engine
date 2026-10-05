@@ -14,3 +14,7 @@ updates:
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule: { interval: "weekly" }
+  # Caddy image pin (shared proxy project)
+  - package-ecosystem: "docker-compose"
+    directory: "/deploy/caddy"
+    schedule: { interval: "weekly" }

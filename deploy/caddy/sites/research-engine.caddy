@@ -1,0 +1,24 @@
+# Research Engine. Env (from .env): SITE_HOST, LAB_SUBNET.
+# No trusted_proxies anywhere: Caddy must set X-Forwarded-* from the real client, because the
+# app's Origin check relies on them.
+{$SITE_HOST} {
+	tls internal
+
+	@lab remote_ip {$LAB_SUBNET}
+	handle @lab {
+		reverse_proxy research-engine-app:8000 {
+			flush_interval -1   # SSE: never buffer
+		}
+	}
+
+	# everything outside the lab subnet
+	respond 403
+}
+
+# Plain-HTTP alternative (no TLS, no CA to trust): replace the site address above with
+#
+#   http://{$SITE_HOST} {
+#       ...same body without `tls internal`...
+#   }
+#
+# The app's Origin check then expects http://<SITE_HOST>.
