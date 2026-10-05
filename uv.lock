@@ -1946,7 +1946,7 @@ wheels = [
 
 [[package]]
 name = "research-engine"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "packages/research_engine" }
 dependencies = [
     { name = "aiosqlite" },
@@ -2001,7 +2001,7 @@ requires-dist = [
 
 [[package]]
 name = "research-engine-client"
-version = "0.1.0"
+version = "1.0.0"
 source = { editable = "packages/research_engine_client" }
 dependencies = [
     { name = "httpx" },
@@ -2016,7 +2016,7 @@ requires-dist = [
 
 [[package]]
 name = "research-engine-workspace"
-version = "0.1.0"
+version = "1.0.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]

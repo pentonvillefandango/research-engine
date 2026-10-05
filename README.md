@@ -55,7 +55,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 | `SITE_HOST` | `research.localhost` | The public host name Caddy serves. Must equal `SITE_HOST` in Caddy's own `.env`, or `/mcp` returns 421. |
 | `GIT_SHA` | empty | Leave empty. `make deploy` and `make rollback` set it per run; it tags the app image and shows in `/health`. |
 | `LOG_LEVEL` | `INFO` | App log level. |
-| `USER_AGENT` | `ResearchEngine/0.1 (+https://github.com/...)` | Sent with every fetch. Its first word is the robots.txt user-agent token. |
+| `USER_AGENT` | `ResearchEngine/1.0 (+https://github.com/...)` | Sent with every fetch. Its first word is the robots.txt user-agent token. |
 | `SEARXNG_URL` | `http://searxng:8080` | SearXNG URL, for local (non-Compose) runs only. |
 | `CRAWL4AI_URL` | `http://crawl4ai:11235` | Crawl4AI URL, for local runs only. |
 | `CRAWL4AI_API_TOKEN` | none (secret) | Token between the app and Crawl4AI. |

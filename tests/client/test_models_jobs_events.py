@@ -114,7 +114,7 @@ def test_job_detail_discriminated_union() -> None:
 def test_health_report() -> None:
     h = HealthReport(
         status=DependencyState.UP,
-        version="0.1.0",
+        version="1.0.0",
         git_sha="abc",
         dependencies={"searxng": DependencyHealth(state=DependencyState.UP, latency_ms=3)},
     )

@@ -13,7 +13,7 @@ from research_engine.safety.robots import MAX_ROBOTS_BYTES, RobotsPolicy
 from research_engine.safety.ssrf import SsrfGuard
 from research_engine_client.models import ErrorCode, Event, EventKind
 
-UA = "ResearchEngine/0.1 (+https://github.com/pentonvillefandango/research-engine)"
+UA = "ResearchEngine/1.0 (+https://github.com/pentonvillefandango/research-engine)"
 ROBOTS = (
     "User-agent: *\nDisallow: /private\n\n"
     "User-agent: ResearchEngine\nDisallow: /nobots\nCrawl-delay: 5\n"

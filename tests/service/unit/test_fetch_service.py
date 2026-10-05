@@ -34,7 +34,7 @@ from research_engine_client.models import (
 )
 
 PAGES = Path(__file__).resolve().parents[2] / "fixtures" / "pages"
-UA = "ResearchEngine/0.1 (+https://github.com/pentonvillefandango/research-engine)"
+UA = "ResearchEngine/1.0 (+https://github.com/pentonvillefandango/research-engine)"
 
 
 class FakeFetcher:

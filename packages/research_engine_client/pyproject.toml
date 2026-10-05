@@ -1,6 +1,6 @@
 [project]
 name = "research-engine-client"
-version = "0.1.0"
+version = "1.0.0"
 description = "Shared Pydantic models and async client for the Research Engine"
 requires-python = ">=3.12"
 license = "MIT"

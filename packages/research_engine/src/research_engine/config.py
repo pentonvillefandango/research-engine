@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     site_host: str = "research.localhost"
     git_sha: str = "unknown"
     log_level: str = "INFO"
-    user_agent: str = "ResearchEngine/0.1 (+https://github.com/pentonvillefandango/research-engine)"
+    user_agent: str = "ResearchEngine/1.0 (+https://github.com/pentonvillefandango/research-engine)"
 
     # upstreams
     searxng_url: str = "http://searxng:8080"

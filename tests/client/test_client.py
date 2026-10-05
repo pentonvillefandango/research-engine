@@ -39,7 +39,7 @@ JOB: dict[str, Any] = {
 }
 HEALTH = {
     "status": "down",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "git_sha": "unknown",
     "dependencies": {"database": {"state": "down", "latency_ms": None, "detail": "OSError"}},
 }

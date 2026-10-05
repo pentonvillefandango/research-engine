@@ -31,7 +31,7 @@ services:
       SITE_HOST: ${SITE_HOST:-research.localhost}
       GIT_SHA: ${GIT_SHA:-unknown}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      USER_AGENT: ${USER_AGENT:-ResearchEngine/0.1 (+https://github.com/pentonvillefandango/research-engine)}
+      USER_AGENT: ${USER_AGENT:-ResearchEngine/1.0 (+https://github.com/pentonvillefandango/research-engine)}
       # upstreams (fixed by compose: service names on the internal network)
       SEARXNG_URL: http://searxng:8080
       CRAWL4AI_URL: http://crawl4ai:11235

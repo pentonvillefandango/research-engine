@@ -1,6 +1,6 @@
 [project]
 name = "research-engine-workspace"
-version = "0.1.0"
+version = "1.0.0"
 requires-python = ">=3.12"
 description = "Workspace root for the Research Engine"
 license = "MIT"

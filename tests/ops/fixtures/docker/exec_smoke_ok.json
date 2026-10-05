@@ -1,1 +1,1 @@
-{"checks": [{"detail": "0.1.0 abc1234 schema 1.0.0", "ms": 3, "name": "version", "ok": true}, {"detail": "12 results", "ms": 900, "name": "search", "ok": true}], "command": "smoke", "ok": true, "took_ms": 950}
+{"checks": [{"detail": "1.0.0 abc1234 schema 1.0.0", "ms": 3, "name": "version", "ok": true}, {"detail": "12 results", "ms": 900, "name": "search", "ok": true}], "command": "smoke", "ok": true, "took_ms": 950}
