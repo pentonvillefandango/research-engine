@@ -50,3 +50,14 @@ def test_cache_key_ignores_nested_use_cache() -> None:
     assert key(True) == key(False)
     other = SearchReadRequest(search=SearchRequest(query="y"))
     assert cache_key("search_read", other) != key(True)
+
+
+async def test_prune_and_size() -> None:
+    clock = Clock()
+    cache = InMemoryCache(clock=clock)
+    await cache.set("a", b"xx", ttl_s=5)
+    await cache.set("b", b"yyy", ttl_s=50)
+    assert await cache.size() == (2, 5)
+    clock.t += 10
+    assert await cache.prune() == 1
+    assert await cache.size() == (1, 3)

@@ -10,15 +10,18 @@ from research_engine.adapters.html_extract import DefaultHtmlExtractor
 from research_engine.adapters.pdf_extract import PypdfExtractor
 from research_engine.adapters.search import RawHit, RawSearchPage
 from research_engine.api.deps import Services
-from research_engine.cache.memory import InMemoryCache
+from research_engine.cache.sqlite import SqliteCache
 from research_engine.config import Settings
 from research_engine.config_files import IntentRegistry
 from research_engine.errors import ServiceError
 from research_engine.events.base import Emitter
-from research_engine.events.memory import InMemoryEventBus
+from research_engine.events.sqlite import SqliteEventBus
+from research_engine.jobs.runner import JobRunner
+from research_engine.jobs.store import JobStore
 from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
 from research_engine.safety.limiter import DomainLimiter
+from research_engine.store.db import create_engine_for
 
 # Fixture pages, relative to the repo root (the working directory, like ``intents_file``).
 FIXTURE_PAGES = Path("tests/fixtures/pages")
@@ -115,7 +118,14 @@ class AllowAllRobots:
 
 def build_test_services(settings: Settings) -> Services:
     intents = IntentRegistry.load(settings.intents_file)
-    events, cache = InMemoryEventBus(), InMemoryCache()
+    # Real SQLite (a private ``:memory:`` database unless the settings name a file); the app
+    # lifespan creates the tables.
+    engine = create_engine_for(settings.db_path)
+    events, cache = SqliteEventBus(engine), SqliteCache(engine)
+    job_store = JobStore(engine)
+    runner = JobRunner(
+        job_store, events, workers=settings.job_workers, timeout_s=settings.job_timeout_s
+    )
     fetch = FetchService(
         FakePageFetcher(FetchMethod.STATIC, STATIC_PAGES),
         FakePageFetcher(FetchMethod.BROWSER, BROWSER_PAGES),
@@ -134,4 +144,7 @@ def build_test_services(settings: Settings) -> Services:
         cache=cache,
         search=SearchService(FakeSearchProvider(), intents, cache, events, settings),
         fetch=fetch,
+        engine=engine,
+        jobs=runner,
+        job_store=job_store,
     )

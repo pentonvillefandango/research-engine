@@ -40,6 +40,25 @@ class EventBus(EventSink, EventSubscriber, Protocol):
     """Sink plus subscriber: what the service container needs (memory now, SQLite in step 4)."""
 
 
+class EventStore(EventBus, Protocol):
+    """A persistent ``EventBus``: adds history queries and retention (the SQLite bus)."""
+
+    async def query(
+        self,
+        *,
+        level: EventLevel | None = None,
+        job_id: str | None = None,
+        kind_prefix: str | None = None,
+        text: str | None = None,
+        after_id: int | None = None,
+        limit: int = 100,
+    ) -> list[Event]: ...
+
+    async def tail(self, n: int) -> list[Event]: ...
+
+    async def prune(self, older_than_days: int) -> int: ...
+
+
 class Emitter:
     def __init__(self, sink: EventSink, job_id: str | None = None) -> None:
         self._sink = sink

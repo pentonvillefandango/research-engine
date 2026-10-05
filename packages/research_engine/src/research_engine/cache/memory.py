@@ -26,3 +26,13 @@ class InMemoryCache:
 
     def stats(self) -> CacheStats:
         return self._stats
+
+    async def prune(self) -> int:
+        now = self._clock()
+        expired = [k for k, (exp, _) in self._data.items() if exp <= now]
+        for k in expired:
+            del self._data[k]
+        return len(expired)
+
+    async def size(self) -> tuple[int, int]:
+        return len(self._data), sum(len(v) for _, v in self._data.values())
