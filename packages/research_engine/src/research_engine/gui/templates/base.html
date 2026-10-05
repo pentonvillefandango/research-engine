@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"selfRequestsOnly":true}'>
+  <title>{% block title %}Research Engine{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/vendor/sse.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  {% block nav %}
+  <header class="topbar">
+    <span class="brand">Research Engine</span>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/try">Try it</a>
+      <form method="post" action="/logout" class="logout">
+        <button type="submit">Log out</button>
+      </form>
+    </nav>
+  </header>
+  {% endblock %}
+  <main>
+    {% block content %}
+    <p class="muted">The dashboard is not built yet.</p>
+    {% endblock %}
+  </main>
+</body>
+</html>

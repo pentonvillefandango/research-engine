@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import httpx
 import structlog
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from research_engine_client.models import Event, EventKind, EventLevel, JobType
 
 from research_engine import __version__
@@ -34,6 +35,9 @@ from research_engine.config import Settings, get_settings
 from research_engine.config_files import IntentRegistry
 from research_engine.events.base import EventSink
 from research_engine.events.sqlite import SqliteEventBus
+from research_engine.gui import routes as gui_routes
+from research_engine.gui.routes import GUI_DIR, SecurityHeadersMiddleware
+from research_engine.gui.session import LoginRateLimiter, SessionCodec
 from research_engine.jobs.runner import JobRunner
 from research_engine.jobs.store import JobStore
 from research_engine.logging import configure_logging
@@ -227,9 +231,19 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     app.include_router(jobs_submit_api.router)
     app.include_router(health_api.router)
     app.include_router(health_api.schemas_router)
+    app.include_router(gui_routes.router)
+    app.mount("/static", StaticFiles(directory=GUI_DIR / "static"), name="static")
+    api_key = settings.api_key.get_secret_value()
+    codec = SessionCodec(settings.session_secret.get_secret_value())
+    app.state.api_key = api_key.encode()
+    app.state.session_codec = codec
+    app.state.site_host = settings.site_host
+    app.state.login_limiter = LoginRateLimiter()
     # Middleware order: last added is outermost. RequestContext must wrap everything (so even
-    # the 401 carries a request_id), then the catch-all, then auth.
-    app.add_middleware(ApiKeyMiddleware, api_key=settings.api_key.get_secret_value())
+    # the 401 carries a request_id), then the security headers (so GUI redirects, 403s and
+    # 500s carry the CSP), then the catch-all, then auth.
+    app.add_middleware(ApiKeyMiddleware, api_key=api_key, codec=codec, site_host=settings.site_host)
     app.add_middleware(UnhandledErrorMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
     return app

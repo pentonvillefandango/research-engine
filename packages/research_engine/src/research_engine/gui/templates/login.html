@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Log in · Research Engine{% endblock %}
+{% block nav %}
+<header class="topbar"><span class="brand">Research Engine</span></header>
+{% endblock %}
+{% block content %}
+<section class="login">
+  <h1>Log in</h1>
+  <form method="post" action="/login" class="login-form">
+    <label for="api_key">API key</label>
+    <input id="api_key" name="api_key" type="password" autocomplete="current-password" required autofocus>
+    <input type="hidden" name="next" value="{{ next }}">
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+    <button type="submit">Log in</button>
+  </form>
+  <p class="muted">Use the API key from your .env (API_KEY)</p>
+</section>
+{% endblock %}
