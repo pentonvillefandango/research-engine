@@ -44,16 +44,19 @@ The service itself makes no model calls. If `OPENAI_API_KEY` is unset the script
 
 The stack serves HTTPS with Caddy's `tls internal`, so its certificate is signed by Caddy's own
 root CA, which clients must trust or they fail with `CERTIFICATE_VERIFY_FAILED`. Export the root
-certificate from Caddy (`root.crt`, in Caddy's data directory under `pki/authorities/local/`) and
-point `SSL_CERT_FILE` at it:
+certificate from Caddy (`root.crt`, in Caddy's data directory under `pki/authorities/local/`),
+append it to the public CA bundle, and point `SSL_CERT_FILE` at the combined file:
 
 ```bash
-export SSL_CERT_FILE=/path/to/root.crt
+cat "$(uv run python -c 'import certifi; print(certifi.where())')" /path/to/root.crt > ca-bundle.pem
+export SSL_CERT_FILE=$PWD/ca-bundle.pem
 ```
 
 This works for both examples: the typed client uses `httpx`, and the Agents SDK's MCP client
-uses `httpx2`, and both read `SSL_CERT_FILE`. Note that the variable replaces the default CA
-bundle for those processes, which is fine here because they only talk to the service. Installing
+uses `httpx2`, and both read `SSL_CERT_FILE`. The variable **replaces** the default CA bundle for
+the whole process, so it must keep the public CAs: the agent example also calls
+`api.openai.com`, and pointing `SSL_CERT_FILE` at `root.crt` alone makes that call fail with
+`APIConnectionError` ("Error getting response"). Installing
 the root in the operating system trust store is not enough on its own: `httpx2` would use it,
 but `httpx` (and so `client_usage.py`) ships its own CA bundle and ignores it.
 
