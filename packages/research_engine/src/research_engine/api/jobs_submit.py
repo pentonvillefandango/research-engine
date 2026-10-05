@@ -4,7 +4,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Request, Response, status
 from fastapi.security import APIKeyHeader
-from research_engine_client.models import BatchFetchRequest, Envelope, Job, JobType
+from research_engine_client.models import (
+    BatchFetchRequest,
+    Envelope,
+    Job,
+    JobType,
+    SearchReadRequest,
+)
 
 from .deps import Services, get_services
 from .envelope import error_responses, ok
@@ -43,5 +49,33 @@ async def fetch_batch(
     ``failed``.
     """
     job = await services.jobs.submit(JobType.FETCH_BATCH, req, session_id=req.session_id)
+    response.headers["Location"] = f"/v1/jobs/{job.id}"
+    return ok(request, job)
+
+
+SEARCH_READ_EXAMPLE = {
+    "search": {"query": "compare open-source vector databases", "intent": "technical"},
+    "top_n": 5,
+}
+
+
+@router.post("/search_read", response_model=Envelope[Job], status_code=status.HTTP_202_ACCEPTED)
+async def search_read(
+    request: Request,
+    response: Response,
+    req: Annotated[
+        SearchReadRequest, Body(openapi_examples={"technical": {"value": SEARCH_READ_EXAMPLE}})
+    ],
+    services: Annotated[Services, Depends(get_services)],
+) -> Envelope[Job]:
+    """Search, then read the top N results as a background job.
+
+    Returns the queued job at once (202, with a ``Location`` header); poll
+    ``GET /v1/jobs/{id}?wait=N`` for the result. Pages that fail to load are replaced by
+    lower-ranked results (at most ``2 x top_n`` pages are tried). Documents are sorted by search
+    rank. A search failure fails the job; unreadable pages leave the job ``partial``, possibly
+    with no documents.
+    """
+    job = await services.jobs.submit(JobType.SEARCH_READ, req, session_id=req.session_id)
     response.headers["Location"] = f"/v1/jobs/{job.id}"
     return ok(request, job)

@@ -10,6 +10,11 @@ from research_engine_client.models import (
     ErrorCode,
     FailedUrl,
     FetchRequest,
+    RankedDocument,
+    SearchReadRequest,
+    SearchReadResult,
+    SearchRequest,
+    SearchResponse,
 )
 
 from research_engine.errors import ServiceError
@@ -100,3 +105,67 @@ async def run_batch_fetch(
             ErrorCode.FETCH_FAILED, f"all {len(requests)} URLs failed", retryable=True
         )
     return BatchFetchResult(documents=documents, failed=failed)
+
+
+class SearchesWeb(Protocol):
+    async def search(
+        self, req: SearchRequest, *, job_id: str | None = None
+    ) -> tuple[SearchResponse, bool]: ...
+
+
+async def run_search_read(
+    ctx: JobContext, search: SearchesWeb, fetch: FetchesDocuments, *, concurrency: int
+) -> SearchReadResult:
+    """Search, then read the top N results, back-filling past failures (max 2xN attempts).
+
+    A failing search fails the job. Unlike batch fetch, zero readable documents is not a job
+    failure: the search response and the per-URL errors are still a useful, explained answer
+    for the calling agent, so the job ends ``partial`` (``ctx.errors`` is non-empty) instead
+    of ``failed``. Zero search results is not an error at all (the job ends ``done``).
+    """
+    req = ctx.request
+    if not isinstance(req, SearchReadRequest):
+        raise TypeError("search_read handler got a different request type")
+    total = req.top_n + 1
+    await ctx.progress(0, total, current="search")
+    response, _ = await search.search(req.search, job_id=ctx.job_id)
+    await ctx.progress(1, total)
+    # Search results are already deduplicated by the search canonicaliser: use them as given.
+    candidates = response.results[: req.top_n * 2]
+    documents: list[RankedDocument] = []
+    failed: list[FailedUrl] = []
+    idx = 0
+    while len(documents) < req.top_n and idx < len(candidates):
+        need = req.top_n - len(documents)
+        wave = candidates[idx : idx + need]
+        idx += len(wave)
+        fetch_reqs = [
+            FetchRequest(
+                url=r.url,
+                mode=req.fetch.mode,
+                formats=req.fetch.formats,
+                use_cache=req.fetch.use_cache,
+                timeout_s=req.fetch.timeout_s,
+            )
+            for r in wave
+        ]
+        outcomes = await _fetch_many(
+            ctx,
+            fetch,
+            fetch_reqs,
+            concurrency,
+            progress_offset=1 + len(documents),
+            progress_total=total,
+        )
+        for r in wave:
+            o = outcomes[fetch_cache_url(r.url)]
+            if isinstance(o, ServiceError):
+                failed.append(FailedUrl(url=r.url, error=o.detail))
+                ctx.add_error(o.detail)
+            else:
+                documents.append(
+                    RankedDocument(search_rank=r.rank, search_score=r.score, document=o)
+                )
+    documents.sort(key=lambda d: d.search_rank)
+    await ctx.progress(total, total)
+    return SearchReadResult(search=response, documents=documents, failed=failed)

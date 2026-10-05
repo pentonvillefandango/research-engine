@@ -39,7 +39,7 @@ from research_engine.logging import configure_logging
 from research_engine.maintenance import maintenance_loop
 from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
-from research_engine.pipeline.search_read import run_batch_fetch
+from research_engine.pipeline.search_read import run_batch_fetch, run_search_read
 from research_engine.safety.http import make_fetch_client
 from research_engine.safety.limiter import DomainLimiter
 from research_engine.safety.robots import RobotsPolicy
@@ -85,11 +85,17 @@ def build_fetch_service(
     )
 
 
-def register_job_handlers(runner: JobRunner, settings: Settings, fetch: FetchService) -> None:
+def register_job_handlers(
+    runner: JobRunner, settings: Settings, search: SearchService, fetch: FetchService
+) -> None:
     """Register every job type's handler (shared by the real and the test composition roots)."""
     runner.register(
         JobType.FETCH_BATCH,
         lambda ctx: run_batch_fetch(ctx, fetch, concurrency=settings.job_fetch_concurrency),
+    )
+    runner.register(
+        JobType.SEARCH_READ,
+        lambda ctx: run_search_read(ctx, search, fetch, concurrency=settings.job_fetch_concurrency),
     )
 
 
@@ -108,13 +114,14 @@ def build_services(settings: Settings) -> Services:
     fetch = build_fetch_service(
         settings, http=http, fetch_http=fetch_http, cache=cache, events=events
     )
-    register_job_handlers(runner, settings, fetch)
+    search = SearchService(provider, intents, cache, events, settings)
+    register_job_handlers(runner, settings, search, fetch)
     return Services(
         settings=settings,
         intents=intents,
         events=events,
         cache=cache,
-        search=SearchService(provider, intents, cache, events, settings),
+        search=search,
         fetch=fetch,
         engine=engine,
         jobs=runner,

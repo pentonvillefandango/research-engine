@@ -138,13 +138,14 @@ def build_test_services(settings: Settings) -> Services:
         events,
         settings,
     )
-    register_job_handlers(runner, settings, fetch)
+    search = SearchService(FakeSearchProvider(), intents, cache, events, settings)
+    register_job_handlers(runner, settings, search, fetch)
     return Services(
         settings=settings,
         intents=intents,
         events=events,
         cache=cache,
-        search=SearchService(FakeSearchProvider(), intents, cache, events, settings),
+        search=search,
         fetch=fetch,
         engine=engine,
         jobs=runner,
