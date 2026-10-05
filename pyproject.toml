@@ -42,12 +42,14 @@ filterwarnings = [
     # terminating (not closing) it; the sqlite3 handle is closed later by GC, which emits
     # "ResourceWarning: unclosed database in <sqlite3.Connection ...>". Upstream behaviour,
     # same for file and :memory: engines; the job runner cancels handlers by design.
-    "ignore:unclosed database in <sqlite3.Connection:ResourceWarning",
+    # Both engines' connections are research_engine.store.db.RollbackOnCloseConnection, a
+    # sqlite3.Connection subclass, so the class name in the message is either.
+    'ignore:unclosed database in <(sqlite3\.Connection|research_engine\.store\.db\.RollbackOnCloseConnection):ResourceWarning',
     # Under ``-W error::ResourceWarning`` it is raised inside sqlite3.Connection.__del__ and
     # pytest re-reports it as an unraisable-exception warning whose message embeds the
     # traceback; match only that wrapper (":" is written "." as it is the field separator).
     # tests/conftest.py re-applies the sqlite entries as marks so they also hold under -W error.
-    'ignore:(?s)Exception ignored in. <sqlite3\.Connection object.*ResourceWarning. unclosed database:pytest.PytestUnraisableExceptionWarning',
+    'ignore:(?s)Exception ignored in. <(sqlite3\.Connection|research_engine\.store\.db\.RollbackOnCloseConnection) object.*ResourceWarning. unclosed database:pytest.PytestUnraisableExceptionWarning',
 ]
 
 [tool.ruff]

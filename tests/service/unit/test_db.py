@@ -1,13 +1,14 @@
 import asyncio
 import gc
+import sqlite3
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
-from research_engine.store.db import create_engine_for, init_db
+from research_engine.store.db import RollbackOnCloseConnection, create_engine_for, init_db
 from research_engine.store.tables import CacheRow
-from sqlalchemy import event, text, update
+from sqlalchemy import event, exc, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 from sqlmodel import col, select
@@ -173,6 +174,163 @@ async def test_cancel_during_checkin_returns_connection_to_pool(kind: str, tmp_p
             assert len((await s.exec(select(CacheRow))).all()) == 1  # the commit stuck
     finally:
         await engine.dispose()
+
+
+# A read that keeps the aiosqlite worker busy long enough to be cancelled mid-query.
+_SLOW_QUERY = (
+    "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c LIMIT 3000000) "
+    "SELECT count(*) FROM c"
+)
+
+
+def _engine(kind: str, tmp_path: Path) -> tuple[AsyncEngine, str | None]:
+    if kind == "memory":
+        return create_engine_for(":memory:"), None
+    path = str(tmp_path / "re.sqlite")
+    return create_engine_for(path), path
+
+
+async def _other_writer_can_write(engine: AsyncEngine, path: str | None) -> bool:
+    """Can an independent writer write right now (within ~1 s), with no ``gc.collect()``?"""
+    key = uuid.uuid4().hex
+    if path is not None:  # file: a separate connection, as another process would be
+
+        def write() -> bool:
+            c = sqlite3.connect(path, timeout=1.0)
+            try:
+                c.execute(
+                    "INSERT INTO cache_entry(key, value, expires_at) VALUES (?, x'00', 0)", (key,)
+                )
+                c.commit()
+                return True
+            except sqlite3.OperationalError:  # database is locked
+                return False
+            finally:
+                c.close()
+
+        return await asyncio.to_thread(write)
+    try:  # memory: shared-cache table locks fail at once (SQLITE_LOCKED), no busy wait
+        async with AsyncSession(engine) as s:
+            s.add(CacheRow(key=key, value=b"0", expires_at=0))
+            await s.commit()
+        return True
+    except exc.OperationalError:  # database table is locked
+        return False
+
+
+@pytest.mark.parametrize("kind", ["memory", "file"])
+async def test_cancel_mid_write_releases_the_write_lock(kind: str, tmp_path: Path) -> None:
+    """Cancelling a task mid-query with a pending write must release SQLite's write lock.
+
+    Regression (D9): the invalidated connection's sqlite3 handle was closed while the cancelled
+    cursor's statement was still unfinalized, so ``sqlite3_close_v2`` left a "zombie" that kept
+    the open write transaction - and the lock - until GC finalised the cursor. Every other
+    writer got "database is locked" (file, after busy_timeout) / "database table is locked"
+    (``:memory:``) meanwhile.
+    """
+    engine, path = _engine(kind, tmp_path)
+    try:
+        await init_db(engine)
+        async with AsyncSession(engine) as s:
+            s.add(CacheRow(key="committed", value=b"0", expires_at=0))
+            await s.commit()
+        slow_started = asyncio.Event()
+
+        def flag_slow(_c: object, _cur: object, statement: str, *_: object) -> None:
+            if statement == _SLOW_QUERY:
+                slow_started.set()
+
+        event.listen(engine.sync_engine, "before_cursor_execute", flag_slow)
+
+        async def write_then_slow() -> None:
+            async with AsyncSession(engine) as s:
+                s.add(CacheRow(key="pending", value=b"0", expires_at=0))
+                await s.flush()  # write transaction open, write lock held
+                await (await s.connection()).execute(text(_SLOW_QUERY))
+
+        task = asyncio.create_task(write_then_slow())
+        await asyncio.wait_for(slow_started.wait(), 5)
+        await asyncio.sleep(0.05)  # the slow query is running on the aiosqlite thread
+        task.cancel()
+        (outcome,) = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(outcome, asyncio.CancelledError)
+        # `task` (and its traceback, which holds the cancelled cursor) stays alive: no GC rescue
+        assert await _other_writer_can_write(engine, path)
+        async with AsyncSession(engine) as s:
+            keys = {r.key for r in (await s.exec(select(CacheRow))).all()}
+        assert "committed" in keys  # the database (and :memory:'s keeper) survived
+        assert "pending" not in keys  # the cancelled write was rolled back
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.parametrize("kind", ["memory", "file"])
+async def test_failed_commit_never_pools_an_open_transaction(kind: str, tmp_path: Path) -> None:
+    """A COMMIT that fails must not return the connection to the pool mid-transaction.
+
+    SQLite keeps the transaction open when COMMIT fails (here: a deferred FK violation), but
+    SQLAlchemy considers it ended and checks the connection in as already reset - so it was
+    pooled with the uncommitted rows and the write lock: the next session on it saw (and could
+    commit) them, and other writers were locked out.
+    """
+    engine, path = _engine(kind, tmp_path)
+    try:
+        await init_db(engine)
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE TABLE parent(id INTEGER PRIMARY KEY)"))
+            await conn.execute(
+                text(
+                    "CREATE TABLE child(id INTEGER PRIMARY KEY, parent_id INTEGER "
+                    "REFERENCES parent(id) DEFERRABLE INITIALLY DEFERRED)"
+                )
+            )
+        with pytest.raises(exc.IntegrityError):
+            async with AsyncSession(engine) as s:
+                conn = await s.connection()
+                await conn.execute(text("INSERT INTO child(parent_id) VALUES (999)"))
+                s.add(CacheRow(key="uncommitted", value=b"0", expires_at=0))
+                await s.commit()  # FOREIGN KEY constraint failed, at COMMIT
+        pool = engine.sync_engine.pool
+        assert isinstance(pool, AsyncAdaptedQueuePool)
+        assert pool.checkedout() == 0
+        assert await _other_writer_can_write(engine, path)
+        async with AsyncSession(engine) as s:
+            conn = await s.connection()
+            children = (await conn.execute(text("SELECT count(*) FROM child"))).scalar_one()
+            keys = {r.key for r in (await s.exec(select(CacheRow))).all()}
+        assert children == 0
+        assert "uncommitted" not in keys
+    finally:
+        await engine.dispose()
+
+
+def test_rollback_on_close_connection_releases_lock_despite_live_cursor(tmp_path: Path) -> None:
+    """The sqlite3 connection class used by both engines: close() must end the transaction
+    even while a cursor's statement is unfinalized (plain sqlite3 would leave a zombie)."""
+    path = str(tmp_path / "z.sqlite")
+    setup = sqlite3.connect(path)
+    setup.execute("PRAGMA journal_mode=WAL")
+    setup.execute("CREATE TABLE t(x)")
+    setup.close()
+    for factory, expect_locked in ((sqlite3.Connection, True), (RollbackOnCloseConnection, False)):
+        conn = sqlite3.connect(path, factory=factory)
+        conn.execute("INSERT INTO t VALUES (1)")  # write transaction open
+        cur = conn.cursor()
+        cur.execute("SELECT 1 UNION ALL SELECT 2")
+        cur.fetchone()  # statement left mid-step, i.e. unfinalized
+        conn.close()
+        other = sqlite3.connect(path, timeout=0.1)
+        try:
+            if expect_locked:  # documents the sqlite3 behaviour being worked around
+                with pytest.raises(sqlite3.OperationalError, match="locked"):
+                    other.execute("INSERT INTO t VALUES (2)")
+            else:
+                other.execute("INSERT INTO t VALUES (2)")
+                other.commit()
+        finally:
+            other.close()
+        del cur
+        gc.collect()  # finalise the plain-sqlite3 zombie before the next round
 
 
 async def test_memory_engines_are_isolated() -> None:
