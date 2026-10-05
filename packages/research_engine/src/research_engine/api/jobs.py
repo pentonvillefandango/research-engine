@@ -53,9 +53,13 @@ def _not_found(job_id: str) -> ServiceError:
     )
 
 
-def _check_id(job_id: str) -> None:
+def valid_job_id(job_id: str) -> bool:
     """Job ids are lowercase hex (<= 64 chars); anything else cannot exist, so skip the DB."""
-    if not 1 <= len(job_id) <= 64 or not _ID_CHARS.issuperset(job_id):
+    return 1 <= len(job_id) <= 64 and _ID_CHARS.issuperset(job_id)
+
+
+def _check_id(job_id: str) -> None:
+    if not valid_job_id(job_id):
         raise _not_found(job_id)
 
 

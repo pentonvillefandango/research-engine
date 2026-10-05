@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator, Coroutine
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
@@ -23,6 +24,9 @@ from research_engine.api import auth
 from research_engine.api.auth import is_api_path
 from research_engine.api.deps import Services, get_services
 from research_engine.api.health import cached_dependencies, overall_state
+from research_engine.api.jobs import valid_job_id
+from research_engine.gui.jsonview import to_tree
+from research_engine.gui.render import LINK_REL, render_untrusted_markdown
 from research_engine.gui.session import (
     COOKIE,
     MAX_AGE_S,
@@ -299,16 +303,16 @@ def _fmt_time(ts: datetime) -> str:
     return f"{ts:%H:%M:%S}.{ts.microsecond // 1000:03d}"
 
 
+def _event_context(e: Event) -> dict[str, Any]:
+    data_json = json.dumps(e.data, indent=2, sort_keys=True, ensure_ascii=False, default=str)
+    return {"e": e, "time": _fmt_time(e.ts), "data_json": data_json}
+
+
 def render_event_row(e: Event) -> str:
     """One ``_event_row.html`` fragment. Jinja autoescapes every field; ``data`` is shown as
     escaped, pretty-printed JSON. Newlines are kept: FastAPI splits a multi-line ``raw_data``
     into one ``data:`` line each, which ``EventSource`` joins back with ``\n``."""
-    data_json = json.dumps(e.data, indent=2, sort_keys=True, ensure_ascii=False, default=str)
-    return (
-        templates.env.get_template("_event_row.html")
-        .render(e=e, time=_fmt_time(e.ts), data_json=data_json)
-        .strip()
-    )
+    return templates.env.get_template("_event_row.html").render(**_event_context(e)).strip()
 
 
 def _log_event(e: Event) -> ServerSentEvent:
@@ -417,3 +421,92 @@ async def health_partial(
         "jobs_today": await services.job_store.count_since(midnight),
     }
     return templates.TemplateResponse(request, "_health.html", context, headers=_NO_STORE)
+
+
+# --- job detail ----------------------------------------------------------------------------------
+
+TIMELINE_LIMIT = 500
+"""Oldest job events shown on the detail page (the live stream carries on beyond them)."""
+MAX_MARKDOWN_CHARS = 200_000
+MAX_LINKS = 50
+MAX_TABLES = 20
+MAX_TABLE_ROWS = 200
+
+
+def is_http_url(value: object) -> bool:
+    """True for an absolute http(s) URL with no whitespace or control characters; only those
+    are ever rendered as links."""
+    if not isinstance(value, str) or not value or any(c <= " " or c == "\x7f" for c in value):
+        return False
+    parts = urlsplit(value)
+    return parts.scheme in ("http", "https") and bool(parts.netloc)
+
+
+def _clip_markdown(text: str) -> tuple[str, bool]:
+    return (text[:MAX_MARKDOWN_CHARS], True) if len(text) > MAX_MARKDOWN_CHARS else (text, False)
+
+
+templates.env.globals.update(
+    json_tree=to_tree,
+    is_http_url=is_http_url,
+    link_rel=LINK_REL,
+    untrusted_markdown=render_untrusted_markdown,
+    clip_markdown=_clip_markdown,
+    max_markdown_chars=MAX_MARKDOWN_CHARS,
+    max_links=MAX_LINKS,
+    max_tables=MAX_TABLES,
+    max_table_rows=MAX_TABLE_ROWS,
+)
+
+
+def _job_not_found(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "job_not_found.html", {}, status_code=404, headers=_NO_STORE
+    )
+
+
+@router.get("/jobs/{job_id}", response_class=HTMLResponse)
+async def job_detail(
+    request: Request, job_id: str, services: Annotated[Services, Depends(get_services)]
+) -> HTMLResponse:
+    detail = await services.jobs.get(job_id) if valid_job_id(job_id) else None
+    if detail is None:
+        return _job_not_found(request)
+    job = detail.job
+    events = await services.events.query(job_id=job_id, newest=False, limit=TIMELINE_LIMIT + 1)
+    context = {
+        "job": job,
+        "terminal": job.status.is_terminal,
+        "result": detail.result,
+        "rows": [_event_context(e) for e in events[:TIMELINE_LIMIT]],
+        "more_events": len(events) > TIMELINE_LIMIT,
+        "timeline_limit": TIMELINE_LIMIT,
+    }
+    return templates.TemplateResponse(request, "job.html", context, headers=_NO_STORE)
+
+
+@router.get("/gui/partials/job/{job_id}/status", response_class=HTMLResponse)
+async def job_status_partial(
+    request: Request,
+    job_id: str,
+    services: Annotated[Services, Depends(get_services)],
+    live: bool = False,
+) -> HTMLResponse:
+    detail = await services.jobs.get(job_id) if valid_job_id(job_id) else None
+    if detail is None:
+        return HTMLResponse(
+            '<section id="job-status" class="panel"><p class="error">Job not found.</p></section>',
+            status_code=404,
+            headers=_NO_STORE,
+        )
+    job = detail.job
+    headers = dict(_NO_STORE)
+    if live and job.status.is_terminal:
+        # A poll that has just seen the job finish: reload so the results appear.
+        headers["HX-Refresh"] = "true"
+    return templates.TemplateResponse(
+        request,
+        "_job_status.html",
+        {"job": job, "terminal": job.status.is_terminal},
+        headers=headers,
+    )

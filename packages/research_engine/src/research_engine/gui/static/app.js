@@ -165,5 +165,38 @@
     form.addEventListener("change", applyFilters);
   }
 
+  // Job detail timeline: rows rendered by the server are already in the DOM and the job-filtered
+  // stream replays its history on connect, so skip any row whose id is already shown.
+  function setupTimeline() {
+    const timeline = document.getElementById("timeline");
+    const status = document.getElementById("sse-status");
+    if (!timeline || document.getElementById("log")) {
+      return;
+    }
+    const seen = new Set();
+    timeline.querySelectorAll("[data-id]").forEach(function (row) {
+      seen.add(row.getAttribute("data-id"));
+    });
+    timeline.addEventListener("htmx:sseBeforeMessage", function (evt) {
+      const id = evt.detail.lastEventId;
+      if (id) {
+        if (seen.has(id)) {
+          evt.preventDefault();
+          return;
+        }
+        seen.add(id);
+      }
+    });
+    if (status) {
+      timeline.addEventListener("htmx:sseError", function () {
+        status.hidden = false;
+      });
+      timeline.addEventListener("htmx:sseOpen", function () {
+        status.hidden = true;
+      });
+    }
+  }
+
   setupLog();
+  setupTimeline();
 })();

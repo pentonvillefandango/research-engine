@@ -1,0 +1,19 @@
+<section id="job-status" class="panel job-status"{% if not terminal %} hx-get="/gui/partials/job/{{ job.id|urlencode }}/status?live=1" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %} aria-label="Status">
+  <h2>Status</h2>
+  <dl class="meta">
+    <dt>Type</dt><dd>{{ job.type.value }}</dd>
+    <dt>Status</dt><dd><span class="status status-{{ job.status.value }}">{{ job.status.value }}</span></dd>
+    <dt>Progress</dt><dd>{{ job.progress.done }}/{{ job.progress.total }}{% if job.progress.current %} <span class="muted current">{{ job.progress.current|truncate(120, true) }}</span>{% endif %}</dd>
+    <dt>Created (UTC)</dt><dd><time datetime="{{ job.created_at.isoformat() }}">{{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</time></dd>
+    <dt>Started (UTC)</dt><dd>{% if job.started_at %}<time datetime="{{ job.started_at.isoformat() }}">{{ job.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</time>{% else %}<span class="muted">not yet</span>{% endif %}</dd>
+    <dt>Finished (UTC)</dt><dd>{% if job.finished_at %}<time datetime="{{ job.finished_at.isoformat() }}">{{ job.finished_at.strftime('%Y-%m-%d %H:%M:%S') }}</time>{% else %}<span class="muted">not yet</span>{% endif %}</dd>
+  </dl>
+  {% if job.errors %}
+  <h3>Errors</h3>
+  <ul class="errors">
+    {% for err in job.errors %}
+    <li><strong class="error">{{ err.code.value }}</strong> {{ err.message }}{% if err.source %} <span class="muted">({{ err.source }})</span>{% endif %}{% if err.retryable %} <span class="muted">retryable</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>

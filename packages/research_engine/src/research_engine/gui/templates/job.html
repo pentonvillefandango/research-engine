@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% import "_json.html" as j %}
+{% block title %}Job {{ job.id }} · Research Engine{% endblock %}
+{% block content %}
+<h1 class="page-title">Job <code>{{ job.id }}</code> <span class="muted">{{ job.type.value }}</span></h1>
+<p><a href="/v1/jobs/{{ job.id|urlencode }}">Raw JSON</a> <span class="muted">(public API; needs the API key)</span></p>
+
+{% include "_job_status.html" %}
+
+<section class="panel" aria-label="Request">
+  <h2>Request</h2>
+  {{ j.tree(job.request) }}
+</section>
+
+{% with job_id=job.id, live=(not terminal), more=more_events, limit=timeline_limit %}{% include "_job_timeline.html" %}{% endwith %}
+
+<section aria-label="Results">
+  <h2>Results</h2>
+  {% if not result %}
+    <p class="muted">{% if terminal %}This job has no result.{% else %}Results appear when the job finishes.{% endif %}</p>
+  {% else %}
+    {% if result.kind == "search_read" %}
+    <section class="panel" aria-label="Search results">
+      <h3>Search results for “{{ result.search.query }}”</h3>
+      {% if result.search.results %}
+      <table class="search-results">
+        <thead><tr><th>Rank</th><th>Title</th><th>Domain</th><th>Engines</th><th>Score</th></tr></thead>
+        <tbody>
+        {% for r in result.search.results %}
+          <tr>
+            <td>{{ r.rank }}</td>
+            <td>{% if is_http_url(r.url) %}<a href="{{ r.url }}" rel="{{ link_rel }}" target="_blank">{{ r.title or r.url }}</a>{% else %}{{ r.title or r.url }}{% endif %}</td>
+            <td>{{ r.domain }}</td>
+            <td>{{ r.engines|join(", ") }}</td>
+            <td>{{ r.score }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="muted">No search results.</p>{% endif %}
+    </section>
+    {% for rd in result.documents %}
+      {% with d=rd.document, rank=rd.search_rank, score=rd.search_score, job_id=job.id %}{% include "_document.html" %}{% endwith %}
+    {% endfor %}
+    {% else %}
+    {% for d in result.documents %}
+      {% with d=d, rank=none, score=none, job_id=job.id %}{% include "_document.html" %}{% endwith %}
+    {% endfor %}
+    {% endif %}
+    {% if result.failed %}
+    <section class="panel" aria-label="Failed URLs">
+      <h3>Failed URLs ({{ result.failed|length }})</h3>
+      <ul class="failed">
+        {% for f in result.failed %}
+        <li>{% if is_http_url(f.url) %}<a href="{{ f.url }}" rel="{{ link_rel }}" target="_blank">{{ f.url }}</a>{% else %}{{ f.url }}{% endif %}
+          <strong class="error">{{ f.error.code.value }}</strong> {{ f.error.message }}{% if f.error.retryable %} <span class="muted">retryable</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

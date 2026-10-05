@@ -152,6 +152,27 @@ button[aria-pressed="true"] { border-color: var(--warning); color: var(--warning
 .ev-warning .lvl { color: var(--warning); }
 .ev-error .lvl, .ev-error .msg { color: var(--error); font-weight: 600; }
 
+/* Job detail */
+.page-title { font-size: 1.2rem; margin: 0 0 0.5rem; }
+.meta { display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 1rem; margin: 0 0 0.5rem; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; word-break: break-all; }
+.errors, .warnings, .failed, .links { margin: 0.25rem 0; padding-left: 1.25rem; }
+.warning { color: var(--warning); }
+.timeline { height: 18rem; }
+#timeline + #sse-status, .panel > #sse-status { display: inline-block; margin-top: 0.4rem; }
+.json-tree { font-family: var(--mono); font-size: 13px; overflow-x: auto; }
+.json-tree ul { list-style: none; margin: 0; padding-left: 1.25rem; }
+.json-tree summary { cursor: pointer; color: var(--muted); }
+.json-tree .k { color: var(--accent); }
+.json-tree .v-str { color: var(--fg); word-break: break-word; }
+.json-tree .v-num, .json-tree .v-bool, .json-tree .v-null { color: var(--warning); }
+.document > summary { cursor: pointer; }
+.doc-table { margin: 0.5rem 0; font-size: 13px; }
+.doc-table caption { text-align: left; color: var(--muted); }
+.doc-table th, .doc-table td { border: 1px solid var(--line); padding: 0.2rem 0.5rem; text-align: left; }
+.content { overflow-wrap: anywhere; }
+
 /* Rendered untrusted content */
 .content table { border-collapse: collapse; }
 .content th, .content td { border: 1px solid var(--line); padding: 0.25rem 0.5rem; }
