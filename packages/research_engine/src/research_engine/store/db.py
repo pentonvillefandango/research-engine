@@ -28,6 +28,16 @@ def create_engine_for(path: str) -> AsyncEngine:
       ``TimeoutError`` after ``pool_timeout`` (2 s) instead of deadlocking.
     - The keeper means the data survives SQLAlchemy invalidating the pooled connection, which
       it does when a task is cancelled mid-query (the job runner cancels handlers by design).
+
+    Both engines disable the pool's reset-on-return (``pool_reset_on_return=None``). That
+    ROLLBACK is awaited while the connection is being checked in, and under SQLAlchemy 2.0
+    a cancel landing on it invalidates the connection and re-raises *before* the pool record
+    is checked back in: the slot then stays out until the orphaned connection proxy is
+    garbage collected (never, while the cancelled task's traceback is referenced), so later
+    checkouts time out. SQLAlchemy 2.1.3 fixes this in ``_finalize_fairy``, but sqlmodel
+    pins ``SQLAlchemy<2.1``. The ROLLBACK is redundant here: ``Connection.close()`` already
+    rolls back any open transaction itself (cancel-safe: it invalidates and checks in), and
+    every DBAPI transaction is opened through a SQLAlchemy ``Transaction`` (no raw DBAPI use).
     """
     in_memory = path == ":memory:"
     if in_memory:
@@ -40,12 +50,13 @@ def create_engine_for(path: str) -> AsyncEngine:
             pool_size=1,
             max_overflow=0,
             pool_timeout=2,
+            pool_reset_on_return=None,
             connect_args={"check_same_thread": False},
         )
         weakref.finalize(engine.sync_engine, keeper.close)
     else:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        engine = create_async_engine(f"sqlite+aiosqlite:///{path}")
+        engine = create_async_engine(f"sqlite+aiosqlite:///{path}", pool_reset_on_return=None)
 
     @event.listens_for(engine.sync_engine, "connect")
     def _pragmas(dbapi_conn: Any, _record: Any) -> None:

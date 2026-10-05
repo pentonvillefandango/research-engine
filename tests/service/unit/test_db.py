@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 from research_engine.store.db import create_engine_for, init_db
 from research_engine.store.tables import CacheRow
-from sqlalchemy import text, update
+from sqlalchemy import event, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.pool import AsyncAdaptedQueuePool
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -126,6 +127,52 @@ async def test_memory_survives_cancellation_mid_query(mem_engine: AsyncEngine) -
     async with AsyncSession(mem_engine) as s:
         assert (await s.exec(select(CacheRow))).all() is not None  # table still exists
     gc.collect()  # finalise the terminated connections now (see pyproject filterwarnings)
+
+
+@pytest.mark.parametrize("kind", ["memory", "file"])
+async def test_cancel_during_checkin_returns_connection_to_pool(kind: str, tmp_path: Path) -> None:
+    """A task cancelled while its connection is being returned must still return it.
+
+    Regression (D9, flaky CI pool ``TimeoutError``): after ``commit()`` the connection is
+    checked in and the pool's reset-on-return awaited a ROLLBACK. A cancel landing on that
+    await made SQLAlchemy 2.0's ``_finalize_fairy`` invalidate the connection and re-raise
+    *before* ``checkin()``, so the pool slot stayed out until the orphaned fairy was garbage
+    collected - never, while the cancelled task (and its traceback) is still referenced.
+    The cancel is injected deterministically at the pool's ``reset`` hook.
+    """
+    engine = create_engine_for(":memory:" if kind == "memory" else str(tmp_path / "re.sqlite"))
+    try:
+        await init_db(engine)
+        pool = engine.sync_engine.pool
+        assert isinstance(pool, AsyncAdaptedQueuePool)  # both engines: a real, bounded pool
+        armed = False
+
+        def cancel_at_checkin(*_: object) -> None:
+            nonlocal armed
+            if armed:
+                armed = False
+                task = asyncio.current_task()
+                assert task is not None
+                task.cancel()
+
+        event.listen(pool, "reset", cancel_at_checkin)
+
+        async def touch() -> None:
+            nonlocal armed
+            async with AsyncSession(engine) as s:
+                s.add(CacheRow(key=uuid.uuid4().hex, value=b"0", expires_at=0))
+                armed = True
+                await s.commit()
+
+        task = asyncio.create_task(touch())
+        (outcome,) = await asyncio.gather(task, return_exceptions=True)
+        assert isinstance(outcome, asyncio.CancelledError)  # the cancel did land
+        # `task` (and so the exception's traceback) is still alive: no GC can rescue the slot
+        assert pool.checkedout() == 0
+        async with AsyncSession(engine) as s:
+            assert len((await s.exec(select(CacheRow))).all()) == 1  # the commit stuck
+    finally:
+        await engine.dispose()
 
 
 async def test_memory_engines_are_isolated() -> None:
