@@ -3,11 +3,14 @@
 import asyncio
 from typing import Protocol
 
+import structlog
+from pydantic import ValidationError
 from research_engine_client.models import (
     BatchFetchRequest,
     BatchFetchResult,
     Document,
     ErrorCode,
+    ErrorDetail,
     FailedUrl,
     FetchRequest,
     RankedDocument,
@@ -15,12 +18,15 @@ from research_engine_client.models import (
     SearchReadResult,
     SearchRequest,
     SearchResponse,
+    SearchResult,
 )
 
 from research_engine.errors import ServiceError
 from research_engine.jobs.context import JobContext
 
 from .urls import fetch_cache_url
+
+_log = structlog.get_logger("research_engine.pipeline.search_read")
 
 
 class FetchesDocuments(Protocol):
@@ -62,8 +68,15 @@ async def _fetch_many(
                 out[key] = (await fetch.fetch(req, job_id=ctx.job_id))[0]
             except ServiceError as exc:
                 out[key] = exc
+            except Exception:
+                # One page's bug (an extractor crash, say) must not fail its siblings or the
+                # job (Global Constraint 7). Cancellation is a BaseException: it propagates.
+                _log.exception("unexpected error fetching page", job_id=ctx.job_id, url=req.url)
+                out[key] = ServiceError.of(
+                    ErrorCode.INTERNAL_ERROR, "internal error", retryable=False, source=req.url
+                )
             done += 1
-            await ctx.progress(progress_offset + done, total, current=req.url)
+            await ctx.progress(min(progress_offset + done, total), total, current=req.url)
 
     async with asyncio.TaskGroup() as group:
         for key, req in unique.items():
@@ -130,34 +143,55 @@ async def run_search_read(
     await ctx.progress(0, total, current="search")
     response, _ = await search.search(req.search, job_id=ctx.job_id)
     await ctx.progress(1, total)
-    # Search results are already deduplicated by the search canonicaliser: use them as given.
-    candidates = response.results[: req.top_n * 2]
+    # Results are already deduplicated by the search canonicaliser, which is coarser than page
+    # identity; dedupe again by page so one page never counts twice toward top_n.
+    unique: dict[str, SearchResult] = {}
+    for result in response.results:
+        unique.setdefault(fetch_cache_url(result.url), result)
+    candidates = list(unique.values())[: req.top_n * 2]
     documents: list[RankedDocument] = []
     failed: list[FailedUrl] = []
+    attempted = 0
     idx = 0
     while len(documents) < req.top_n and idx < len(candidates):
         need = req.top_n - len(documents)
         wave = candidates[idx : idx + need]
         idx += len(wave)
-        fetch_reqs = [
-            FetchRequest(
-                url=r.url,
-                mode=req.fetch.mode,
-                formats=req.fetch.formats,
-                use_cache=req.fetch.use_cache,
-                timeout_s=req.fetch.timeout_s,
-            )
-            for r in wave
-        ]
+        fetch_reqs: list[FetchRequest] = []
+        wave_ok: list[SearchResult] = []
+        for r in wave:
+            try:
+                fetch_reqs.append(
+                    FetchRequest(
+                        url=r.url,
+                        mode=req.fetch.mode,
+                        formats=req.fetch.formats,
+                        use_cache=req.fetch.use_cache,
+                        timeout_s=req.fetch.timeout_s,
+                    )
+                )
+            except ValidationError:
+                # The URL comes from a third-party search engine; skip it and back-fill.
+                detail = ErrorDetail(
+                    code=ErrorCode.INVALID_REQUEST,
+                    message="search result URL is not a fetchable http(s) URL",
+                    retryable=False,
+                    source=r.url[:200],
+                )
+                failed.append(FailedUrl(url=r.url[:200], error=detail))
+                ctx.add_error(detail)
+            else:
+                wave_ok.append(r)
         outcomes = await _fetch_many(
             ctx,
             fetch,
             fetch_reqs,
             concurrency,
-            progress_offset=1 + len(documents),
+            progress_offset=1 + attempted,
             progress_total=total,
         )
-        for r in wave:
+        attempted += len(wave)
+        for r in wave_ok:
             o = outcomes[fetch_cache_url(r.url)]
             if isinstance(o, ServiceError):
                 failed.append(FailedUrl(url=r.url, error=o.detail))

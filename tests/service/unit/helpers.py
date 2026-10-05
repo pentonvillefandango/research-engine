@@ -39,9 +39,19 @@ def doc(url: str) -> Document:
 
 class FakeFetch:
     def __init__(
-        self, fail: set[str] | None = None, delay: float = 0.01, saturate_at: int = 1
+        self,
+        fail: set[str] | None = None,
+        delay: float = 0.01,
+        saturate_at: int = 1,
+        cleanup_s: float = 0.0,
+        crash: set[str] | None = None,
     ) -> None:
         self.fail = fail or set()
+        self.crash = crash or set()
+        """URLs whose fetch raises a non-ServiceError (a bug in an extractor, say)."""
+        self.cleanup_s = cleanup_s
+        self.cleaned = 0
+        """Fetches whose slow post-cancellation cleanup ran to completion."""
         self.saturated = asyncio.Event()
         """Set once ``saturate_at`` fetches are in flight at the same time."""
         self.saturate_at = saturate_at
@@ -61,9 +71,14 @@ class FakeFetch:
             await asyncio.sleep(self.delay)
         except asyncio.CancelledError:
             self.cancelled += 1
+            if self.cleanup_s:
+                await asyncio.sleep(self.cleanup_s)
+            self.cleaned += 1
             raise
         finally:
             self.inflight -= 1
+        if req.url in self.crash:
+            raise ValueError("pypdf boom")
         if req.url in self.fail:
             raise ServiceError.of(ErrorCode.FETCH_FAILED, "nope", retryable=True, source=req.url)
         return doc(req.url), False

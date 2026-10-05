@@ -18,8 +18,9 @@ from .helpers import FakeFetch, make_ctx
 
 
 class FakeSearch:
-    def __init__(self, n: int, fail: bool = False) -> None:
+    def __init__(self, n: int, fail: bool = False, urls: dict[int, str] | None = None) -> None:
         self.n, self.fail = n, fail
+        self.urls = urls or {}
         self.job_ids: list[str | None] = []
 
     async def search(
@@ -31,7 +32,7 @@ class FakeSearch:
         results = [
             SearchResult(
                 rank=i,
-                url=f"https://r{i}.example/",
+                url=self.urls.get(i, f"https://r{i}.example/"),
                 canonical_url=f"https://r{i}.example/",
                 title="t",
                 snippet="s",
@@ -104,16 +105,59 @@ async def test_search_failure_raises() -> None:
 
 async def test_cancel_propagates_to_inflight_fetches() -> None:
     req = SearchReadRequest(search=SearchRequest(query="q"), top_n=4)
-    fetch = FakeFetch(delay=30, saturate_at=4)
+    fetch = FakeFetch(delay=30, saturate_at=2, cleanup_s=0.05)
     before = asyncio.all_tasks()
     task = asyncio.create_task(
-        run_search_read(make_ctx(req, []), FakeSearch(8), fetch, concurrency=4)
+        run_search_read(make_ctx(req, []), FakeSearch(8), fetch, concurrency=2)
     )
     await asyncio.wait_for(fetch.saturated.wait(), 5)
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
-    assert task.cancelled() and fetch.inflight == 0 and fetch.cancelled == 4
+    assert task.cancelled() and fetch.inflight == 0 and fetch.cancelled == 2
+    assert fetch.cleaned == 2
     assert asyncio.all_tasks() - before == set()
+
+
+async def test_progress_never_goes_backwards() -> None:
+    req = SearchReadRequest(search=SearchRequest(query="q"), top_n=2)
+    fetch = FakeFetch(fail={f"https://r{i}.example/" for i in range(1, 11)})
+    progress: list[tuple[int, int, str | None]] = []
+    await run_search_read(make_ctx(req, progress), FakeSearch(10), fetch, concurrency=2)
+    done = [p[0] for p in progress]
+    assert done == sorted(done) and progress[-1][:2] == (3, 3)
+    assert {p[1] for p in progress} == {3}
+
+
+async def test_unexpected_error_in_one_page_is_isolated() -> None:
+    req = SearchReadRequest(search=SearchRequest(query="q"), top_n=3)
+    fetch = FakeFetch(crash={"https://r2.example/"})
+    ctx = make_ctx(req, [])
+    res = await run_search_read(ctx, FakeSearch(10), fetch, concurrency=3)
+    assert [d.search_rank for d in res.documents] == [1, 3, 4]
+    assert [f.url for f in res.failed] == ["https://r2.example/"]
+    assert res.failed[0].error.code is ErrorCode.INTERNAL_ERROR and len(ctx.errors) == 1
+
+
+async def test_invalid_candidate_url_is_skipped_and_backfilled() -> None:
+    long_url = "https://r2.example/" + "a" * 5000
+    req = SearchReadRequest(search=SearchRequest(query="q"), top_n=3)
+    fetch = FakeFetch()
+    ctx = make_ctx(req, [])
+    res = await run_search_read(ctx, FakeSearch(10, urls={2: long_url}), fetch, concurrency=3)
+    assert [d.search_rank for d in res.documents] == [1, 3, 4]
+    assert len(res.failed) == 1 and long_url.startswith(res.failed[0].url)
+    assert res.failed[0].error.code is ErrorCode.INVALID_REQUEST and len(ctx.errors) == 1
+    assert long_url not in [u for u, _ in fetch.calls]
+
+
+async def test_duplicate_pages_count_once_toward_top_n() -> None:
+    req = SearchReadRequest(search=SearchRequest(query="q"), top_n=3)
+    fetch = FakeFetch()
+    # r2 is the same page as r1 (tracking param only); ranks 1, 3, 4 are distinct pages.
+    search = FakeSearch(10, urls={2: "https://r1.example/?utm_source=x"})
+    res = await run_search_read(make_ctx(req, []), search, fetch, concurrency=3)
+    assert [d.search_rank for d in res.documents] == [1, 3, 4]
+    assert len(fetch.calls) == 3
 
 
 async def test_endpoint_202(app, client: httpx.AsyncClient, monkeypatch) -> None:

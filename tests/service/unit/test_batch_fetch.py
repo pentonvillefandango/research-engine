@@ -61,7 +61,7 @@ async def test_distinct_pages_are_not_merged() -> None:
 
 async def test_cancel_propagates_to_inflight_fetches() -> None:
     urls = tuple(f"https://s{i}.example/" for i in range(6))
-    fake = FakeFetch(delay=30, saturate_at=3)
+    fake = FakeFetch(delay=30, saturate_at=3, cleanup_s=0.05)
     before = asyncio.all_tasks()
     task = asyncio.create_task(
         run_batch_fetch(make_ctx(BatchFetchRequest(urls=urls), []), fake, concurrency=3)
@@ -71,6 +71,7 @@ async def test_cancel_propagates_to_inflight_fetches() -> None:
     await asyncio.gather(task, return_exceptions=True)
     assert task.cancelled()
     assert fake.inflight == 0 and fake.cancelled == 3 and len(fake.calls) == 3
+    assert fake.cleaned == 3  # the job task returned only after every fetch finished unwinding
     assert asyncio.all_tasks() - before == set()  # no orphaned fetch tasks
 
 
@@ -112,3 +113,15 @@ async def test_openapi_documents_batch(app, client: httpx.AsyncClient) -> None:
     op = (await client.get("/openapi.json")).json()["paths"]["/v1/fetch/batch"]["post"]
     assert "202" in op["responses"] and {"401", "422", "500"} <= set(op["responses"])
     assert op["requestBody"]["content"]["application/json"]["examples"]
+
+
+async def test_unexpected_error_in_one_page_is_isolated() -> None:
+    urls = tuple(f"https://s{i}.example/" for i in range(3))
+    fake = FakeFetch(crash={urls[1]})
+    c = make_ctx(BatchFetchRequest(urls=urls), [])
+    result = await run_batch_fetch(c, fake, concurrency=3)
+    assert [d.url for d in result.documents] == [urls[0], urls[2]]
+    assert [f.url for f in result.failed] == [urls[1]]
+    err = result.failed[0].error
+    assert err.code is ErrorCode.INTERNAL_ERROR and err.message == "internal error"
+    assert "boom" not in err.model_dump_json() and len(c.errors) == 1
