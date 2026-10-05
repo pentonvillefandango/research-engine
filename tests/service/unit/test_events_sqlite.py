@@ -97,6 +97,15 @@ async def test_tail_returns_newest_in_ascending_order(bus: SqliteEventBus) -> No
     assert [e.message for e in await bus.tail(10)] == ["m0", "m1", "m2"]
 
 
+async def test_query_newest_returns_last_matches_in_ascending_order(bus: SqliteEventBus) -> None:
+    for i in range(6):
+        await Emitter(bus).info(EventKind.JOB_PROGRESS if i % 2 else EventKind.CACHE_MISS, f"m{i}")
+    newest = await bus.query(kind_prefix="job.", limit=2, newest=True)
+    assert [e.message for e in newest] == ["m3", "m5"]
+    oldest = await bus.query(kind_prefix="job.", limit=2)
+    assert [e.message for e in oldest] == ["m1", "m3"]
+
+
 async def test_non_utc_timestamp_round_trips_as_same_instant(bus: SqliteEventBus) -> None:
     tz = timezone(timedelta(hours=5, minutes=30))
     ts = datetime(2026, 3, 1, 12, 0, 0, 123456, tzinfo=tz)

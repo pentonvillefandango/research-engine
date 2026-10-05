@@ -59,6 +59,42 @@ async def app(settings_env: None):
 
 
 @pytest.fixture
+async def live_server(app) -> AsyncIterator[str]:
+    """The test ``app`` served by a real uvicorn on an ephemeral loopback port; yields its base
+    URL (``http://127.0.0.1:<port>``).
+
+    Needed for streaming (SSE) tests: httpx's ``ASGITransport`` buffers the whole response body,
+    so a never-ending stream never returns there. ``lifespan="off"`` because the ``app`` fixture
+    already runs the lifespan. Runs on the test's event loop, so tests can emit events directly.
+    """
+    import asyncio
+
+    import uvicorn
+
+    config = uvicorn.Config(
+        app,
+        host="127.0.0.1",
+        port=0,
+        lifespan="off",
+        log_level="warning",
+        timeout_graceful_shutdown=2,
+    )
+    server = uvicorn.Server(config)
+    task = asyncio.create_task(server.serve())
+    try:
+        async with asyncio.timeout(10):
+            while not server.started:
+                if task.done():
+                    task.result()  # surface a startup failure
+                await asyncio.sleep(0.01)
+        port = server.servers[0].sockets[0].getsockname()[1]
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.should_exit = True
+        await task
+
+
+@pytest.fixture
 async def client(app) -> AsyncIterator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(

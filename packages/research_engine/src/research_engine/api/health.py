@@ -100,7 +100,11 @@ async def _check_dependencies(services: Services) -> dict[str, DependencyHealth]
     return deps
 
 
-async def _dependencies(services: Services) -> dict[str, DependencyHealth]:
+async def cached_dependencies(services: Services) -> dict[str, DependencyHealth]:
+    """Dependency states, reused for ``health_ttl_s``; concurrent callers share one run.
+
+    Shared by ``/health`` and the GUI health strip, so the strip adds no extra checks.
+    """
     state = services.extra.setdefault(_DEPENDENCY_STATE_KEY, _HealthCache())
     async with state.lock:
         now = time.monotonic()
@@ -110,7 +114,7 @@ async def _dependencies(services: Services) -> dict[str, DependencyHealth]:
         return state.deps
 
 
-def _overall(deps: dict[str, DependencyHealth]) -> DependencyState:
+def overall_state(deps: dict[str, DependencyHealth]) -> DependencyState:
     if deps["database"].state is DependencyState.DOWN:
         return DependencyState.DOWN
     if any(deps[k].state is DependencyState.DOWN for k in ("searxng", "crawl4ai") if k in deps):
@@ -131,8 +135,8 @@ async def health(
     Results (database included) are reused for up to 5 s so polling cannot amplify load on
     dependencies; a dependency change can therefore show up to 5 s late.
     """
-    deps = await _dependencies(services)
-    overall = _overall(deps)
+    deps = await cached_dependencies(services)
+    overall = overall_state(deps)
     if overall is DependencyState.DOWN:
         response.status_code = 503
     return ok(

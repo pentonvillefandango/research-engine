@@ -1,0 +1,6 @@
+<span class="pill pill-{{ overall.value }} overall" title="overall status">{{ overall.value }}</span>
+{% for name, dep in deps|dictsort %}
+<span class="pill pill-{{ dep.state.value }}" title="{{ dep.state.value }}{% if dep.latency_ms is not none %} · {{ dep.latency_ms }} ms{% endif %}{% if dep.detail %} · {{ dep.detail }}{% endif %}">{{ name }}</span>
+{% endfor %}
+<span class="stat">Cache hit rate <strong>{{ '%.0f'|format(hit_rate * 100) }}%</strong></span>
+<span class="stat">Jobs today <strong>{{ jobs_today }}</strong></span>

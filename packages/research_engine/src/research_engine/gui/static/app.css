@@ -85,19 +85,64 @@ input[type="password"], input[type="text"], select, textarea {
 .login { max-width: 24rem; margin: 3rem auto; }
 .login-form { display: grid; gap: 0.6rem; }
 
-/* Event log: monospace, colour-coded by level (used from task 6.2). */
-.event-log {
+/* Dashboard */
+h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
+h3 { font-size: 0.95rem; margin: 0.75rem 0 0.35rem; }
+.panel {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+.panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.panel th, .panel td { text-align: left; padding: 0.2rem 0.5rem; border-bottom: 1px solid var(--line); }
+.panel td.current { font-family: var(--mono); word-break: break-all; }
+.queue { margin: 0 0 0.5rem; }
+.status-failed, .status-interrupted { color: var(--error); }
+.status-partial, .status-cancelled { color: var(--warning); }
+
+.health-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 1rem; }
+.pill {
+  display: inline-block;
+  padding: 0.05rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.pill.overall { font-weight: 600; text-transform: uppercase; }
+.pill-up { color: var(--info); }
+.pill-degraded { color: var(--warning); }
+.pill-down { color: var(--error); font-weight: 600; }
+.stat { font-size: 13px; color: var(--muted); }
+.stat strong { color: var(--fg); }
+
+.filters { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem; margin: 0 0 0.5rem; }
+.filters label { display: grid; gap: 0.1rem; font-size: 13px; color: var(--muted); }
+.filters input[type="text"], .filters select { width: 11rem; }
+.filters input:invalid { border-color: var(--error); }
+button[aria-pressed="true"] { border-color: var(--warning); color: var(--warning); }
+
+/* Event log: monospace, colour-coded by level. */
+.log {
+  height: 28rem;
+  overflow-y: auto;
   font-family: var(--mono);
   font-size: 13px;
   border: 1px solid var(--line);
-  background: var(--panel);
-  overflow-x: auto;
+  background: var(--bg);
 }
-.event-log .event { padding: 0.15rem 0.5rem; border-bottom: 1px solid var(--line); white-space: pre-wrap; }
-.level-debug { color: var(--debug); }
-.level-info { color: var(--info); }
-.level-warning { color: var(--warning); }
-.level-error { color: var(--error); font-weight: 600; }
+.ev { padding: 0.1rem 0.5rem; border-bottom: 1px solid var(--line); white-space: pre-wrap; word-break: break-word; }
+.ev time { color: var(--muted); }
+.ev .lvl { display: inline-block; min-width: 4.5em; text-transform: uppercase; }
+.ev .kind { color: var(--muted); }
+.ev details { margin: 0.1rem 0 0.2rem 1rem; }
+.ev summary { cursor: pointer; color: var(--muted); }
+.ev pre { margin: 0.2rem 0; white-space: pre-wrap; }
+.ev-debug .lvl { color: var(--debug); }
+.ev-info .lvl { color: var(--info); }
+.ev-warning .lvl { color: var(--warning); }
+.ev-error .lvl, .ev-error .msg { color: var(--error); font-weight: 600; }
 
 /* Rendered untrusted content */
 .content table { border-collapse: collapse; }

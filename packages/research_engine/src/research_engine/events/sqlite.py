@@ -68,6 +68,7 @@ class SqliteEventBus:
         text: str | None = None,
         after_id: int | None = None,
         limit: int = 100,
+        newest: bool = False,
     ) -> list[Event]:
         stmt = select(EventRow)
         if level is not None:
@@ -82,9 +83,12 @@ class SqliteEventBus:
             stmt = stmt.where(col(EventRow.message).icontains(text, autoescape=True))
         if after_id is not None:
             stmt = stmt.where(col(EventRow.id) > after_id)
-        stmt = stmt.order_by(col(EventRow.id)).limit(max(0, min(limit, _MAX_LIMIT)))
+        # ``newest``: the last ``limit`` matches instead of the first; ascending order either way.
+        order = col(EventRow.id).desc() if newest else col(EventRow.id)
+        stmt = stmt.order_by(order).limit(max(0, min(limit, _MAX_LIMIT)))
         async with AsyncSession(self._engine) as s:
-            return [_to_model(r) for r in (await s.exec(stmt)).all()]
+            rows = list((await s.exec(stmt)).all())
+        return [_to_model(r) for r in (reversed(rows) if newest else rows)]
 
     async def tail(self, n: int) -> list[Event]:
         """The newest ``n`` events, in ascending id order."""

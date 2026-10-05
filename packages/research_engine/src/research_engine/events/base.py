@@ -52,6 +52,7 @@ class EventStore(EventBus, Protocol):
         text: str | None = None,
         after_id: int | None = None,
         limit: int = 100,
+        newest: bool = False,
     ) -> list[Event]: ...
 
     async def tail(self, n: int) -> list[Event]: ...
