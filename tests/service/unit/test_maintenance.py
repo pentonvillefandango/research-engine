@@ -139,3 +139,27 @@ async def test_shutdown_steps_all_run_when_earlier_ones_raise(
     assert order == ["emit", "stop", "dispose"]
     assert services.http and services.http.is_closed
     assert services.fetch_http and services.fetch_http.is_closed
+
+
+async def test_startup_failure_propagates_original_error(
+    settings_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, services = await _lifespan_app(settings_env, monkeypatch, owned=True)
+    disposed: list[bool] = []
+    real_dispose = AsyncEngine.dispose
+
+    async def boom(_engine: AsyncEngine) -> None:
+        raise RuntimeError("init boom")
+
+    async def dispose(_self: AsyncEngine) -> None:
+        disposed.append(True)
+        await real_dispose(services.engine)
+
+    monkeypatch.setattr(app_mod, "init_db", boom)
+    monkeypatch.setattr(AsyncEngine, "dispose", dispose)
+    with pytest.raises(RuntimeError, match="init boom"):
+        async with app.router.lifespan_context(app):
+            pytest.fail("lifespan should not yield")
+    assert disposed == [True]
+    assert services.http and services.http.is_closed
+    assert services.fetch_http and services.fetch_http.is_closed

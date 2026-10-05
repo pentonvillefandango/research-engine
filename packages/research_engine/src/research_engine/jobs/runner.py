@@ -151,6 +151,8 @@ class JobRunner:
         if not self._workers:
             return
         self._stopping = True
+        for job_id in list(self._waiters):
+            self._signal(job_id)  # long-polls return the current state instead of outliving us
         for active in list(self._active.values()):
             active.interrupt(_Stop.SHUTDOWN)
         for worker in self._idle:

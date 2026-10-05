@@ -594,3 +594,24 @@ async def test_create_stores_naive_utc(store: JobStore) -> None:
     assert row is not None and row.created_at.tzinfo is None
     assert abs(row.created_at.replace(tzinfo=UTC) - datetime.now(UTC)) < timedelta(seconds=5)
     assert j.created_at.tzinfo is UTC
+
+
+async def test_stop_wakes_waiters_on_queued_jobs(make: Make) -> None:
+    runner, _bus, _store = await make(workers=1)
+    release = asyncio.Event()
+
+    async def block(ctx: JobContext) -> BatchFetchResult:
+        await release.wait()
+        return BatchFetchResult(documents=[], failed=[])
+
+    runner.register(JobType.FETCH_BATCH, block)
+    await runner.start()
+    await runner.submit(JobType.FETCH_BATCH, REQ)  # occupies the only worker
+    queued = await runner.submit(JobType.FETCH_BATCH, REQ)
+    waiter = asyncio.create_task(runner.wait(queued.id, 60))
+    await asyncio.sleep(0.1)
+    t0 = asyncio.get_running_loop().time()
+    await runner.stop()
+    detail = await asyncio.wait_for(waiter, 1)
+    assert detail is not None and detail.job.status is JobStatus.QUEUED
+    assert asyncio.get_running_loop().time() - t0 < 2

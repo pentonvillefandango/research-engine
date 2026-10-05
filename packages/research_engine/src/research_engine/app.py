@@ -138,20 +138,29 @@ async def _close_http(services: Services) -> None:
 
 
 async def _shutdown(
-    services: Services, maintenance: asyncio.Task[None] | None, *, close_http: bool
+    services: Services,
+    maintenance: asyncio.Task[None] | None,
+    *,
+    close_http: bool,
+    started: bool,
 ) -> None:
-    """Reverse of startup. Every step runs even if an earlier one raises; the first error is
-    re-raised afterwards (later ones are logged).
+    """Reverse of startup. Every step runs even if an earlier one raises. After a clean
+    startup the first error is re-raised afterwards (later ones are logged); after a failed
+    startup ``system.shutdown`` is not emitted and cleanup errors are only logged, so the
+    original startup error is the one that propagates.
 
-    Production note: uvicorn's graceful-shutdown timeout must be at least the runner's
-    worst-case ``stop()`` time (about 9 s), so the Dockerfile CMD passes
-    ``--timeout-graceful-shutdown 15``.
+    Deployments must set uvicorn ``--timeout-graceful-shutdown`` >= 15 s (see step 8): it must
+    cover the runner's worst-case ``stop()`` time of about 9 s.
     """
-    steps: list[tuple[str, Callable[[], Awaitable[object]]]] = [
-        (
-            "emit system.shutdown",
-            lambda: _emit_system(services, EventKind.SYSTEM_SHUTDOWN, "service stopping"),
-        ),
+    steps: list[tuple[str, Callable[[], Awaitable[object]]]] = []
+    if started:
+        steps.append(
+            (
+                "emit system.shutdown",
+                lambda: _emit_system(services, EventKind.SYSTEM_SHUTDOWN, "service stopping"),
+            )
+        )
+    steps += [
         ("stop maintenance", lambda: _cancel_task(maintenance)),
         ("stop job runner", services.jobs.stop),
     ]
@@ -165,7 +174,7 @@ async def _shutdown(
         except Exception as exc:
             _log.exception("shutdown step failed", step=name)
             first = first or exc
-    if first is not None:
+    if first is not None and started:
         raise first
 
 
@@ -178,14 +187,16 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
         owned = services is None
         svc = app.state.services = build_services(settings) if services is None else services
         maintenance: asyncio.Task[None] | None = None
+        started = False
         try:
             await init_db(svc.engine)
             await svc.jobs.start()
             await _emit_system(svc, EventKind.SYSTEM_STARTUP, "service started")
             maintenance = asyncio.create_task(maintenance_loop(svc), name="maintenance")
+            started = True
             yield
         finally:
-            await _shutdown(svc, maintenance, close_http=owned)
+            await _shutdown(svc, maintenance, close_http=owned, started=started)
 
     app = FastAPI(title="Research Engine", version=__version__, lifespan=lifespan)
     install_exception_handlers(app)
