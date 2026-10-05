@@ -1,0 +1,30 @@
+{# A job's results (search table, documents, failed URLs), shared by the job page and the test
+   console. Needs `job`, `terminal` and `result`. #}
+{% if not result %}
+  <p class="muted">{% if terminal %}This job has no result.{% else %}Results appear when the job finishes.{% endif %}</p>
+{% else %}
+  {% if result.kind == "search_read" %}
+  <section class="panel" aria-label="Search results">
+    <h3>Search results for “{{ result.search.query }}”</h3>
+    {% with search=result.search %}{% include "_search_table.html" %}{% endwith %}
+  </section>
+  {% for rd in result.documents %}
+    {% with d=rd.document, rank=rd.search_rank, score=rd.search_score, job_id=job.id %}{% include "_document.html" %}{% endwith %}
+  {% endfor %}
+  {% else %}
+  {% for d in result.documents %}
+    {% with d=d, rank=none, score=none, job_id=job.id %}{% include "_document.html" %}{% endwith %}
+  {% endfor %}
+  {% endif %}
+  {% if result.failed %}
+  <section class="panel" aria-label="Failed URLs">
+    <h3>Failed URLs ({{ result.failed|length }})</h3>
+    <ul class="failed">
+      {% for f in result.failed %}
+      <li>{% if is_http_url(f.url) %}<a href="{{ f.url }}" rel="{{ link_rel }}" target="_blank">{{ f.url }}</a>{% else %}{{ f.url }}{% endif %}
+        <strong class="error">{{ f.error.code.value }}</strong> {{ f.error.message }}{% if f.error.retryable %} <span class="muted">retryable</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+{% endif %}

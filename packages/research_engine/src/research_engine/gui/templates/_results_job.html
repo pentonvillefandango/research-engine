@@ -1,0 +1,28 @@
+{# Test console: an Envelope[JobDetail] as Cards and Rendered views (the job page's results). #}
+<div data-view="cards">
+  {% include "_envelope_errors.html" %}
+  {% if data %}
+  {% set job = data.job %}
+  <article class="job-card">
+    <h3 class="headline">Job <a href="/jobs/{{ job.id|urlencode }}">{{ job.id }}</a> <span class="status status-{{ job.status.value }}">{{ job.status.value }}</span></h3>
+    <p class="facts">{{ job.type.value }} · {{ job.progress.done }}/{{ job.progress.total }} done{% if data.result %} · {{ data.result.documents|length }} documents · {{ data.result.failed|length }} failed{% endif %}</p>
+    {% if job.errors %}{% with errors=job.errors %}{% include "_envelope_errors.html" %}{% endwith %}{% endif %}
+  </article>
+  {% if data.result %}
+    {% if data.result.kind == "search_read" %}
+    <h3>Search results</h3>
+    {% for r in data.result.search.results %}{% include "_card_search_result.html" %}{% endfor %}
+    <h3>Documents read</h3>
+    {% for rd in data.result.documents %}{% with d=rd.document, rank=rd.search_rank, score=rd.search_score %}{% include "_card_document.html" %}{% endwith %}{% else %}<p class="muted">No documents.</p>{% endfor %}
+    {% else %}
+    {% for d in data.result.documents %}{% with d=d, rank=none, score=none %}{% include "_card_document.html" %}{% endwith %}{% else %}<p class="muted">No documents.</p>{% endfor %}
+    {% endif %}
+  {% endif %}
+  {% endif %}
+</div>
+<div data-view="rendered">
+  {% include "_envelope_errors.html" %}
+  {% if data %}
+  {% with job=data.job, terminal=data.job.status.is_terminal, result=data.result %}{% include "_job_results.html" %}{% endwith %}
+  {% endif %}
+</div>

@@ -1,0 +1,8 @@
+{# The envelope's typed errors (autoescaped). `errors` is a list of ErrorDetail. #}
+{% if errors %}
+<ul class="errors envelope-errors">
+  {% for err in errors %}
+  <li><strong class="error">{{ err.code.value }}</strong> {{ err.message|truncate(2000, true) }}{% if err.source %} <span class="muted">({{ err.source|truncate(500, true) }})</span>{% endif %}{% if err.retryable %} <span class="muted">retryable</span>{% endif %}</li>
+  {% endfor %}
+</ul>
+{% endif %}

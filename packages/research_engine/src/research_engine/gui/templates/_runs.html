@@ -1,0 +1,21 @@
+{# Test console: the last runs, newest first. The stored request rides in data-request
+   (autoescaped JSON) for one-click re-run. #}
+{% if runs %}
+<table class="runs">
+  <thead><tr><th>When (UTC)</th><th>Kind</th><th>Query or URL</th><th>Status</th><th>Took</th><th></th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+    <tr>
+      <td><time datetime="{{ r.created_at.isoformat() }}">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</time></td>
+      <td>{{ r.kind.value }}</td>
+      <td class="summary">{{ r.summary|truncate(120, true) }}</td>
+      <td><span class="status status-{{ r.status.value }}">{{ r.status.value }}</span>{% if r.job_id %} <a href="/jobs/{{ r.job_id|urlencode }}">job</a>{% endif %}</td>
+      <td>{{ r.took_ms }} ms</td>
+      <td><button type="button" class="rerun" data-kind="{{ r.kind.value }}" data-request="{{ r.request_json }}">Re-run</button></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No runs yet.</p>
+{% endif %}

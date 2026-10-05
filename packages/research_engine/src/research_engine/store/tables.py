@@ -4,6 +4,8 @@ Timestamps are ``NaiveDatetime`` (naive UTC): this SQLModel version maps a bare 
 aware-only ``UTCDateTime`` column, and SQLite drops tzinfo anyway. Converters re-attach ``UTC``.
 """
 
+from typing import ClassVar
+
 from pydantic import NaiveDatetime
 from sqlalchemy import Column, Index, LargeBinary
 from sqlmodel import Field, SQLModel
@@ -49,3 +51,18 @@ class CacheRow(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
     expires_at: float = Field(index=True)
+
+
+class TestRunRow(SQLModel, table=True):
+    """One test-console run (V1-21). Only what is needed to list and re-run it: never keys,
+    headers or the response. Pruned to the newest ``gui.runs.MAX_ROWS`` on every insert."""
+
+    __tablename__ = "test_run"  # type: ignore[assignment]  # SQLModel types __tablename__ as declared_attr
+    __test__: ClassVar[bool] = False  # not a pytest test class, despite the name
+    id: int | None = Field(default=None, primary_key=True)
+    kind: str
+    request_json: str
+    job_id: str | None = None
+    status: str
+    took_ms: int
+    created_at: NaiveDatetime

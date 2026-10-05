@@ -1,5 +1,5 @@
-"""GUI routes (login, logout, dashboard, live event stream, partials) and the GUI
-security-headers middleware (B2, V1-15, V1-16)."""
+"""GUI routes (login, logout, dashboard, live event stream, partials, job detail, test
+console) and the GUI security-headers middleware (B2, V1-15, V1-16, V1-17, V1-21)."""
 
 import asyncio
 import json
@@ -12,12 +12,30 @@ from urllib.parse import urlsplit
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader
-from pydantic import BeforeValidator
-from research_engine_client.models import Event, EventLevel, Job
+from pydantic import BaseModel, BeforeValidator, ValidationError
+from research_engine_client.models import (
+    Document,
+    Envelope,
+    Event,
+    EventLevel,
+    FetchMode,
+    Job,
+    JobDetail,
+    SearchDepth,
+    SearchIntent,
+    SearchResponse,
+    TimeRange,
+)
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from research_engine.api import auth
@@ -25,6 +43,8 @@ from research_engine.api.auth import is_api_path
 from research_engine.api.deps import Services, get_services
 from research_engine.api.health import cached_dependencies, overall_state
 from research_engine.api.jobs import valid_job_id
+from research_engine.config_files import load_demos
+from research_engine.gui import runs
 from research_engine.gui.jsonview import to_tree
 from research_engine.gui.render import LINK_REL, render_untrusted_markdown
 from research_engine.gui.session import (
@@ -333,6 +353,7 @@ async def event_stream(
     job: Annotated[str | None, Query(max_length=64)] = None,
     kind: Annotated[str | None, Query(pattern=r"^[a-z_.]{0,64}$")] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
+    history: bool = True,
 ) -> AsyncIterator[ServerSentEvent]:
     """Matching history (newest ``HISTORY_LIMIT``, oldest first), then matching live events,
     each as ``event: log`` whose data is a rendered ``_event_row.html``.
@@ -340,6 +361,10 @@ async def event_stream(
     Filters: ``level`` minimum level, ``job`` exact job id, ``kind`` kind prefix, ``q``
     case-insensitive message substring. FastAPI adds the ``: ping`` heartbeat after 15 s idle
     and the ``Cache-Control: no-cache`` / ``X-Accel-Buffering: no`` headers.
+
+    ``history=0`` (the test console's synchronous runs) skips the history and instead sends one
+    ``event: ready`` once the live subscription exists, so the client can start its request
+    knowing no event from it will be missed.
     """
     job_id, kind_prefix, text = job or None, kind or None, q or None
     needle = text.translate(_ASCII_LOWER) if text else None
@@ -356,8 +381,14 @@ async def event_stream(
     # lands in both is sent once: live events with an id <= the last history id are skipped.
     live = services.events.subscribe()
     try:
+        if not history:
+            yield ServerSentEvent(event="ready", raw_data="live")
+            async for e in live:
+                if matches(e):
+                    yield _log_event(e)
+            return
         try:
-            history = await _cancel_safe(
+            past = await _cancel_safe(
                 services.events.query(
                     level=level,
                     job_id=job_id,
@@ -370,9 +401,9 @@ async def event_stream(
             )
         except TimeoutError:
             _log.warning("event stream history query timed out", timeout_s=HISTORY_QUERY_TIMEOUT_S)
-            history = []  # go on with live events only
-        last_id = max((e.id for e in history if e.id is not None), default=0)
-        for e in history:
+            past = []  # go on with live events only
+        last_id = max((e.id for e in past if e.id is not None), default=0)
+        for e in past:
             yield _log_event(e)
         async for e in live:
             if e.id is not None and e.id <= last_id:
@@ -442,6 +473,14 @@ def is_http_url(value: object) -> bool:
     return parts.scheme in ("http", "https") and bool(parts.netloc)
 
 
+def url_host(value: str) -> str:
+    """The URL's host for display ("" when it has none)."""
+    try:
+        return urlsplit(value).hostname or ""
+    except ValueError:
+        return ""
+
+
 def _clip_markdown(text: str) -> tuple[str, bool]:
     return (text[:MAX_MARKDOWN_CHARS], True) if len(text) > MAX_MARKDOWN_CHARS else (text, False)
 
@@ -449,6 +488,7 @@ def _clip_markdown(text: str) -> tuple[str, bool]:
 templates.env.globals.update(
     json_tree=to_tree,
     is_http_url=is_http_url,
+    url_host=url_host,
     link_rel=LINK_REL,
     untrusted_markdown=render_untrusted_markdown,
     clip_markdown=_clip_markdown,
@@ -528,3 +568,118 @@ async def job_status_partial(
         {"job": job, "terminal": job.status.is_terminal},
         headers=headers,
     )
+
+
+# --- test console ("Try it") -------------------------------------------------------------------
+
+MAX_RENDER_BYTES = 5 * 1024 * 1024
+"""Largest envelope ``POST /gui/render/{kind}`` accepts; bigger gets 413 (the Raw tab still
+shows it)."""
+MAX_RUN_BODY_BYTES = 2 * runs.MAX_REQUEST_BYTES
+RECENT_RUNS = 20
+_RENDER_MODELS: dict[str, type[BaseModel]] = {
+    "search": Envelope[SearchResponse],
+    "document": Envelope[Document],
+    "job": Envelope[JobDetail],
+}
+
+
+def _plain(status: int, message: str) -> PlainTextResponse:
+    return PlainTextResponse(f"{status} {message}\n", status_code=status, headers=_NO_STORE)
+
+
+async def _read_capped(request: Request, limit: int) -> bytes | None:
+    """The request body, or ``None`` once it exceeds ``limit`` bytes (checked against
+    ``Content-Length`` first, then while streaming, so a missing or lying header cannot get
+    a bigger body buffered)."""
+    declared = request.headers.get("content-length")
+    if declared is not None and declared.isdigit() and int(declared) > limit:
+        return None
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+@router.get("/try", response_class=HTMLResponse)
+async def try_page(
+    request: Request, services: Annotated[Services, Depends(get_services)]
+) -> HTMLResponse:
+    """The test console. Read per request (small file, off the event loop), so demo edits
+    show without a restart; a broken file degrades to "no demos" rather than a broken page."""
+    demo_error = False
+    try:
+        demos = await asyncio.to_thread(load_demos, services.settings.demos_file)
+    except ValueError:
+        _log.warning("demos file unusable", path=str(services.settings.demos_file), exc_info=True)
+        demos, demo_error = [], True
+    context = {
+        "demos": demos,
+        "demos_json": [d.model_dump(mode="json") for d in demos],
+        "demo_error": demo_error,
+        "intents": list(SearchIntent),
+        "depths": list(SearchDepth),
+        "time_ranges": list(TimeRange),
+        "modes": list(FetchMode),
+    }
+    return templates.TemplateResponse(request, "try.html", context, headers=_NO_STORE)
+
+
+def _render_envelope(kind: str, body: bytes) -> tuple[int, str]:
+    """Validate with the public model and render; CPU-bound, so run in a worker thread."""
+    try:
+        env = _RENDER_MODELS[kind].model_validate_json(body)
+    except ValidationError as exc:
+        return 422, f"422 not a valid {kind} envelope ({exc.error_count()} errors)\n"
+    html = templates.env.get_template(f"_results_{kind}.html").render(
+        env=env, data=getattr(env, "data", None), errors=getattr(env, "errors", [])
+    )
+    return 200, html
+
+
+@router.post("/gui/render/{kind}", response_class=HTMLResponse)
+async def render_result(request: Request, kind: str) -> Response:
+    """Server-side, sanitised Cards and Rendered views of an API envelope for the console.
+
+    The body is the envelope exactly as the public API returned it; it is validated with the
+    public models (422 otherwise) and rendered through the same autoescaped templates as the
+    job page, so nothing in it reaches the page unescaped. Cookie auth and the Origin check
+    are the auth middleware's (this is a POST).
+    """
+    if kind not in _RENDER_MODELS:
+        return _plain(404, "unknown result kind")
+    body = await _read_capped(request, MAX_RENDER_BYTES)
+    if body is None:
+        return _plain(413, f"envelope larger than {MAX_RENDER_BYTES} bytes")
+    status, html = await asyncio.to_thread(_render_envelope, kind, body)
+    if status != 200:
+        return PlainTextResponse(html, status_code=status, headers=_NO_STORE)
+    return HTMLResponse(html, headers=_NO_STORE)
+
+
+@router.post("/gui/runs", status_code=201)
+async def create_run(
+    request: Request, services: Annotated[Services, Depends(get_services)]
+) -> Response:
+    """Record one console run (kind, request, job id, status, time taken: nothing else)."""
+    body = await _read_capped(request, MAX_RUN_BODY_BYTES)
+    if body is None:
+        return _plain(413, "run record too large")
+    try:
+        run = runs.RunIn.model_validate_json(body)
+    except ValidationError as exc:
+        return _plain(422, f"invalid run record ({exc.error_count()} errors)")
+    run_id = await runs.record(services.engine, run)
+    return JSONResponse({"id": run_id}, status_code=201, headers=_NO_STORE)
+
+
+@router.get("/gui/runs", response_class=HTMLResponse)
+async def list_runs(
+    request: Request, services: Annotated[Services, Depends(get_services)]
+) -> HTMLResponse:
+    context = {"runs": await runs.recent(services.engine, RECENT_RUNS)}
+    return templates.TemplateResponse(request, "_runs.html", context, headers=_NO_STORE)

@@ -511,7 +511,13 @@ def test_templates_have_no_inline_script_or_style() -> None:
         assert not re.search(r"\sstyle\s*=", text), path
         assert "<style" not in text, path
         for m in re.finditer(r"<script\b([^>]*)>(.*?)</script>", text, re.S):
-            assert "src=" in m.group(1) and not m.group(2).strip(), path
+            attrs, body = m.group(1), m.group(2).strip()
+            if re.fullmatch(r'\s+type="application/json"\s+id="[a-z-]+"', attrs):
+                # An inert JSON data block (never executed, so CSP-allowed): its only content
+                # may be one ``|tojson`` expression, which escapes <, >, & and '.
+                assert re.fullmatch(r"\{\{\s*[\w.]+\s*\|\s*tojson\s*\}\}", body), path
+                continue
+            assert "src=" in attrs and not body, path
 
 
 def test_no_template_marks_anything_safe() -> None:

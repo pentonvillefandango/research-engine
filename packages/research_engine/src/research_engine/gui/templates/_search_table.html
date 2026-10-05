@@ -1,0 +1,17 @@
+{# Search results table, shared by the job page and the test console. `search` is a SearchResponse. #}
+{% if search.results %}
+<table class="search-results">
+  <thead><tr><th>Rank</th><th>Title</th><th>Domain</th><th>Engines</th><th>Score</th></tr></thead>
+  <tbody>
+  {% for r in search.results %}
+    <tr>
+      <td>{{ r.rank }}</td>
+      <td>{% if is_http_url(r.url) %}<a href="{{ r.url }}" rel="{{ link_rel }}" target="_blank">{{ r.title or r.url }}</a>{% else %}{{ r.title or r.url }}{% endif %}</td>
+      <td>{{ r.domain }}</td>
+      <td>{{ r.engines|join(", ") }}</td>
+      <td>{{ r.score }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p class="muted">No search results.</p>{% endif %}

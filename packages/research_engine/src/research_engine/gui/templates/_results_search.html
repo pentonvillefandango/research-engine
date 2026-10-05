@@ -1,0 +1,29 @@
+{# Test console: an Envelope[SearchResponse] as Cards and Rendered views. #}
+<div data-view="cards">
+  {% include "_envelope_errors.html" %}
+  {% if data %}
+    {% for r in data.results %}{% include "_card_search_result.html" %}{% else %}<p class="muted">No results.</p>{% endfor %}
+  {% endif %}
+</div>
+<div data-view="rendered">
+  {% include "_envelope_errors.html" %}
+  {% if data %}
+  <h3>Results for “{{ data.query }}”</h3>
+  {% with search=data %}{% include "_search_table.html" %}{% endwith %}
+  {% if data.suggestions %}<h3>Suggestions</h3><ul class="suggestions">{% for s in data.suggestions %}<li>{{ s|truncate(300, true) }}</li>{% endfor %}</ul>{% endif %}
+  {% if data.infoboxes %}
+  <h3>Infoboxes</h3>
+  {% for ib in data.infoboxes %}
+  <section class="infobox">
+    <h4>{{ ib.title|truncate(300, true) }}{% if ib.engine %} <span class="muted">({{ ib.engine }})</span>{% endif %}</h4>
+    {% if ib.content %}<p>{{ ib.content|truncate(2000, true) }}</p>{% endif %}
+    {% if ib.urls %}<ul class="links">{% for l in ib.urls %}<li>{% if is_http_url(l.url) %}<a href="{{ l.url }}" rel="{{ link_rel }}" target="_blank">{{ l.title|truncate(300, true) }}</a>{% else %}{{ l.title|truncate(300, true) }}{% endif %}</li>{% endfor %}</ul>{% endif %}
+  </section>
+  {% endfor %}
+  {% endif %}
+  {% if data.unresponsive_engines %}
+  <h3>Unresponsive engines</h3>
+  <ul class="unresponsive">{% for u in data.unresponsive_engines %}<li><strong>{{ u.engine }}</strong> {{ u.error|truncate(500, true) }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% endif %}
+</div>

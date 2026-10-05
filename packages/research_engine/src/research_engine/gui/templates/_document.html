@@ -1,5 +1,7 @@
 {# One fetched document. `d` is the Document, `rank`/`score` optional (search_read). All
-   untrusted text is autoescaped; page markdown goes through untrusted_markdown() only. #}
+   untrusted text is autoescaped; page markdown goes through untrusted_markdown() only.
+   `job_id` may be none (a single fetch in the test console). #}
+{% import "_json.html" as j %}
 <details class="document panel">
   <summary>
     {% if rank %}<span class="muted">#{{ rank }}</span> {% endif %}<strong>{{ d.title or d.final_url }}</strong>
@@ -20,7 +22,7 @@
   <h3>Content</h3>
   {% set clipped = clip_markdown(d.markdown) %}
   <div class="content">{{ untrusted_markdown(clipped[0]) }}</div>
-  {% if clipped[1] %}<p class="muted">Content truncated at {{ max_markdown_chars }} characters. <a href="/v1/jobs/{{ job_id|urlencode }}">Full JSON</a></p>{% endif %}
+  {% if clipped[1] %}<p class="muted">Content truncated at {{ max_markdown_chars }} characters. {% if job_id %}<a href="/v1/jobs/{{ job_id|urlencode }}">Full JSON</a>{% else %}The full text is in the raw JSON.{% endif %}</p>{% endif %}
 
   {% if d.tables %}
   <h3>Tables ({{ d.tables|length }})</h3>
