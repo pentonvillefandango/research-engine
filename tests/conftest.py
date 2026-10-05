@@ -18,6 +18,19 @@ TEST_ENV = {
 }
 
 
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Re-apply pyproject's sqlite ``filterwarnings`` entries as per-test marks.
+
+    Command-line ``-W error`` outranks ini ``filterwarnings``, but marks outrank ``-W``; so
+    this keeps the (upstream, GC-time) unclosed-sqlite-connection suppression in force under
+    ``pytest -W error`` too. pyproject stays the single source of truth.
+    """
+    sqlite_filters = [f for f in config.getini("filterwarnings") if "sqlite3" in f]
+    for item in items:
+        for f in sqlite_filters:
+            item.add_marker(pytest.mark.filterwarnings(f), append=False)
+
+
 @pytest.fixture
 def settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.chdir(ROOT)

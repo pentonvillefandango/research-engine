@@ -24,7 +24,8 @@ def create_engine_for(path: str) -> AsyncEngine:
       connection between concurrent sessions (``StaticPool``) is unsafe: one session's close
       issues ROLLBACK on the connection and silently discards another session's
       not-yet-committed write. So on a ``:memory:`` engine, never hold a session open while
-      awaiting work that opens another session.
+      awaiting work that opens another session: the second checkout fails fast with a pool
+      ``TimeoutError`` after ``pool_timeout`` (2 s) instead of deadlocking.
     - The keeper means the data survives SQLAlchemy invalidating the pooled connection, which
       it does when a task is cancelled mid-query (the job runner cancels handlers by design).
     """
@@ -38,7 +39,7 @@ def create_engine_for(path: str) -> AsyncEngine:
             poolclass=AsyncAdaptedQueuePool,
             pool_size=1,
             max_overflow=0,
-            pool_timeout=10,
+            pool_timeout=2,
             connect_args={"check_same_thread": False},
         )
         weakref.finalize(engine.sync_engine, keeper.close)

@@ -37,6 +37,18 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = ["integration: needs the live compose stack (run with -m integration)"]
 addopts = ["-m", "not integration", "--strict-markers", "-ra"]
+filterwarnings = [
+    # A task cancelled mid-query makes SQLAlchemy invalidate its aiosqlite connection by
+    # terminating (not closing) it; the sqlite3 handle is closed later by GC, which emits
+    # "ResourceWarning: unclosed database in <sqlite3.Connection ...>". Upstream behaviour,
+    # same for file and :memory: engines; the job runner cancels handlers by design.
+    "ignore:unclosed database in <sqlite3.Connection:ResourceWarning",
+    # Under ``-W error::ResourceWarning`` it is raised inside sqlite3.Connection.__del__ and
+    # pytest re-reports it as an unraisable-exception warning whose message embeds the
+    # traceback; match only that wrapper (":" is written "." as it is the field separator).
+    # tests/conftest.py re-applies the sqlite entries as marks so they also hold under -W error.
+    'ignore:(?s)Exception ignored in. <sqlite3\.Connection object.*ResourceWarning. unclosed database:pytest.PytestUnraisableExceptionWarning',
+]
 
 [tool.ruff]
 line-length = 100

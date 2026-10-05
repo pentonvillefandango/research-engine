@@ -1,6 +1,8 @@
 import asyncio
+import itertools
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 import structlog
@@ -17,6 +19,7 @@ from research_engine_client.models import (
     BatchFetchResult,
     ErrorCode,
     ErrorDetail,
+    Event,
     EventKind,
     JobStatus,
     JobType,
@@ -34,15 +37,28 @@ SR_REQ = SearchReadRequest(search=SearchRequest(query="python asyncio"))
 Make = Callable[..., Awaitable[tuple[JobRunner, SqliteEventBus, JobStore]]]
 
 
+ENGINES = ["memory", "file"]
+
+
+@pytest.fixture(params=ENGINES)
+def db_path(request: pytest.FixtureRequest, tmp_path: Path) -> Callable[[], str]:
+    """Every job test runs on the serialised ``:memory:`` engine and on a WAL file engine
+    (production's pool), so the runner is exercised on both."""
+    n = itertools.count()
+    if request.param == "memory":
+        return lambda: ":memory:"
+    return lambda: str(tmp_path / f"jobs{next(n)}.db")
+
+
 @pytest.fixture
-async def make() -> AsyncIterator[Make]:
-    """Factory for (runner, bus, store) on a fresh in-memory DB; always stops and disposes."""
+async def make(db_path: Callable[[], str]) -> AsyncIterator[Make]:
+    """Factory for (runner, bus, store) on a fresh DB; always stops and disposes."""
     made: list[tuple[JobRunner, AsyncEngine]] = []
 
     async def _make(
         workers: int = 2, timeout_s: float = 5, cancel_grace_s: float = 0.2
     ) -> tuple[JobRunner, SqliteEventBus, JobStore]:
-        engine = create_engine_for(":memory:")
+        engine = create_engine_for(db_path())
         await init_db(engine)
         bus = SqliteEventBus(engine)
         store = JobStore(engine)
@@ -487,12 +503,36 @@ async def test_context_carries_validated_request_and_bound_emitter(make: Make) -
     await runner.stop()
 
 
+async def test_submit_enqueues_even_if_queued_emit_fails(make: Make) -> None:
+    _, bus, store = await make()
+
+    class FlakySink:
+        """Fails the ``job.queued`` emit only."""
+
+        async def emit(self, event: Event) -> None:
+            if event.kind is EventKind.JOB_QUEUED:
+                raise RuntimeError("event sink down")
+            await bus.emit(event)
+
+    flaky = JobRunner(store, FlakySink(), workers=1, timeout_s=5, cancel_grace_s=0.2)
+    flaky.register(JobType.FETCH_BATCH, ok_handler)
+    await flaky.start()
+    try:
+        with pytest.raises(RuntimeError, match="event sink down"):
+            await flaky.submit(JobType.FETCH_BATCH, REQ)
+        (job,) = await store.recent(1)
+        d = await flaky.wait(job.id, 2)
+        assert d is not None and d.job.status is JobStatus.DONE  # not stranded in 'queued'
+    finally:
+        await flaky.stop()
+
+
 # --- store ---------------------------------------------------------------------------------
 
 
 @pytest.fixture
-async def store() -> AsyncIterator[JobStore]:
-    engine = create_engine_for(":memory:")
+async def store(db_path: Callable[[], str]) -> AsyncIterator[JobStore]:
+    engine = create_engine_for(db_path())
     await init_db(engine)
     yield JobStore(engine)
     await engine.dispose()

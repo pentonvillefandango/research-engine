@@ -182,10 +182,12 @@ class JobRunner:
         self, type_: JobType, request: BaseModel, *, session_id: str | None = None
     ) -> Job:
         job = await self._store.create(type_, request, session_id=session_id)
-        await Emitter(self._events, job.id).info(
-            EventKind.JOB_QUEUED, f"{type_.value} queued", type=type_.value
-        )
-        self._queue.put_nowait(job.id)
+        try:
+            await Emitter(self._events, job.id).info(
+                EventKind.JOB_QUEUED, f"{type_.value} queued", type=type_.value
+            )
+        finally:
+            self._queue.put_nowait(job.id)  # the row exists: never strand it in 'queued'
         return job
 
     async def get(self, job_id: str) -> JobDetail | None:

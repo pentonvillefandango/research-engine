@@ -108,11 +108,6 @@ async def test_memory_concurrent_sessions_do_not_lose_writes(mem_engine: AsyncEn
     assert order == ["write committed", "read closed"]
 
 
-# SQLAlchemy terminates (rather than closes) an aiosqlite connection invalidated by a
-# cancellation, so the sqlite handle is closed by GC later: upstream, and the same for file
-# engines. It is irrelevant to what this test checks.
-@pytest.mark.filterwarnings("ignore:unclosed database:ResourceWarning")
-@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 async def test_memory_survives_cancellation_mid_query(mem_engine: AsyncEngine) -> None:
     """SQLAlchemy invalidates a connection cancelled mid-query; the database must outlive it."""
     await init_db(mem_engine)
@@ -130,7 +125,7 @@ async def test_memory_survives_cancellation_mid_query(mem_engine: AsyncEngine) -
             await asyncio.gather(t, return_exceptions=True)
     async with AsyncSession(mem_engine) as s:
         assert (await s.exec(select(CacheRow))).all() is not None  # table still exists
-    gc.collect()  # finalise the terminated connections here, under this test's filters
+    gc.collect()  # finalise the terminated connections now (see pyproject filterwarnings)
 
 
 async def test_memory_engines_are_isolated() -> None:
