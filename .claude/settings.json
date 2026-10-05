@@ -1,9 +1,5 @@
 {
   "permissions": {
-    "ask": [
-      "Bash(make*bootstrap*)",
-      "Bash(*ops/bootstrap.sh*)"
-    ],
     "deny": [
       "Bash(git *push *--force*)",
       "Bash(git *push * -f*)",
