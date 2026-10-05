@@ -2,7 +2,9 @@
 never print a key, and the client example works end to end against the test app."""
 
 import importlib.util
+import ssl
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -15,6 +17,14 @@ from research_engine_client import ResearchEngineClient
 
 EX = Path(__file__).resolve().parents[1] / "examples"
 SECRET = "sk-test-secret-value-123"
+
+
+@pytest.fixture(autouse=True)
+def _forget_modules() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
+    """Drop the example modules ``_load`` registers in ``sys.modules`` after each test."""
+    yield
+    for name in ("client_usage", "openai_agents_mcp"):
+        sys.modules.pop(name, None)
 
 
 def _load(name: str) -> ModuleType:
@@ -136,4 +146,68 @@ async def test_client_example_error_path_hides_key(
     out = capsys.readouterr()
     assert rc != 0
     assert "error" in out.err.lower()
+    assert SECRET not in out.out + out.err
+
+
+ENGINE_SECRET = "engine-secret-value-456"
+HINT = "hint: check TLS trust for the Research Engine URL (see examples/README.md: SSL_CERT_FILE)"
+
+
+def _agent_failing_with(monkeypatch: pytest.MonkeyPatch, exc: BaseException) -> ModuleType:
+    monkeypatch.setenv("OPENAI_API_KEY", SECRET)
+    monkeypatch.setenv("RESEARCH_ENGINE_API_KEY", ENGINE_SECRET)
+    mod = _load("openai_agents_mcp")
+
+    async def boom(*_a: Any, **_k: Any) -> Any:
+        raise exc
+
+    monkeypatch.setattr(mod.Runner, "run", boom)
+
+    class FakeServer:
+        async def __aenter__(self) -> "FakeServer":
+            return self
+
+        async def __aexit__(self, *_a: Any) -> None:
+            return None
+
+    monkeypatch.setattr(mod, "make_server", lambda *_a: FakeServer())
+    monkeypatch.setattr(mod, "Agent", lambda **_k: object())
+    return mod
+
+
+async def test_agent_error_path_hides_secrets(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    msg = f"leak {SECRET} {ENGINE_SECRET}"
+    mod = _agent_failing_with(monkeypatch, RuntimeError(msg))
+    rc = await mod.main()
+    out = capsys.readouterr()
+    text = out.out + out.err
+    assert rc != 0
+    assert "RuntimeError" in out.err
+    assert SECRET not in text
+    assert ENGINE_SECRET not in text
+    assert msg not in text
+    assert HINT not in text
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ssl.SSLError("verify failed"),
+        httpx.ConnectError("refused"),
+        ExceptionGroup("g", [ValueError("x"), ExceptionGroup("h", [ssl.SSLError("tls")])]),
+    ],
+    ids=["ssl", "connect", "nested-group"],
+)
+async def test_agent_tls_failure_prints_hint(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], exc: BaseException
+) -> None:
+    mod = _agent_failing_with(monkeypatch, exc)
+    rc = await mod.main()
+    out = capsys.readouterr()
+    assert rc != 0
+    assert HINT in out.err
+    assert "verify failed" not in out.err
+    assert "refused" not in out.err
     assert SECRET not in out.out + out.err

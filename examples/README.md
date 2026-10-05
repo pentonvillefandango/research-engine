@@ -56,3 +56,9 @@ uses `httpx2`, and both read `SSL_CERT_FILE`. Note that the variable replaces th
 bundle for those processes, which is fine here because they only talk to the service. Installing
 the root in the operating system trust store is not enough on its own: `httpx2` would use it,
 but `httpx` (and so `client_usage.py`) ships its own CA bundle and ignores it.
+
+## Privacy
+
+The OpenAI Agents SDK uploads run traces to OpenAI by default, and a trace can include the
+content of the pages the agent fetched. To turn that off, set `OPENAI_AGENTS_DISABLE_TRACING=1`
+before running `openai_agents_mcp.py`.

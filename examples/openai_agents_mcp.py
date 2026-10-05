@@ -10,9 +10,12 @@ ever printed. The OpenAI key is yours and is used only here; the service makes n
 
 import asyncio
 import os
+import ssl
 import sys
 from typing import Any
 
+import httpx
+import httpx2
 from agents import Agent, Runner, ToolCallItem
 from agents.mcp import MCPServerStreamableHttp
 
@@ -39,6 +42,25 @@ def agent_kwargs(model: str | None) -> dict[str, Any]:
     return {"model": model} if model else {}
 
 
+TLS_HINT = (
+    "hint: check TLS trust for the Research Engine URL (see examples/README.md: SSL_CERT_FILE)"
+)
+_TLS_OR_CONNECT = (ssl.SSLError, ConnectionError, httpx.ConnectError, httpx2.ConnectError)
+
+
+def _is_tls_or_connect_error(exc: BaseException | None, _seen: set[int] | None = None) -> bool:
+    """True if ``exc`` is, wraps (ExceptionGroup, __cause__, __context__) a TLS/connect error."""
+    seen = _seen if _seen is not None else set()
+    if exc is None or id(exc) in seen:
+        return False
+    seen.add(id(exc))
+    if isinstance(exc, _TLS_OR_CONNECT):
+        return True
+    children = list(exc.exceptions) if isinstance(exc, BaseExceptionGroup) else []
+    children += [exc.__cause__, exc.__context__]
+    return any(_is_tls_or_connect_error(c, seen) for c in children)
+
+
 async def main() -> int:
     if not os.environ.get("OPENAI_API_KEY"):
         print("skipped: OPENAI_API_KEY not set")
@@ -59,6 +81,8 @@ async def main() -> int:
             result = await Runner.run(agent, QUESTION)
     except Exception as exc:  # report the type only: messages may echo request data
         print(f"error: the run failed ({type(exc).__name__})", file=sys.stderr)
+        if _is_tls_or_connect_error(exc):
+            print(TLS_HINT, file=sys.stderr)
         return 1
     print(result.final_output)
     calls = [item.tool_name for item in result.new_items if isinstance(item, ToolCallItem)]
