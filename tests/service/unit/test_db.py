@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import gc
 import sqlite3
 import uuid
@@ -6,7 +7,12 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
-from research_engine.store.db import RollbackOnCloseConnection, create_engine_for, init_db
+from research_engine.store.db import (
+    ConnectionReturnedInTransactionError,
+    RollbackOnCloseConnection,
+    create_engine_for,
+    init_db,
+)
 from research_engine.store.tables import CacheRow
 from sqlalchemy import event, exc, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -302,6 +308,79 @@ async def test_failed_commit_never_pools_an_open_transaction(kind: str, tmp_path
         assert "uncommitted" not in keys
     finally:
         await engine.dispose()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "SQLAlchemy _finalize_fairy skips checkin on cancel during invalidate (after the reset "
+        "guard raises); still present in 2.0.54 and 2.1.3; see TODO in store/db.py"
+    ),
+)
+@pytest.mark.parametrize("kind", ["memory", "file"])
+async def test_cancel_during_guard_invalidation_returns_connection(
+    kind: str, tmp_path: Path
+) -> None:
+    """Known residual (accepted for V1): the reset guard's invalidation can lose the pool slot.
+
+    When ``_refuse_open_transaction`` raises, ``_finalize_fairy`` invalidates the connection
+    and aiosqlite's terminate awaits a graceful close; a cancel landing there propagates out
+    of the except block and skips ``checkin()``. Needs a failed COMMIT plus a precisely timed
+    cancel, injected here from the pool ``invalidate`` hook. ``strict``: XPASS (a loud
+    failure) once SQLAlchemy fixes it, as the cue to revisit the workaround.
+    """
+    engine, _ = _engine(kind, tmp_path)
+    try:
+        await init_db(engine)
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE TABLE parent(id INTEGER PRIMARY KEY)"))
+            await conn.execute(
+                text(
+                    "CREATE TABLE child(id INTEGER PRIMARY KEY, parent_id INTEGER "
+                    "REFERENCES parent(id) DEFERRABLE INITIALLY DEFERRED)"
+                )
+            )
+
+        def cancel_in_guard_invalidation(_c: object, _r: object, err: BaseException | None) -> None:
+            if isinstance(err, ConnectionReturnedInTransactionError):
+                task = asyncio.current_task()
+                assert task is not None
+                task.cancel()  # lands on terminate's graceful-close await
+
+        event.listen(engine.sync_engine.pool, "invalidate", cancel_in_guard_invalidation)
+
+        async def failed_commit() -> None:
+            async with AsyncSession(engine) as s:
+                conn = await s.connection()
+                await conn.execute(text("INSERT INTO child(parent_id) VALUES (999)"))
+                with contextlib.suppress(exc.IntegrityError):
+                    await s.commit()
+
+        task = asyncio.create_task(failed_commit())
+        await asyncio.wait({task}, timeout=5)  # bounded: never hangs the suite
+        assert task.done()
+        pool = engine.sync_engine.pool
+        assert isinstance(pool, AsyncAdaptedQueuePool)
+        assert pool.checkedout() == 0
+    finally:
+        await _reap_orphaned_tasks()
+        await asyncio.wait_for(engine.dispose(), 5)
+
+
+async def _reap_orphaned_tasks() -> None:
+    """Bounded cleanup for the residual above: the interrupted graceful close leaves an
+    orphaned SQLAlchemy ``_terminate_graceful_close`` task inside aiosqlite's ``close()``,
+    re-awaiting a ``stop()`` future after the worker thread has already exited. It never
+    finishes on its own and absorbs the single cancel ``asyncio.run`` teardown sends, so
+    left alone it hangs the event loop's shutdown. Cancel repeatedly, never wait unbounded.
+    """
+    for _ in range(5):
+        others = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        if not others:
+            return
+        for t in others:
+            t.cancel()
+        await asyncio.wait(others, timeout=1)
 
 
 def test_rollback_on_close_connection_releases_lock_despite_live_cursor(tmp_path: Path) -> None:

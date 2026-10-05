@@ -49,8 +49,21 @@ def _refuse_open_transaction(dbapi_conn: Any, _record: Any, _state: Any) -> None
     but SQLite keeps the transaction open when COMMIT itself fails (e.g. a deferred foreign
     key violation). Pooled like that, the next user would inherit the uncommitted rows and
     the write lock. Raising here makes ``_finalize_fairy`` invalidate the connection instead
-    (whose close then rolls back: ``RollbackOnCloseConnection``). Synchronous - no await - so
-    it adds no cancellation point to checkin.
+    (whose close then rolls back: ``RollbackOnCloseConnection``) and still check the record in.
+
+    Guarantees: the guard itself is synchronous (no await), and on the normal path - no failed
+    COMMIT - it never raises, so it adds nothing to checkin. When it does fire it is not
+    cancellation-proof: the invalidation it triggers runs aiosqlite's terminate, which awaits
+    a graceful close; a cancel landing on that await propagates out of ``_finalize_fairy``'s
+    except block and skips ``checkin()``, losing the pool slot (same class as the
+    reset-on-return bug in ``create_engine_for``), and leaves an orphaned close task that
+    only a second cancel ends. It takes a failed COMMIT plus a precisely timed cancel;
+    accepted for V1. Pinned by the strict-xfail
+    ``test_cancel_during_guard_invalidation_returns_connection``.
+
+    When it fires, SQLAlchemy logs "Exception during reset or similar" at ERROR with a
+    traceback of ``ConnectionReturnedInTransactionError``: expected, the connection was
+    discarded as intended.
     """
     if dbapi_conn.driver_connection.in_transaction:
         raise ConnectionReturnedInTransactionError(
@@ -104,6 +117,11 @@ def create_engine_for(path: str) -> AsyncEngine:
             max_overflow=0,
             pool_timeout=2,
             # TODO(sqlalchemy>=2.1.3): restore pool_reset_on_return (see docstring)
+            #   Residual, NOT fixed by 2.1.3 (verified: its source still invalidates
+            #   unprotected for an Exception raised in reset, and a standalone copy of
+            #   the strict-xfail probe leaks on 2.1.3 too): a cancel during the guard's
+            #   invalidation loses the slot - see _refuse_open_transaction. Keep the
+            #   guard after upgrading.
             pool_reset_on_return=None,
             connect_args={"check_same_thread": False, "factory": RollbackOnCloseConnection},
         )
@@ -113,6 +131,11 @@ def create_engine_for(path: str) -> AsyncEngine:
         engine = create_async_engine(
             f"sqlite+aiosqlite:///{path}",
             # TODO(sqlalchemy>=2.1.3): restore pool_reset_on_return (see docstring)
+            #   Residual, NOT fixed by 2.1.3 (verified: its source still invalidates
+            #   unprotected for an Exception raised in reset, and a standalone copy of
+            #   the strict-xfail probe leaks on 2.1.3 too): a cancel during the guard's
+            #   invalidation loses the slot - see _refuse_open_transaction. Keep the
+            #   guard after upgrading.
             pool_reset_on_return=None,
             connect_args={"factory": RollbackOnCloseConnection},
         )
