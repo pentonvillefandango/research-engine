@@ -295,3 +295,47 @@ async def test_robots_userinfo_not_sent_as_auth(policy: Any) -> None:
     route = respx.get("https://a.example/robots.txt").respond(200, text="")
     await pol.check("https://u:p@a.example/")
     assert "authorization" not in route.calls.last.request.headers
+
+
+# --- unavailable robots.txt is retryable (v1.0.1) ------------------------------------------
+
+
+@respx.mock
+async def test_5xx_unavailable_is_retryable_with_status(policy: Any, clock: Clock) -> None:
+    pol, _ = policy
+    respx.get("https://c.example/robots.txt").respond(503)
+    for _ in range(2):  # fresh fetch, then the cached 10-minute entry: same answer
+        with pytest.raises(ServiceError) as ei:
+            await pol.check("https://c.example/x")
+        d = ei.value.detail
+        assert d.code is ErrorCode.ROBOTS_DISALLOWED and d.retryable is True
+        assert "robots.txt" in d.message and "unavailable" in d.message
+        assert "HTTP 503" in d.message and "retry later" in d.message
+        assert ei.value.http_status == 403
+        clock.now += 300
+
+
+@respx.mock
+async def test_network_error_unavailable_is_retryable(policy: Any) -> None:
+    pol, _ = policy
+    respx.get("https://d.example/robots.txt").mock(side_effect=httpx.ConnectError("boom"))
+    with pytest.raises(ServiceError) as ei:
+        await pol.check("https://d.example/x")
+    d = ei.value.detail
+    assert d.retryable is True and "unavailable" in d.message
+    assert "network error" in d.message and "retry later" in d.message
+
+
+@respx.mock
+async def test_real_disallow_stays_not_retryable_after_recovery(policy: Any, clock: Clock) -> None:
+    pol, _ = policy
+    route = respx.get("https://c.example/robots.txt")
+    route.side_effect = [httpx.Response(503), httpx.Response(200, text=ROBOTS)]
+    with pytest.raises(ServiceError) as ei:
+        await pol.check("https://c.example/nobots/page")
+    assert ei.value.detail.retryable is True
+    clock.now += 601
+    with pytest.raises(ServiceError) as ei:
+        await pol.check("https://c.example/nobots/page")
+    assert ei.value.detail.retryable is False
+    assert "unavailable" not in ei.value.detail.message

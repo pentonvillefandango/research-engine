@@ -82,7 +82,7 @@ curl -s https://research.localhost/v1/search -H "X-API-Key: $RESEARCH_ENGINE_API
 Each error has a `code`, a `message`, a `source` (the URL or engine that failed, or null) and `retryable`.
 
 - **`retryable: true`** means a later retry may work: a timeout (`upstream_timeout`), a temporary upstream failure (`upstream_error`, some `fetch_failed`, such as HTTP 429 or 5xx), or a job stopped by a restart (`interrupted`). Wait, then retry once or twice.
-- **`retryable: false`** means don't repeat the same request: `invalid_request`, `unauthorized`, `not_found`, `ssrf_blocked`, `robots_disallowed`, `content_type_not_allowed`, `response_too_large`, or a page that is gone (404 or 410). Choose another source instead.
+- **`retryable: false`** means don't repeat the same request: `invalid_request`, `unauthorized`, `not_found`, `ssrf_blocked`, `robots_disallowed` (unless robots.txt was unavailable), `content_type_not_allowed`, `response_too_large`, or a page that is gone (404 or 410). Choose another source instead.
 
 Over REST, errors come with an HTTP status (401, 403, 404, 413, 415, 422, 502, 504 or 500). The Python client raises `ResearchEngineError`, with `.errors`, `.status` and `.retryable`; network failures have `status == 0`.
 
@@ -101,7 +101,7 @@ Some web pages contain text written to trick AI agents ("prompt injection"), suc
 
 ## Politeness limits
 
-- **robots.txt is obeyed.** A disallowed page gives `robots_disallowed`. There is no override. If a site's robots.txt can't be fetched (server or network error), the whole site gives `robots_disallowed` for 10 minutes. The `Crawl-delay` rule is honoured (up to 30 seconds).
+- **robots.txt is obeyed.** A disallowed page gives `robots_disallowed`. There is no override. If a site's robots.txt can't be fetched (server or network error), the whole site gives `robots_disallowed` with `retryable: true` for 10 minutes; retry later. The `Crawl-delay` rule is honoured (up to 30 seconds).
 - **Per-site pacing:** at most 2 requests at a time to one site, at least 1 second apart (operator defaults). A batch of URLs from one site therefore takes longer.
 - **Timeouts:** 60 seconds per page (the operator's cap may shorten `timeout_s`) and 30 seconds per search by default; jobs stop after 15 minutes.
 - **Safety:** private, loopback and other internal addresses are blocked (`ssrf_blocked`). Pages over 10 MiB (`response_too_large`) and file types other than HTML, PDF and plain text (`content_type_not_allowed`) are refused.

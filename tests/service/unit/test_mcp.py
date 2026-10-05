@@ -416,3 +416,27 @@ async def test_mcp_session_manager_failure_is_a_startup_failure(
         async with application.router.lifespan_context(application):
             pytest.fail("lifespan should not yield")
     assert stopped == [True]  # cleanup ran; the original error propagated
+
+
+async def test_unavailable_robots_error_text_is_retryable(
+    app: FastAPI, mcp_client: MCPServerStreamableHttp, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A site whose robots.txt answers 5xx reads ``robots_disallowed: ... (retryable=true)``."""
+    from research_engine.safety.limiter import DomainLimiter
+    from research_engine.safety.robots import RobotsPolicy
+    from research_engine.safety.ssrf import SsrfGuard
+
+    async def public(host: str) -> list[str]:
+        return ["93.184.216.34"]
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(503))
+    async with httpx.AsyncClient(transport=transport) as http:
+        robots = RobotsPolicy(
+            http, "ResearchEngine/1.0", DomainLimiter(2, 0), SsrfGuard(frozenset(), resolver=public)
+        )
+        monkeypatch.setattr(app.state.services.fetch, "_robots", robots)
+        res = await mcp_client.call_tool("web_fetch", {"url": "https://blog.example/post"})
+    text = _text(res)
+    assert res.is_error
+    assert text.startswith("robots_disallowed: ") and text.endswith("(retryable=true)")
+    assert "unavailable (HTTP 503)" in text and "retry later" in text
