@@ -49,6 +49,8 @@ Development:
   1. `docker compose -f compose.yaml -f compose.dev.yaml up -d --wait`
   2. `source <(scripts/dev_urls.sh)`, which exports `SEARXNG_LIVE_URL` and `CRAWL4AI_LIVE_URL`
   3. `uv run pytest -m integration`
+- **Live-host warning (`toolbox`):** the dev override shares the `research-engine` project name with production, so `docker compose -f compose.yaml -f compose.dev.yaml up` REPLACES the live stack (app from a stale `:dev` image, off the `proxy` network, so Caddy returns 502). There, running the dev stack or integration tests needs owner approval like a deploy and must be followed by a redeploy, until step 9 provides a non-destructive way.
+- Never run bare `docker compose up` on the live host without `GIT_SHA=$(git rev-parse --short HEAD)` exported (else the stale `:dev` image may be used). Step 9's ops scripts will wrap this.
 - **Fixtures** come from real upstreams via `scripts/record_fixtures.py`. Scrub them for lab data before committing.
 
 Operations (added in build step 9; see `docs/OPERATIONS.md`). Each command prints a final JSON line and exits non-zero on failure:

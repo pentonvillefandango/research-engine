@@ -21,7 +21,7 @@ services:
     tmpfs: ["/tmp:size=64m,noexec,nosuid,nodev"]
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    # Explicit mapping, never env_file, so compose-only values (SEARXNG_SECRET, LAB_SUBNET) never
+    # Explicit mapping, never env_file, so compose-only values (SEARXNG_SECRET) never
     # reach the app. Covers every Settings field (config.py); tests/test_compose_policy.py fails on
     # drift. Defaults equal the Settings defaults. Keep .env.example in sync.
     environment:

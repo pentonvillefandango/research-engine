@@ -7,10 +7,22 @@ examples; real values live in `.env`.
 ## Install
 
 ```sh
-sudo cp -r deploy/caddy /opt/caddy && cd /opt/caddy
-cp .env.example .env     # edit SITE_HOST, LAB_SUBNET, TOOLBOX_HOST
+mkdir -p /opt/caddy && cp -r deploy/caddy/. /opt/caddy/ && cd /opt/caddy
+cp .env.example .env && chmod 600 .env   # edit SITE_HOST, LAB_SUBNET, TOOLBOX_HOST
 docker compose up -d
 ```
+
+Caddy must start first: it creates the `proxy` network (owned by the `caddy` project), which
+tools join as an external network. `SITE_HOST` here must match the tool's own `.env`
+(for research-engine, its `SITE_HOST`), or `/mcp` returns 421.
+
+Changing `.env` needs `docker compose up -d --force-recreate`; `caddy reload` does not re-read
+the container environment. The `Caddyfile` is a single-file bind mount, so an editor or rsync
+that replaces the file leaves the container on the old inode: recreate the container after
+editing it. Edits under `sites/` plus a reload are fine (directory mount).
+
+Back up the Caddy root CA (private key in the `caddy-data` volume, under
+`/data/caddy/pki/authorities/local/`). Losing it means a new CA and every client must re-trust.
 
 `SITE_HOST` and `LAB_SUBNET` are both required. If either is empty the site fails closed
 (no lab client matches, so everything gets 403). `LAB_SUBNET` takes one or more
@@ -26,11 +38,16 @@ docker run --rm -e SITE_HOST=research.localhost -e LAB_SUBNET=127.0.0.1/32 \
 
 ## Adding a tool
 
-Drop `sites/<tool>.caddy` (join the `proxy` network with a stable alias), then:
+Drop `sites/<tool>.caddy` (join the `proxy` network with a stable, tool-prefixed alias such as
+`research-engine-app`; never reference a bare service name like `app`, which other tools may
+share), then:
 
 ```sh
 docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
+
+Host-side checks: from the VM itself, requests via 127.0.0.1 get 403 (the Docker bridge source is
+outside `LAB_SUBNET`). Use the VM's lab IP with `curl --resolve <SITE_HOST>:443:<lab-ip>`.
 
 ## Forwarded headers and trust
 

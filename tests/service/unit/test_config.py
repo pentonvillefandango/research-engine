@@ -10,7 +10,6 @@ from research_engine_client.models import SearchIntent
 ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_ONLY = {
     "SEARXNG_SECRET",
-    "LAB_SUBNET",
     "APP_PORT",
     *(f"{svc}_{lim}" for svc in ("APP", "SEARXNG", "CRAWL4AI") for lim in ("MEM_LIMIT", "CPUS")),
 }
