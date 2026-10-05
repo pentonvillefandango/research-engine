@@ -420,6 +420,65 @@ async def test_disconnect_during_history_query_returns_db_connection(
     assert isinstance(await asyncio.wait_for(services.job_store.recent(1), 10), list)
 
 
+async def test_detached_history_queries_hold_their_slot(
+    app, live_server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A disconnect abandons the shielded history query but it keeps running; its stream slot
+    stays taken until it finishes, so open/close cycles cannot pile up queries."""
+    monkeypatch.setattr(gui_routes, "MAX_EVENT_STREAMS", 2)
+    services = app.state.services
+    bus = services.events
+    real_query = bus.query
+    started: list[int] = []
+    release = asyncio.Event()
+
+    async def gated_query(**kw):
+        started.append(1)
+        await release.wait()
+        return await real_query(**kw)
+
+    monkeypatch.setattr(bus, "query", gated_query)
+    before = bus.subscriber_count
+    async with live_client(app, live_server) as c:
+        for n in (1, 2):
+            async with c.stream("GET", "/gui/events/stream?q=x") as resp:
+                assert resp.status_code == 200
+                await _until(lambda n=n: len(started) == n)
+            await _until(lambda: bus.subscriber_count == before)  # the stream itself is gone
+        assert gui_routes.active_streams(services) == 2
+        assert gui_routes.detached_queries(services) == 2
+        for _ in range(3):
+            assert (await c.get("/gui/events/stream?q=x")).status_code == 503
+        assert len(started) == 2  # the refused requests started no query
+        release.set()
+        await _until(lambda: gui_routes.active_streams(services) == 0)
+        assert gui_routes.detached_queries(services) == 0
+        async with c.stream("GET", "/gui/events/stream") as resp:
+            assert resp.status_code == 200
+
+
+async def test_history_query_timeout_keeps_stream_live(
+    app, live_server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert gui_routes.HISTORY_QUERY_TIMEOUT_S == 10.0
+    monkeypatch.setattr(gui_routes, "HISTORY_QUERY_TIMEOUT_S", 0.1)
+    bus = app.state.services.events
+
+    async def hung_query(**kw):
+        await asyncio.sleep(30)
+        return []
+
+    monkeypatch.setattr(bus, "query", hung_query)
+    before = bus.subscriber_count
+    async with live_client(app, live_server) as c, c.stream("GET", "/gui/events/stream") as resp:
+        await _subscribed(app, before)
+        await asyncio.sleep(0.2)  # past the history timeout
+        await Emitter(bus).info(EventKind.JOB_STARTED, "still-live")
+        buf = await asyncio.wait_for(_read_until(resp, "still-live"), 2.0)
+    assert "still-live" in buf
+    await _until(lambda: gui_routes.active_streams(app.state.services) == 0)
+
+
 async def test_concurrent_stream_cap(
     app,
     live_server: str,
@@ -603,3 +662,14 @@ def test_app_js_is_csp_safe_and_complete() -> None:
     ):
         assert needed in js, needed
     assert re.search(r"MAX_ROWS\s*=\s*2000", js)
+
+
+async def test_disconnected_indicator(app) -> None:
+    async with logged_in(app) as c:
+        html = (await c.get("/")).text
+    tag = re.search(r'<[a-z]+ id="sse-status"[^>]*>', html)
+    assert tag and "hidden" in tag.group(0) and 'role="status"' in tag.group(0)
+    assert "reconnecting" in html
+    js = (GUI / "static/app.js").read_text()
+    assert "htmx:sseError" in js and "htmx:sseOpen" in js and "sse-status" in js
+    assert "#sse-status" in (GUI / "static/app.css").read_text()

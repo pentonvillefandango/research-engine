@@ -106,6 +106,7 @@ class JobRunner:
         self._idle: set[asyncio.Task[Any]] = set()
         self._abandoned: set[asyncio.Task[BaseModel]] = set()
         self._stopping = False
+        self._draining = False
         self.running: set[str] = set()
         """Ids of jobs whose handler is currently executing (GUI "Now" panel)."""
 
@@ -138,6 +139,7 @@ class JobRunner:
                     EventKind.JOB_FAILED, "job interrupted by restart"
                 )
         self._stopping = False
+        self._draining = False
         self._queue = asyncio.Queue()  # the DB is the source of truth; drop stale ids
         for job_id in await self._store.ids_with_status(JobStatus.QUEUED):
             self._queue.put_nowait(job_id)
@@ -151,8 +153,7 @@ class JobRunner:
         if not self._workers:
             return
         self._stopping = True
-        for job_id in list(self._waiters):
-            self._signal(job_id)  # long-polls return the current state instead of outliving us
+        self.wake_all_waiters()
         for active in list(self._active.values()):
             active.interrupt(_Stop.SHUTDOWN)
         for worker in self._idle:
@@ -166,6 +167,14 @@ class JobRunner:
         self._workers = []
         self._idle.clear()
         await self._reap_abandoned()
+
+    def wake_all_waiters(self) -> None:
+        """Make every ``wait()`` long-poll return the job's current state now, and any started
+        later return at once. Called from ``stop()`` and as soon as shutdown begins (SIGTERM),
+        so long-polls never hold up uvicorn's graceful wait. Reset by ``start()``."""
+        self._draining = True
+        for job_id in list(self._waiters):
+            self._signal(job_id)
 
     async def _reap_abandoned(self) -> None:
         if not self._abandoned:
@@ -202,7 +211,7 @@ class JobRunner:
         slot.refs += 1
         try:
             detail = await self._store.detail(job_id)
-            if detail is None or detail.job.status.is_terminal:
+            if detail is None or detail.job.status.is_terminal or self._draining:
                 return detail
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(slot.event.wait(), max(0.0, min(timeout_s, MAX_WAIT_S)))

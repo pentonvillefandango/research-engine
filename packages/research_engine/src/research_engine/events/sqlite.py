@@ -59,6 +59,10 @@ class SqliteEventBus:
     def subscribe(self) -> Subscription:
         return self._live.subscribe()
 
+    def close_subscribers(self) -> None:
+        """End all live subscriptions, now and later (shutdown has begun)."""
+        self._live.close_subscribers()
+
     async def query(
         self,
         *,

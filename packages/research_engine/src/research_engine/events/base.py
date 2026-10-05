@@ -39,6 +39,10 @@ class EventSubscriber(Protocol):
 class EventBus(EventSink, EventSubscriber, Protocol):
     """Sink plus subscriber: what the service container needs (memory now, SQLite in step 4)."""
 
+    def close_subscribers(self) -> None:
+        """End every live subscription, and any made afterwards (shutdown has begun)."""
+        ...
+
 
 class EventStore(EventBus, Protocol):
     """A persistent ``EventBus``: adds history queries and retention (the SQLite bus)."""

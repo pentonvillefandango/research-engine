@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
+import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
@@ -37,6 +38,7 @@ templates = Jinja2Templates(
     env=Environment(loader=FileSystemLoader(GUI_DIR / "templates"), autoescape=True)
 )
 router = APIRouter(include_in_schema=False)
+_log = structlog.get_logger("research_engine.gui")
 
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
@@ -183,9 +185,47 @@ def _blank_is_none(value: object) -> object:
     return None if value == "" else value
 
 
+HISTORY_QUERY_TIMEOUT_S = 10.0
+"""Upper bound for one stream's history query; past it the stream goes on with live events."""
+
+
 class _StreamSlots:
     def __init__(self) -> None:
-        self.active = 0
+        self.active = 0  # slots taken: open streams plus abandoned history queries
+        self.detached = 0  # of those, abandoned (client gone) history queries still running
+
+
+class _Slot:
+    """One stream's reservation. Freed when the stream ends, unless its shielded history query
+    is still running (the client disconnected mid-query): then only when that query finishes,
+    so open/close cycles cannot pile up queries beyond ``MAX_EVENT_STREAMS``."""
+
+    def __init__(self, slots: _StreamSlots) -> None:
+        self._slots = slots
+        self._query: asyncio.Task[Any] | None = None
+        self._freed = False
+        slots.active += 1
+
+    def hold_for(self, task: asyncio.Task[Any]) -> None:
+        self._query = task
+
+    def release(self) -> None:
+        query = self._query
+        if query is None or query.done():
+            self._free()
+            return
+        self._slots.detached += 1
+
+        def _done(_t: asyncio.Task[Any]) -> None:
+            self._slots.detached -= 1
+            self._free()
+
+        query.add_done_callback(_done)
+
+    def _free(self) -> None:
+        if not self._freed:
+            self._freed = True
+            self._slots.active -= 1
 
 
 def _stream_slots(services: Services) -> _StreamSlots:
@@ -193,25 +233,33 @@ def _stream_slots(services: Services) -> _StreamSlots:
 
 
 def active_streams(services: Services) -> int:
-    """Open ``/gui/events/stream`` connections in this process."""
+    """Taken stream slots: open ``/gui/events/stream`` connections plus abandoned history
+    queries still running."""
     return _stream_slots(services).active
 
 
-async def _stream_slot(services: Annotated[Services, Depends(get_services)]) -> AsyncIterator[None]:
+def detached_queries(services: Services) -> int:
+    """History queries still running after their client disconnected."""
+    return _stream_slots(services).detached
+
+
+async def _stream_slot(
+    services: Annotated[Services, Depends(get_services)],
+) -> AsyncIterator[_Slot]:
     """Reserve one stream slot for the whole response, or 503.
 
     A dependency with ``yield``: FastAPI runs its exit code after the streaming response has
-    finished, so the slot is held exactly as long as the stream. Check and increment happen
-    with no ``await`` in between, so concurrent requests cannot overshoot the cap.
+    finished. Check and increment happen with no ``await`` in between, so concurrent requests
+    cannot overshoot the cap.
     """
     slots = _stream_slots(services)
     if slots.active >= MAX_EVENT_STREAMS:
         raise HTTPException(503, "too many open event streams", headers={"Retry-After": "10"})
-    slots.active += 1
+    slot = _Slot(slots)
     try:
-        yield
+        yield slot
     finally:
-        slots.active -= 1
+        slot.release()
 
 
 _detached: set[asyncio.Task[Any]] = set()
@@ -223,18 +271,26 @@ def _forget(task: asyncio.Task[Any]) -> None:
         task.exception()  # retrieved: no "exception was never retrieved" noise after a disconnect
 
 
-async def _cancel_safe[T](coro: Coroutine[Any, Any, T]) -> T:
-    """Await database work in its own task, shielded from the caller's cancellation.
+async def _with_timeout[T](coro: Coroutine[Any, Any, T]) -> T:
+    async with asyncio.timeout(HISTORY_QUERY_TIMEOUT_S):
+        return await coro
+
+
+async def _cancel_safe[T](coro: Coroutine[Any, Any, T], slot: _Slot) -> T:
+    """Await database work in its own task, shielded from the caller's cancellation and
+    bounded by ``HISTORY_QUERY_TIMEOUT_S`` (applied inside the task).
 
     On client disconnect FastAPI cancels the SSE generator through an anyio cancel scope. That
     cancellation is level-triggered: after a mid-query cancel it also cancels SQLAlchemy's
     cleanup awaits (invalidate / close), so the pooled connection is never checked back in and
-    the pool slot is lost. A separate task is outside that scope: the query finishes and returns
-    its connection normally, and only this await is abandoned.
+    the pool slot is lost. A separate task is outside that scope: the query finishes (or times
+    out, cancelled once, cleanly) and returns its connection; only this await is abandoned.
+    ``slot`` stays taken until the task is done.
     """
-    task = asyncio.ensure_future(coro)
+    task = asyncio.ensure_future(_with_timeout(coro))
     _detached.add(task)
     task.add_done_callback(_forget)
+    slot.hold_for(task)
     return await asyncio.shield(task)
 
 
@@ -265,10 +321,10 @@ def _log_event(e: Event) -> ServerSentEvent:
 @router.get(
     "/gui/events/stream",
     response_class=EventSourceResponse,
-    dependencies=[Depends(_stream_slot)],
 )
 async def event_stream(
     services: Annotated[Services, Depends(get_services)],
+    slot: Annotated[_Slot, Depends(_stream_slot)],
     level: Annotated[EventLevel | None, BeforeValidator(_blank_is_none), Query()] = None,
     job: Annotated[str | None, Query(max_length=64)] = None,
     kind: Annotated[str | None, Query(pattern=r"^[a-z_.]{0,64}$")] = None,
@@ -296,16 +352,21 @@ async def event_stream(
     # lands in both is sent once: live events with an id <= the last history id are skipped.
     live = services.events.subscribe()
     try:
-        history = await _cancel_safe(
-            services.events.query(
-                level=level,
-                job_id=job_id,
-                kind_prefix=kind_prefix,
-                text=text,
-                limit=HISTORY_LIMIT,
-                newest=True,
+        try:
+            history = await _cancel_safe(
+                services.events.query(
+                    level=level,
+                    job_id=job_id,
+                    kind_prefix=kind_prefix,
+                    text=text,
+                    limit=HISTORY_LIMIT,
+                    newest=True,
+                ),
+                slot,
             )
-        )
+        except TimeoutError:
+            _log.warning("event stream history query timed out", timeout_s=HISTORY_QUERY_TIMEOUT_S)
+            history = []  # go on with live events only
         last_id = max((e.id for e in history if e.id is not None), default=0)
         for e in history:
             yield _log_event(e)

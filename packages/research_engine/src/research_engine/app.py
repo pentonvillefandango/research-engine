@@ -49,6 +49,7 @@ from research_engine.safety.http import make_fetch_client
 from research_engine.safety.limiter import DomainLimiter
 from research_engine.safety.robots import RobotsPolicy
 from research_engine.safety.ssrf import SsrfGuard
+from research_engine.shutdown import begin_shutdown, shutdown_signals
 from research_engine.store.db import create_engine_for, init_db
 
 _log = structlog.get_logger("research_engine.app")
@@ -174,8 +175,13 @@ async def _shutdown(
     startup ``system.shutdown`` is not emitted and cleanup errors are only logged, so the
     original startup error is the one that propagates.
 
-    Deployments must set uvicorn ``--timeout-graceful-shutdown`` >= 15 s (see step 8): it must
-    cover the runner's worst-case ``stop()`` time of about 9 s.
+    The shutdown budget is additive. On SIGTERM uvicorn first waits up to
+    ``--timeout-graceful-shutdown`` (5 s, step 8) for open connections, then runs this lifespan
+    shutdown, which has no timeout (the runner's worst-case ``stop()`` is about 9 s). So the
+    container's ``stop_grace_period`` (30 s) must exceed graceful wait + runner stop + slack.
+    The SIGTERM hook installed in the lifespan (``research_engine.shutdown``) ends SSE streams
+    and wakes ``?wait=`` long-polls the moment the signal arrives, so in practice the graceful
+    wait is short; the 5 s is only the cap for other in-flight requests.
     """
     steps: list[tuple[str, Callable[[], Awaitable[object]]]] = []
     if started:
@@ -219,7 +225,10 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
             await _emit_system(svc, EventKind.SYSTEM_STARTUP, "service started")
             maintenance = asyncio.create_task(maintenance_loop(svc), name="maintenance")
             started = True
-            yield
+            app.state.shutting_down = False
+            # SIGTERM/SIGINT end SSE streams and long-polls at once (see research_engine.shutdown).
+            with shutdown_signals(lambda: begin_shutdown(app)):
+                yield
         finally:
             await _shutdown(svc, maintenance, close_http=owned, started=started)
 

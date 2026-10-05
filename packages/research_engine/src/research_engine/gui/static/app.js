@@ -31,7 +31,8 @@
     const form = document.getElementById("filters");
     const pauseButton = document.getElementById("pause");
     const counter = document.getElementById("buffered");
-    if (!log || !form || !pauseButton || !counter) {
+    const status = document.getElementById("sse-status");
+    if (!log || !form || !pauseButton || !counter || !status) {
       return;
     }
 
@@ -88,6 +89,15 @@
     });
 
     log.addEventListener("htmx:sseMessage", settle);
+
+    // Connection state: an error (server gone, expired session) shows the indicator while
+    // htmx-ext-sse retries; a successful (re)connect clears it.
+    log.addEventListener("htmx:sseError", function () {
+      status.hidden = false;
+    });
+    log.addEventListener("htmx:sseOpen", function () {
+      status.hidden = true;
+    });
 
     function resume() {
       paused = false;

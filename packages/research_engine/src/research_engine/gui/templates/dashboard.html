@@ -25,6 +25,7 @@
     <button type="submit">Apply</button>
     <button type="button" id="pause" aria-pressed="false">Pause</button>
     <span id="buffered" class="muted" hidden></span>
+    <span id="sse-status" role="status" hidden>Disconnected, reconnecting… (reload the page if this persists)</span>
   </form>
   <div id="log" class="log" role="log" hx-ext="sse" sse-connect="/gui/events/stream" sse-swap="log" hx-swap="beforeend"></div>
 </section>

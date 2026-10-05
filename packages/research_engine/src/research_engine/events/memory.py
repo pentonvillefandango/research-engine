@@ -54,6 +54,7 @@ class InMemoryEventBus:
     def __init__(self, max_queue: int = 1000) -> None:
         self._max = max_queue
         self._subs: weakref.WeakSet[_Subscription] = weakref.WeakSet()
+        self._closed = False
 
     @property
     def subscriber_count(self) -> int:
@@ -72,4 +73,14 @@ class InMemoryEventBus:
         Events emitted after this call returns are delivered, even if iteration
         starts later.
         """
-        return _Subscription(self, self._max)
+        sub = _Subscription(self, self._max)
+        if self._closed:
+            sub._close()  # shutdown has begun: the iterator ends at once
+        return sub
+
+    def close_subscribers(self) -> None:
+        """End every subscription (and any made later): each gets the end-of-stream sentinel,
+        so ``async for`` loops finish normally. Called once shutdown begins (SIGTERM)."""
+        self._closed = True
+        for sub in list(self._subs):
+            sub._close()

@@ -121,6 +121,14 @@ h3 { font-size: 0.95rem; margin: 0.75rem 0 0.35rem; }
 .filters label { display: grid; gap: 0.1rem; font-size: 13px; color: var(--muted); }
 .filters input[type="text"], .filters select { width: 11rem; }
 .filters input:invalid { border-color: var(--error); }
+#sse-status {
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--error);
+  border-radius: 4px;
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 600;
+}
 button[aria-pressed="true"] { border-color: var(--warning); color: var(--warning); }
 
 /* Event log: monospace, colour-coded by level. */
