@@ -9,6 +9,11 @@ updates:
   - package-ecosystem: "docker"
     directory: "/"
     schedule: { interval: "weekly" }
+    # Python base image: patch updates only (3.13.x security fixes). A minor or major jump
+    # (e.g. 3.14) is a deliberate, planned upgrade, not a Dependabot PR.
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   # image pins in compose.yaml (searxng, crawl4ai). A crawl4ai bump must pass
   # scripts/check_sandbox.sh dev before merging (ADR-0022): CI can't run it.
   - package-ecosystem: "docker-compose"
