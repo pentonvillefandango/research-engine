@@ -2,6 +2,18 @@
 
 How to run, check, deploy, back up and repair a Research Engine host. Every command here works the same for the owner and for Claude Code. The example deployment is in [deploy-toolbox.md](deploy-toolbox.md).
 
+## Quick check
+
+Is everything fine? Run these from the repository root:
+
+```bash
+make health             # expect "ok": true, every container healthy, "site_host_match": true
+make version            # the running commit and version
+tail -n 1 deploys.jsonl # the last deploy: "result": "ok", and its "to" matches make version
+```
+
+If any of these looks wrong, go to the [incident checklist](#incident-checklist). For a deeper check, add `make smoke` (a real search and fetches, under 2 minutes) and `make sandbox` (Chromium's sandbox is on).
+
 ## Conventions
 
 - Every operation is `make <target>`, a thin wrapper around `ops/<target>.sh`. Run them from the repository root (for example `/opt/research-engine`).
