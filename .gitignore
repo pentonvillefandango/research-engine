@@ -41,3 +41,6 @@ build/
 
 # Ops: deploy worktrees
 .deploy/
+
+# Local session handoff notes (never committed)
+*.local.md

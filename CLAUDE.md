@@ -2,6 +2,8 @@
 
 A self-hosted web search and scraping service for research agents. It offers REST and MCP, typed Pydantic contracts, and a live GUI. The repo is **public**.
 
+**New session?** If `HANDOFF.local.md` exists in the repo root, read it first. It is the git-ignored handoff for the live host: current state, owner preferences, gotchas and open items. At the end of a working session, update its "Current state" and "Open items" sections. It must never contain secret values.
+
 ## Working method: Superpowers
 
 **This project's working method is the Superpowers (extended) plugin** (`superpowers-extended-cc:*` skills). Follow its workflow; don't improvise your own.
