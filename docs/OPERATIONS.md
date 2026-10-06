@@ -99,6 +99,25 @@ Fields: `ts` (UTC), `action` (`deploy` or `rollback`), `from`, `to`, `result` (`
 5. starts Caddy, which creates the `proxy` network. If the `Caddyfile`, `compose.yaml` or `.env` changed it recreates the container; if only `sites/` changed it reloads Caddy;
 6. installs and enables the nightly backup timer with `sudo` (its only sudo use, which may ask for the password; skipped when the timer is already installed and running).
 
+## Rotating secrets
+
+All four secrets live in `.env`: `API_KEY`, `SESSION_SECRET`, `SEARXNG_SECRET` and `CRAWL4AI_API_TOKEN`. There is one API key, shared by every agent and person. To replace one (here `API_KEY`):
+
+```bash
+cd /opt/research-engine
+sed -i "s/^API_KEY=.*/API_KEY=$(openssl rand -hex 32)/" .env
+make deploy
+```
+
+Nothing is printed. `make deploy` restarts the stack with the new value and runs the usual smoke and sandbox checks; it needs a clean working tree, and it rolls back if a check fails. To read the new key, run `grep ^API_KEY= .env` yourself.
+
+What changes:
+- **`API_KEY`:** the old key stops working at once, for REST, MCP and new GUI logins. Update every client that uses it: agents, `.mcp.json` configs, `RESEARCH_ENGINE_API_KEY` in scripts, and the examples. GUI sessions that are already logged in stay logged in.
+- **`SESSION_SECRET`:** every GUI session is logged out. Clients using the API key are unaffected.
+- **`SEARXNG_SECRET` and `CRAWL4AI_API_TOKEN`:** these are internal between the containers. Nothing outside needs updating.
+
+Every secret must be at least 32 characters and not the `.env.example` placeholder, or `make deploy` refuses and the app won't start (see `weak_secrets` below). Never commit `.env` or paste its values anywhere.
+
 ## Host-side checks
 
 From the VM itself, requests through `127.0.0.1` get **403 by design**: Caddy sees the Docker bridge address, which is outside `LAB_SUBNET`. Use the VM's lab IP with `--resolve` instead:
