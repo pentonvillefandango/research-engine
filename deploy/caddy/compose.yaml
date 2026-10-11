@@ -6,7 +6,7 @@ name: caddy
 
 services:
   caddy:
-    image: caddy:2.11.6
+    image: caddy:2.11.7
     restart: unless-stopped
     env_file: .env          # SITE_HOST, LAB_SUBNET, TOOLBOX_HOST (see .env.example)
     ports: ["80:80", "443:443", "443:443/udp"]
