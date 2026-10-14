@@ -235,8 +235,10 @@ def test_app_env_defaults_match_settings() -> None:
             continue
         default = re.fullmatch(rf"\$\{{{key}:-([^}}]*)\}}", str(env[key]))
         assert default is not None, key
-        assert str(field.default) == default.group(1) or (
-            isinstance(field.default, float) and float(default.group(1)) == field.default
+        assert (
+            (field.default is None and default.group(1) == "")
+            or str(field.default) == default.group(1)
+            or (isinstance(field.default, float) and float(default.group(1)) == field.default)
         ), f"{key}: compose {default.group(1)!r} != Settings {field.default!r}"
 
 

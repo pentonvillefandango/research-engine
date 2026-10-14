@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Keys · Research Engine{% endblock %}
+{% block content %}
+<script src="/static/keys.js" defer></script>
+
+<h1 class="page-title">API keys</h1>
+<p class="muted intro">Agents send a key in the <code>X-API-Key</code> header. Keys are shown once, when created, and cannot be renamed or deleted, only revoked.</p>
+
+<section class="panel" aria-label="Create a key">
+  <form method="post" action="/keys" autocomplete="off">
+    <label>Name <input type="text" name="name" maxlength="64" required></label>
+    <button type="submit">Create key</button>
+  </form>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+</section>
+
+{% if new_key %}
+<section class="panel new-key-box" aria-label="New key">
+  <p>New key for {{ new_name }}. Copy it now: you won't see it again.</p>
+  <p><code id="new-key">{{ new_key }}</code> <button type="button" id="copy-new-key">Copy</button></p>
+</section>
+{% endif %}
+
+{% macro stat_cells(s) %}
+  <td>{{ s.last_24h if s else 0 }}</td>
+  <td>{{ s.last_30d if s else 0 }}</td>
+  <td>{{ s.last_used.strftime("%Y-%m-%d %H:%M:%S") if s and s.last_used else "never" }}</td>
+  <td>{{ s.last_ip if s and s.last_ip else "" }}</td>
+{% endmacro %}
+
+<section class="panel" aria-label="Keys">
+  <table class="keys">
+    <thead><tr><th>Name</th><th>Prefix</th><th>Created</th><th>Status</th><th>24h</th><th>30d</th><th>Last used</th><th>Last IP</th><th></th></tr></thead>
+    <tbody>
+      <tr>
+        <td>env (built-in)</td><td>from .env</td><td></td><td>active</td>
+        {{ stat_cells(env_stats) }}
+        <td></td>
+      </tr>
+      {% for k in active_keys %}
+      <tr>
+        <td>{{ k.name }}</td><td>re_{{ k.prefix }}…</td>
+        <td>{{ k.created_at.strftime("%Y-%m-%d") }}</td><td>active</td>
+        {{ stat_cells(stats.get(caller_id("key", k.id))) }}
+        <td><form method="post" action="/keys/{{ k.id }}/revoke"><button type="submit">Revoke</button></form></td>
+      </tr>
+      {% endfor %}
+      {% for k in revoked_keys %}
+      <tr class="revoked">
+        <td>{{ k.name }}</td><td>re_{{ k.prefix }}…</td>
+        <td>{{ k.created_at.strftime("%Y-%m-%d") }}</td><td>revoked {{ k.revoked_at.strftime("%Y-%m-%d") }}</td>
+        {{ stat_cells(stats.get(caller_id("key", k.id))) }}
+        <td></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<h2>Recent requests</h2>
+<section class="panel" aria-label="Recent requests">
+  <form class="filters" hx-get="/keys/requests" hx-target="#requests" hx-trigger="change">
+    <label>Caller
+      <select name="caller">
+        <option value="">All</option>
+        <option value="env">env (built-in)</option>
+        <option value="gui">GUI session</option>
+        {% for k in active_keys + revoked_keys %}<option value="{{ caller_id('key', k.id) }}">{{ k.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" name="errors" value="1"> Errors only</label>
+  </form>
+  <div id="requests">{% include "_requests_table.html" %}</div>
+</section>
+{% endblock %}

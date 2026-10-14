@@ -50,6 +50,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `GUI_PASSWORD_HASH` | empty | Optional scrypt hash of the GUI password, set by `research-engine gui set-password`. When empty, the GUI login asks for `API_KEY`. |
 | `API_KEY` | none (secret) | The key for REST, MCP and the GUI login, sent as `X-API-Key`. |
 | `SESSION_SECRET` | none (secret) | Signs GUI session cookies. |
 | `SITE_HOST` | `research.localhost` | The public host name Caddy serves. Must equal `SITE_HOST` in Caddy's own `.env`, or `/mcp` returns 421. |
@@ -78,6 +79,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 | `JOB_FETCH_CONCURRENCY` | `5` | Pages fetched at the same time within one job. |
 | `JOB_TIMEOUT_S` | `900` | A job is stopped after this long. |
 | `EVENT_RETENTION_DAYS` | `30` | Events older than this are deleted. |
+| `REQUEST_LOG_RETENTION_DAYS` | `30` | Days of per-request API usage to keep. |
 | `APP_PORT` | empty | Optional debug port: with `compose.debug.yaml`, the app is published on `127.0.0.1:<APP_PORT>` only. |
 | `APP_MEM_LIMIT` | `1g` | Memory limit for `app`. |
 | `APP_CPUS` | `1.0` | CPU limit for `app`. |
@@ -166,15 +168,16 @@ It has `search`, `fetch`, `fetch_batch`, `search_read`, `get_job`, `wait_for_job
 
 ## GUI
 
-Open `https://<SITE_HOST>/` and log in with the API key. The session lasts 12 hours.
+Open `https://<SITE_HOST>/` and log in. The session lasts 12 hours. By default you log in with the `API_KEY` from `.env`. To use a password instead, run `uv run research-engine gui set-password` and then `make deploy` (see the [runbook](docs/OPERATIONS.md#gui-password-and-api-keys)).
 
 - **Dashboard** (`/`): service health, running and recent jobs, and a live event stream with filters.
 - **Job pages** (`/jobs/<id>`): the request, progress, a timeline and the results.
+- **Keys** (`/keys`): create a named API key for each app or agent, revoke it, and see per-key use and a recent-requests log. Only a GUI session can open this page.
 - **Test console** (`/try`): run searches, fetches and jobs against the real API, including the demo set from `config/demos.yaml`. It shows the rendered results, the raw JSON, the live events and past runs, and builds a copyable `curl` command (without the key).
 
 ## Security notes
 
-- **API key** on every `/v1` and `/mcp` request; the GUI uses a signed, HTTP-only session cookie with a same-origin check.
+- **API key** on every `/v1` and `/mcp` request: the `.env` key or a named key from the Keys page (stored only as a SHA-256 hash, ADR-0028); the GUI uses a signed, HTTP-only session cookie with a same-origin check.
 - **SSRF:** fetches to loopback, private, link-local, CGNAT and other internal addresses are blocked (ADR-0026). `SSRF_ALLOW_HOSTS` exempts named hosts. Static fetches are checked on every redirect hop. Browser fetches are not: the start URL and the final URL are checked, but the redirects Chromium follows in between and the page's subresources (images, scripts, frames, XHR) are not checked by this service, only by Crawl4AI's own internal-URL block. Blocking the browser container's LAN egress at the network layer is planned for V2 (ADR-0022).
 - **robots.txt** is obeyed, with per-domain pacing and `Crawl-delay`.
 - **Browser sandbox:** Chromium runs with its sandbox on, never `--no-sandbox` (ADR-0022).

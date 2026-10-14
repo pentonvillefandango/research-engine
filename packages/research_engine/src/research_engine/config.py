@@ -6,6 +6,8 @@ from pathlib import Path
 from pydantic import Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from research_engine.keys.password import check_format
+
 PLACEHOLDER_SECRET = "change-me"  # noqa: S105  # the .env.example placeholder, refused below
 MIN_SECRET_LENGTH = 32
 
@@ -19,6 +21,7 @@ class Settings(BaseSettings):
     # core / identity
     api_key: SecretStr
     session_secret: SecretStr
+    gui_password_hash: SecretStr | None = None
     site_host: str = "research.localhost"
     git_sha: str = "unknown"
     log_level: str = "INFO"
@@ -56,6 +59,19 @@ class Settings(BaseSettings):
     job_fetch_concurrency: int = Field(default=5, ge=1)
     job_timeout_s: int = Field(default=900, ge=1)
     event_retention_days: int = Field(default=30, ge=1)
+    request_log_retention_days: int = Field(default=30, ge=1)
+
+    @field_validator("gui_password_hash", mode="before")
+    @classmethod
+    def _password_hash(cls, v: object) -> object:
+        """Empty means no password (key login); anything else must be a well-formed hash."""
+        raw = v.get_secret_value() if isinstance(v, SecretStr) else v
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            return None
+        if not isinstance(raw, str):
+            raise ValueError("GUI_PASSWORD_HASH must be a string")
+        check_format(raw.strip())
+        return raw.strip()
 
     @field_validator("api_key", "session_secret", "crawl4ai_api_token")
     @classmethod

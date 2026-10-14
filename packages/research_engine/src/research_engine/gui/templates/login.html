@@ -7,12 +7,21 @@
 <section class="login">
   <h1>Log in</h1>
   <form method="post" action="/login" class="login-form">
+    {% if password_mode %}
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+    {% else %}
     <label for="api_key">API key</label>
     <input id="api_key" name="api_key" type="password" autocomplete="current-password" required autofocus>
+    {% endif %}
     <input type="hidden" name="next" value="{{ next }}">
     {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
     <button type="submit">Log in</button>
   </form>
+  {% if password_mode %}
+  <p class="muted">Use the GUI password set with research-engine gui set-password</p>
+  {% else %}
   <p class="muted">Use the API key from your .env (API_KEY)</p>
+  {% endif %}
 </section>
 {% endblock %}

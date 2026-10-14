@@ -56,6 +56,7 @@ from research_engine.gui.session import (
     same_origin,
 )
 from research_engine.jobs.store import to_job
+from research_engine.keys.password import verify_password
 
 GUI_DIR = Path(__file__).parent
 templates = Jinja2Templates(
@@ -130,7 +131,11 @@ def _login_page(request: Request, next_path: str, error: str | None, status: int
     return templates.TemplateResponse(
         request,
         "login.html",
-        {"next": next_path, "error": error},
+        {
+            "next": next_path,
+            "error": error,
+            "password_mode": request.app.state.gui_password_hash is not None,
+        },
         status_code=status,
         headers={"Cache-Control": "no-store"},
     )
@@ -145,6 +150,7 @@ async def login_form(request: Request, next: str = "/") -> HTMLResponse:
 async def login(
     request: Request,
     api_key: Annotated[str, Form()] = "",
+    password: Annotated[str, Form()] = "",
     next: Annotated[str, Form()] = "/",
 ) -> Response:
     # /login is an open path, so the CSRF Origin check the middleware applies to cookie
@@ -158,10 +164,16 @@ async def login(
         response = _login_page(request, target, "Too many failed attempts; try again later.", 429)
         response.headers["Retry-After"] = str(limiter.retry_after(client))
         return response
-    expected: bytes = request.app.state.api_key
-    if not auth.key_matches(api_key, expected):
+    pw_hash: str | None = request.app.state.gui_password_hash
+    if pw_hash is not None:
+        ok = await asyncio.to_thread(verify_password, password, pw_hash)
+        error = "Invalid password"
+    else:
+        ok = auth.key_matches(api_key, request.app.state.api_key)
+        error = "Invalid key"
+    if not ok:
         limiter.fail(client)
-        return _login_page(request, target, "Invalid key", 401)
+        return _login_page(request, target, error, 401)
     limiter.reset(client)
     codec: SessionCodec = request.app.state.session_codec
     response = RedirectResponse(target, status_code=303)

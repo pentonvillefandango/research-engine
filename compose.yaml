@@ -28,6 +28,7 @@ services:
       # core / identity
       API_KEY: ${API_KEY:?set API_KEY in .env}
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      GUI_PASSWORD_HASH: ${GUI_PASSWORD_HASH:-}
       SITE_HOST: ${SITE_HOST:-research.localhost}
       GIT_SHA: ${GIT_SHA:-unknown}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -59,6 +60,7 @@ services:
       JOB_FETCH_CONCURRENCY: ${JOB_FETCH_CONCURRENCY:-5}
       JOB_TIMEOUT_S: ${JOB_TIMEOUT_S:-900}
       EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-30}
+      REQUEST_LOG_RETENTION_DAYS: ${REQUEST_LOG_RETENTION_DAYS:-30}
     # the image's /data is owned 10001; a fresh named volume inherits that ownership
     volumes: ["app-data:/data"]
     depends_on:

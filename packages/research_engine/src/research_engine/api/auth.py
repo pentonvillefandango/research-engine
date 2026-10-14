@@ -2,7 +2,8 @@
 
 Precedence for every HTTP request:
 1. open path -> pass;
-2. valid ``X-API-Key`` -> pass (no Origin check: not a browser credential);
+2. a valid key: the ``.env`` ``API_KEY`` or an active named key (V1-24) -> pass (no Origin
+   check: not a browser credential);
 3. valid ``re_session`` cookie -> pass, but every method other than GET, HEAD and OPTIONS must
    also pass the Origin check (``gui.session.same_origin``), else 403 (envelope on /v1, plain
    page elsewhere). Not on ``/mcp``: MCP clients authenticate with the key only, never the
@@ -16,6 +17,8 @@ scope type except ``lifespan`` fails closed.
 import hashlib
 import hmac
 import json
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from research_engine_client.models import SCHEMA_VERSION, ErrorCode
@@ -28,6 +31,10 @@ from research_engine.gui.session import (
     cookie_values,
     same_origin,
 )
+from research_engine.keys.models import GUI_CALLER, Caller
+
+if TYPE_CHECKING:  # keys.store imports key_matches from here
+    from research_engine.keys.store import KeyStore
 
 OPEN_PATHS = ("/health", "/version", "/openapi.json", "/login", "/static/")
 API_PREFIXES = ("/v1", "/mcp")
@@ -62,18 +69,24 @@ def _header_values(scope: Scope, name: bytes) -> list[str]:
 
 
 class ApiKeyMiddleware:
-    def __init__(self, app: ASGIApp, api_key: str, codec: SessionCodec, site_host: str) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        keys: "Callable[[], KeyStore]",
+        codec: SessionCodec,
+        site_host: str,
+    ) -> None:
         self.app = app
-        self._key = api_key.encode()
+        self._keys = keys
         self._codec = codec
         self._site_host = site_host
 
     def _is_open(self, path: str) -> bool:
         return any(path == p or (p.endswith("/") and path.startswith(p)) for p in OPEN_PATHS)
 
-    def _has_key(self, scope: Scope) -> bool:
+    def _caller(self, scope: Scope) -> Caller | None:
         headers = dict(scope.get("headers") or [])
-        return key_matches(headers.get(b"x-api-key", b""), self._key)
+        return self._keys().match(headers.get(b"x-api-key", b""))
 
     def _has_session(self, scope: Scope) -> bool:
         values = cookie_values(_header_values(scope, b"cookie"), COOKIE)
@@ -97,7 +110,9 @@ class ApiKeyMiddleware:
         if scope["type"] == "http" and self._is_open(scope["path"]):
             await self.app(scope, receive, send)
             return
-        if self._has_key(scope):
+        caller = self._caller(scope)
+        if caller is not None:
+            scope.setdefault("state", {})["caller"] = caller
             await self.app(scope, receive, send)
             return
         if scope["type"] != "http":  # websocket: refuse before accept (policy violation)
@@ -106,6 +121,7 @@ class ApiKeyMiddleware:
         path: str = scope["path"]
         if not is_key_only_path(path) and self._has_session(scope):
             if scope["method"] in SAFE_METHODS or self._origin_ok(scope):
+                scope.setdefault("state", {})["caller"] = GUI_CALLER
                 await self.app(scope, receive, send)
                 return
             await self._forbidden(scope, send)

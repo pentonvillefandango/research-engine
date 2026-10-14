@@ -7,7 +7,7 @@ aware-only ``UTCDateTime`` column, and SQLite drops tzinfo anyway. Converters re
 from typing import ClassVar
 
 from pydantic import NaiveDatetime
-from sqlalchemy import Column, Index, LargeBinary
+from sqlalchemy import Column, Index, LargeBinary, text
 from sqlmodel import Field, SQLModel
 
 
@@ -66,3 +66,34 @@ class TestRunRow(SQLModel, table=True):
     status: str
     took_ms: int
     created_at: NaiveDatetime
+
+
+class ApiKeyRow(SQLModel, table=True):
+    __tablename__ = "api_key"  # type: ignore[assignment]  # SQLModel types __tablename__ as declared_attr
+    __table_args__ = (
+        Index(
+            "ux_api_key_active_name", "name", unique=True, sqlite_where=text("revoked_at IS NULL")
+        ),
+    )
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=64)
+    prefix: str
+    key_hash: str = Field(unique=True)
+    created_at: NaiveDatetime
+    revoked_at: NaiveDatetime | None = None
+
+
+class ApiRequestRow(SQLModel, table=True):
+    __tablename__ = "api_request"  # type: ignore[assignment]  # SQLModel types __tablename__ as declared_attr
+    __table_args__ = (Index("ix_api_request_key_ts", "key_id", "ts"),)
+    id: int | None = Field(default=None, primary_key=True)
+    ts: NaiveDatetime = Field(index=True)
+    caller_kind: str
+    key_id: int | None = None
+    caller_name: str
+    method: str
+    path: str
+    tool: str | None = None
+    status: int
+    duration_ms: int
+    client_ip: str

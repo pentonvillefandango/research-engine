@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 import sys
+from getpass import getpass
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +131,43 @@ def _db(action: str, path: Path, check: bool = False) -> int:
     return code
 
 
+def _set_password(env_file: Path) -> int:
+    """``gui set-password``: hash a prompted password into ``GUI_PASSWORD_HASH`` in the env file."""
+    from research_engine.keys.envfile import set_env_value
+    from research_engine.keys.password import MIN_LENGTH, hash_password
+
+    result: dict[str, Any] = {"command": "gui set-password"}
+    code = 0
+    if not env_file.is_file():
+        result |= {"ok": False, "error": f"env file not found: {env_file}"}
+        code = 2
+    else:
+        try:
+            pw = getpass("New GUI password: ")
+            again = getpass("Repeat: ")
+        except (EOFError, KeyboardInterrupt):
+            pw, again = "", None
+        if again is None:
+            result |= {"ok": False, "error": "no password entered"}
+            code = 2
+        elif pw != again:
+            result |= {"ok": False, "error": "passwords do not match"}
+            code = 2
+        elif len(pw) < MIN_LENGTH:
+            result |= {"ok": False, "error": f"password must be at least {MIN_LENGTH} characters"}
+            code = 2
+        else:
+            try:
+                set_env_value(env_file, "GUI_PASSWORD_HASH", hash_password(pw))
+            except OSError as exc:
+                result |= {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}
+                code = 1
+            else:
+                result |= {"ok": True, "env_file": str(env_file), "next": "make deploy"}
+    print(json.dumps(result, sort_keys=True), flush=True)
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="research-engine")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -154,7 +192,13 @@ def main(argv: list[str] | None = None) -> int:
     db_restore.add_argument(
         "--check", action="store_true", help="only validate the source; DB_PATH is not touched"
     )
+    gui = sub.add_parser("gui", help="GUI settings")
+    gui_sub = gui.add_subparsers(dest="gui_cmd", required=True)
+    setpw = gui_sub.add_parser("set-password", help="hash a GUI password into .env (one JSON line)")
+    setpw.add_argument("--env-file", type=Path, default=Path(".env"))
     args = parser.parse_args(argv)
+    if args.cmd == "gui":
+        return _set_password(args.env_file)
     if args.cmd == "db":
         if args.action == "backup":
             return _db("backup", args.out)

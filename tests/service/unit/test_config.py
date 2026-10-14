@@ -123,3 +123,26 @@ def test_accepts_32_char_secret(
     value = "k" * 32  # built at runtime: a fake key, nothing for gitleaks to flag
     monkeypatch.setenv(name, value)
     assert getattr(Settings(), name.lower()).get_secret_value() == value  # type: ignore[call-arg]
+
+
+def test_gui_password_hash_empty_is_none(
+    settings_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GUI_PASSWORD_HASH", "")
+    assert Settings().gui_password_hash is None  # type: ignore[call-arg]
+
+
+def test_gui_password_hash_valid(settings_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    from research_engine.keys.password import hash_password
+
+    h = hash_password("correct horse battery")
+    monkeypatch.setenv("GUI_PASSWORD_HASH", h)
+    s = Settings()  # type: ignore[call-arg]
+    assert s.gui_password_hash is not None and s.gui_password_hash.get_secret_value() == h
+
+
+def test_gui_password_hash_malformed(settings_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GUI_PASSWORD_HASH", "plaintext-oops")
+    with pytest.raises(ValidationError) as e:
+        Settings()  # type: ignore[call-arg]
+    assert "GUI_PASSWORD_HASH" in str(e.value) and "plaintext-oops" not in str(e.value)

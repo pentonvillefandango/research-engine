@@ -37,11 +37,15 @@ from research_engine.config import Settings, get_settings
 from research_engine.config_files import IntentRegistry
 from research_engine.events.base import EventSink
 from research_engine.events.sqlite import SqliteEventBus
+from research_engine.gui import keys as gui_keys
 from research_engine.gui import routes as gui_routes
 from research_engine.gui.routes import GUI_DIR, SecurityHeadersMiddleware
 from research_engine.gui.session import LoginRateLimiter, SessionCodec
 from research_engine.jobs.runner import JobRunner
 from research_engine.jobs.store import JobStore
+from research_engine.keys.middleware import UsageMiddleware
+from research_engine.keys.store import KeyStore
+from research_engine.keys.usage import UsageLog
 from research_engine.logging import configure_logging
 from research_engine.maintenance import maintenance_loop
 from research_engine.mcp import build_mcp, mount_mcp
@@ -116,6 +120,8 @@ def build_services(settings: Settings) -> Services:
     events = SqliteEventBus(engine)
     cache = SqliteCache(engine)
     job_store = JobStore(engine)
+    keys = KeyStore(engine, settings.api_key.get_secret_value().encode())
+    usage = UsageLog(engine)
     runner = JobRunner(
         job_store, events, workers=settings.job_workers, timeout_s=settings.job_timeout_s
     )
@@ -135,6 +141,8 @@ def build_services(settings: Settings) -> Services:
         engine=engine,
         jobs=runner,
         job_store=job_store,
+        keys=keys,
+        usage=usage,
         health_checks={"searxng": provider.health, "crawl4ai": fetch.browser_health},
         http=http,
         fetch_http=fetch_http,
@@ -245,6 +253,8 @@ async def _shutdown(
     ]
     if close_http:
         steps.append(("close http clients", lambda: _close_http(services)))
+    # Flush the queued request-log rows while the engine is still there.
+    steps.append(("stop usage log", services.usage.stop))
     steps.append(("dispose engine", services.engine.dispose))
     steps.append(("join aiosqlite workers", _join_sqlite_workers))
     first: Exception | None = None
@@ -271,6 +281,8 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
         started = False
         try:
             await init_db(svc.engine)
+            await svc.keys.load()
+            svc.usage.start()
             await svc.jobs.start()
             await _emit_system(svc, EventKind.SYSTEM_STARTUP, "service started")
             maintenance = asyncio.create_task(maintenance_loop(svc), name="maintenance")
@@ -301,6 +313,7 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     app.include_router(health_api.router)
     app.include_router(health_api.schemas_router)
     app.include_router(gui_routes.router)
+    app.include_router(gui_keys.router)
     app.mount("/static", StaticFiles(directory=GUI_DIR / "static"), name="static")
     # MCP (V1-12) at /mcp, behind ApiKeyMiddleware like /v1. Built per app: its session
     # manager runs once, in this app's lifespan.
@@ -312,13 +325,23 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     api_key = settings.api_key.get_secret_value()
     codec = SessionCodec(settings.session_secret.get_secret_value())
     app.state.api_key = api_key.encode()
+    app.state.gui_password_hash = (
+        settings.gui_password_hash.get_secret_value() if settings.gui_password_hash else None
+    )
     app.state.session_codec = codec
     app.state.site_host = settings.site_host
     app.state.login_limiter = LoginRateLimiter()
     # Middleware order: last added is outermost. RequestContext must wrap everything (so even
     # the 401 carries a request_id), then the security headers (so GUI redirects, 403s and
-    # 500s carry the CSP), then the catch-all, then auth.
-    app.add_middleware(ApiKeyMiddleware, api_key=api_key, codec=codec, site_host=settings.site_host)
+    # 500s carry the CSP), then the catch-all, then usage logging (it reads the caller auth
+    # sets), then auth.
+    app.add_middleware(
+        ApiKeyMiddleware,
+        keys=lambda: app.state.services.keys,
+        codec=codec,
+        site_host=settings.site_host,
+    )
+    app.add_middleware(UsageMiddleware)
     app.add_middleware(UnhandledErrorMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
