@@ -126,7 +126,7 @@ def test_no_hardcoded_ips_or_hosts() -> None:
                 ip = m.group(0)
                 assert ip == "127.0.0.1" or ip.startswith(docs_ranges), f"{p}: {line}"
     # real-looking hostnames only as the documented examples
-    allowed = {"toolbox.home.arpa", "research.toolbox.home.arpa"}
+    allowed = {"toolbox.home.arpa", "research.toolbox.home.arpa", "ai-newsdesk.toolbox.home.arpa"}
     for p in _files():
         for host in re.findall(r"[\w-]+(?:\.[\w-]+)*\.home\.arpa", p.read_text()):
             assert host in allowed, f"{p}: {host}"
@@ -142,6 +142,7 @@ def test_env_example_and_index() -> None:
     assert keys == {"SITE_HOST", "LAB_SUBNET", "TOOLBOX_HOST"}
     html = (CADDY / "index" / "index.html").read_text()
     assert "Tools on this host" in html and "<!--" in html
+    assert '<li><a href="https://ai-newsdesk.toolbox.home.arpa/">AI Newsdesk</a></li>' in html
 
 
 def test_readme_covers_required_topics() -> None:
