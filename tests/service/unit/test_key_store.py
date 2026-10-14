@@ -70,3 +70,41 @@ async def test_indexes_exist(store: KeyStore) -> None:
         rows = (await conn.execute(text("SELECT name FROM sqlite_master WHERE type='index'"))).all()
     names = {r[0] for r in rows}
     assert {"ux_api_key_active_name", "ix_api_request_key_ts", "ix_api_request_ts"} <= names
+
+
+async def test_revoke_and_create_do_not_reload(
+    store: KeyStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def boom() -> None:
+        raise RuntimeError("load must not be called")
+
+    monkeypatch.setattr(store, "load", boom)
+    row, key = await store.create("a")
+    assert store.match(key.encode()) is not None
+    assert row.id is not None
+    assert await store.revoke(row.id) is True
+    assert store.match(key.encode()) is None
+
+
+async def test_duplicate_name_leaves_map_unchanged(store: KeyStore) -> None:
+    _, key = await store.create("dup")
+    before = dict(store._active)  # pyright: ignore[reportPrivateUsage]
+    with pytest.raises(KeyNameError):
+        await store.create("dup")
+    assert store._active == before  # pyright: ignore[reportPrivateUsage]
+    assert store.match(key.encode()) is not None
+
+
+async def test_list_keys_order(store: KeyStore) -> None:
+    first, _ = await store.create("first")
+    await store.create("second")
+    await store.create("third")
+    assert first.id is not None
+    await store.revoke(first.id)
+    rows = await store.list_keys()
+    assert [r.name for r in rows] == ["third", "second", "first"]
+
+
+async def test_nonprintable_name_rejected(store: KeyStore) -> None:
+    with pytest.raises(KeyNameError):
+        await store.create("a\x00b")

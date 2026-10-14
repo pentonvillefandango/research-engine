@@ -2,6 +2,7 @@
 so the auth middleware matches without a database round trip. One app process (one uvicorn
 worker), so the in-memory map is authoritative after every create/revoke."""
 
+import asyncio
 import hashlib
 import secrets
 from datetime import UTC, datetime
@@ -35,19 +36,21 @@ class KeyStore:
         self._engine = engine
         self._env_key = env_key
         self._active: dict[bytes, Caller] = {}
+        self._lock = asyncio.Lock()
 
     @property
     def engine(self) -> AsyncEngine:
         return self._engine
 
     async def load(self) -> None:
-        async with AsyncSession(self._engine) as s:
-            rows = (
-                await s.exec(select(ApiKeyRow).where(col(ApiKeyRow.revoked_at).is_(None)))
-            ).all()
-        self._active = {
-            bytes.fromhex(r.key_hash): Caller(CallerKind.KEY, r.name, r.id) for r in rows
-        }
+        """Read the active keys from the database. Startup only; create/revoke keep the map."""
+        async with self._lock:
+            async with AsyncSession(self._engine) as s:
+                stmt = select(ApiKeyRow).where(col(ApiKeyRow.revoked_at).is_(None))
+                rows = (await s.exec(stmt)).all()
+            self._active = {
+                bytes.fromhex(r.key_hash): Caller(CallerKind.KEY, r.name, r.id) for r in rows
+            }
 
     def match(self, supplied: bytes) -> Caller | None:
         if not supplied:
@@ -61,29 +64,31 @@ class KeyStore:
         if not name or len(name) > MAX_NAME or not name.isprintable():
             raise KeyNameError(f"name must be 1-{MAX_NAME} printable characters")
         key = "re_" + secrets.token_urlsafe(32)
-        row = ApiKeyRow(
-            name=name, prefix=key[3:11], key_hash=_digest(key.encode()).hex(), created_at=_now()
-        )
-        try:
-            async with AsyncSession(self._engine, expire_on_commit=False) as s:
-                s.add(row)
-                await s.commit()
-                await s.refresh(row)
-        except IntegrityError as exc:
-            raise KeyNameError(f"an active key named {name!r} already exists") from exc
-        await self.load()
+        digest = _digest(key.encode())
+        row = ApiKeyRow(name=name, prefix=key[3:11], key_hash=digest.hex(), created_at=_now())
+        async with self._lock:
+            try:
+                async with AsyncSession(self._engine, expire_on_commit=False) as s:
+                    s.add(row)
+                    await s.commit()
+                    await s.refresh(row)
+            except IntegrityError as exc:
+                raise KeyNameError(f"an active key named {name!r} already exists") from exc
+            self._active[digest] = Caller(CallerKind.KEY, row.name, row.id)
         return row, key
 
     async def revoke(self, key_id: int) -> bool:
-        async with AsyncSession(self._engine) as s:
-            row = await s.get(ApiKeyRow, key_id)
-            if row is None or row.revoked_at is not None:
-                return False
-            row.revoked_at = _now()
-            s.add(row)
-            await s.commit()
-        await self.load()
-        return True
+        async with self._lock:
+            async with AsyncSession(self._engine) as s:
+                row = await s.get(ApiKeyRow, key_id)
+                if row is None or row.revoked_at is not None:
+                    return False
+                digest = bytes.fromhex(row.key_hash)
+                row.revoked_at = _now()
+                s.add(row)
+                await s.commit()
+            self._active.pop(digest, None)
+            return True
 
     async def list_keys(self) -> list[ApiKeyRow]:
         async with AsyncSession(self._engine) as s:
