@@ -33,7 +33,7 @@ Validate without starting anything (no ports, removed afterwards):
 
 ```sh
 docker run --rm -e SITE_HOST=research.localhost -e LAB_SUBNET=127.0.0.1/32 \
-  -e TOOLBOX_HOST=toolbox.localhost -v "$PWD":/etc/caddy:ro caddy:2.11.6 \
+  -e TOOLBOX_HOST=toolbox.localhost -v "$PWD":/etc/caddy:ro caddy:2.11.7 \
   caddy validate --config /etc/caddy/Caddyfile
 ```
 

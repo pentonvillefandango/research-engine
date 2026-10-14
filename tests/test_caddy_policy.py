@@ -28,7 +28,7 @@ def _files() -> list[Path]:
 def test_project_and_image() -> None:
     assert COMPOSE["name"] == "caddy"
     assert set(COMPOSE["services"]) == {"caddy"}
-    assert SVC["image"] == "caddy:2.11.6"
+    assert SVC["image"] == "caddy:2.11.7"
     assert "latest" not in COMPOSE_RAW.lower()
 
 
