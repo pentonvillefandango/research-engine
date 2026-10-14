@@ -130,7 +130,7 @@ The command prompts twice (at least 12 characters), writes only a scrypt hash as
 
 **Built-in key.** The `.env` `API_KEY` stays valid as the caller `env (built-in)`. It cannot be revoked in the GUI. `make smoke`, `make health` and the ops scripts use it. Rotate it with [Rotating secrets](#rotating-secrets).
 
-**Request log.** Every authenticated request is logged to the `api_request` table in the app database: start time, caller (kind, name, key id), method, path, MCP tool name for `tools/call`, status, duration and client IP. Bodies, query strings, search terms and fetched URLs are never stored. Test-console calls from the GUI are logged as `GUI session`. Rows are written in batches about every second, and the hourly maintenance loop deletes those older than `REQUEST_LOG_RETENTION_DAYS` (default 30). The table is in the same SQLite file, so `make backup` includes it. Active keys are matched from memory, which assumes a single uvicorn worker.
+**Request log.** Every authenticated `/v1` and `/mcp` request is logged to the `api_request` table in the app database: start time, caller (kind, name, key id), method, path, MCP tool name for `tools/call`, status, duration and client IP. Bodies, query strings, search terms and fetched URLs are never stored. Test-console calls from the GUI are logged as `GUI session`; GUI page views are not logged. Rows are written in batches about every second, and the hourly maintenance loop deletes those older than `REQUEST_LOG_RETENTION_DAYS` (default 30). The table is in the same SQLite file, so `make backup` includes it. Active keys are matched from memory, which assumes a single uvicorn worker.
 
 ## Rotating secrets
 

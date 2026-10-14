@@ -5,7 +5,7 @@ mint more keys."""
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from research_engine.api.deps import Services, get_services
@@ -17,12 +17,13 @@ from research_engine.keys.usage import caller_id
 router = APIRouter(include_in_schema=False)
 PAGE = 50
 _NO_STORE = {"Cache-Control": "no-store"}
+_MAX_ID = 2**63 - 1
 _CALLER_FILTER = re.compile(r"env|gui|key:[0-9]{1,9}")
 
 
 def require_gui(request: Request) -> None:
     caller: Caller | None = getattr(request.state, "caller", None)
-    if caller is None or caller.kind is not CallerKind.GUI:
+    if "x-api-key" in request.headers or caller is None or caller.kind is not CallerKind.GUI:
         raise HTTPException(403, "the Keys page needs a GUI login, not an API key")
 
 
@@ -81,7 +82,9 @@ async def create_key(
 
 
 @router.post("/keys/{key_id}/revoke", dependencies=[Depends(require_gui)])
-async def revoke_key(key_id: int, svc: Annotated[Services, Depends(get_services)]) -> Response:
+async def revoke_key(
+    key_id: Annotated[int, Path(le=_MAX_ID)], svc: Annotated[Services, Depends(get_services)]
+) -> Response:
     if not await svc.keys.revoke(key_id):
         raise HTTPException(404, "no active key with that id")
     return RedirectResponse("/keys", status_code=303)
@@ -93,7 +96,7 @@ async def requests_partial(
     svc: Annotated[Services, Depends(get_services)],
     caller: Annotated[str, Query(max_length=32)] = "",
     errors: Annotated[bool, Query()] = False,
-    before: Annotated[int | None, Query(ge=1)] = None,
+    before: Annotated[int | None, Query(ge=1, le=_MAX_ID)] = None,
 ) -> HTMLResponse:
     if caller and not _CALLER_FILTER.fullmatch(caller):
         raise HTTPException(400, "caller must be env, gui or key:<id>")

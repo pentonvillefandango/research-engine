@@ -155,3 +155,18 @@ async def test_requests_partial_rejects_unknown_caller(app) -> None:
         for ok in ("", "env", "gui", "key:12"):
             r = await c.get("/keys/requests", params={"caller": ok})
             assert r.status_code == 200, ok
+
+
+async def test_session_with_api_key_header_is_refused(app) -> None:
+    async with gui(app) as c:
+        r = await c.get("/keys", headers={"X-API-Key": "bogus"})
+    assert r.status_code == 403
+
+
+async def test_huge_ids_are_422_not_500(app) -> None:
+    big = 2**63
+    async with gui(app) as c:
+        r1 = await c.get(f"/keys/requests?before={big}")
+        r2 = await c.post(f"/keys/{big}/revoke", headers=ORIGIN)
+    assert r1.status_code == 422
+    assert r2.status_code == 422
