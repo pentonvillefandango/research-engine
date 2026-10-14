@@ -27,3 +27,11 @@ def test_verify() -> None:
 def test_check_format_rejects(bad: str) -> None:
     with pytest.raises(ValueError, match="GUI_PASSWORD_HASH"):
         check_format(bad)
+
+
+def test_verify_false_when_scrypt_exceeds_memory_limit() -> None:
+    # Well-formed (passes check_format) but n=2**20, r=8 needs ~1 GiB > the 64 MiB maxmem.
+    good = hash_password("correct horse battery").split(":")
+    big = ":".join(["scrypt", str(2**20), "8", "1", good[4], good[5]])
+    assert check_format(big)[0] == 2**20
+    assert verify_password("correct horse battery", big) is False

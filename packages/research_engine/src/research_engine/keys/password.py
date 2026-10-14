@@ -57,4 +57,8 @@ def verify_password(password: str, stored: str) -> bool:
         n, r, p, salt, digest = check_format(stored)
     except ValueError:
         return False
-    return hmac.compare_digest(_derive(password, salt, n, r, p), digest)
+    try:
+        derived = _derive(password, salt, n, r, p)
+    except ValueError:  # parameters beyond the scrypt memory limit
+        return False
+    return hmac.compare_digest(derived, digest)

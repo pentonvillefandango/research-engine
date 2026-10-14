@@ -312,6 +312,9 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     api_key = settings.api_key.get_secret_value()
     codec = SessionCodec(settings.session_secret.get_secret_value())
     app.state.api_key = api_key.encode()
+    app.state.gui_password_hash = (
+        settings.gui_password_hash.get_secret_value() if settings.gui_password_hash else None
+    )
     app.state.session_codec = codec
     app.state.site_host = settings.site_host
     app.state.login_limiter = LoginRateLimiter()
