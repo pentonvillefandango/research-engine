@@ -9,8 +9,8 @@ Date: 2026-10-14. Status: approved by the owner. Feature IDs: **V1-23** (GUI pas
 
 ## V1-23: GUI password
 
-- `research-engine gui set-password` prompts twice (no echo) for a password (minimum 12 characters), hashes it with `hashlib.scrypt` (random 16-byte salt, n=2**14, r=8, p=1), and writes `GUI_PASSWORD_HASH=scrypt$<n>$<r>$<p>$<salt-b64>$<hash-b64>` into `.env`, replacing any existing line. It keeps the file's mode 600 and prints neither the password nor the hash.
-- Config: `Settings.gui_password_hash: SecretStr | None` (optional). A malformed value fails startup with a clear message.
+- `research-engine gui set-password` prompts twice (no echo) for a password (minimum 12 characters), hashes it with `hashlib.scrypt` (random 16-byte salt, n=2**14, r=8, p=1), and writes `GUI_PASSWORD_HASH=scrypt:<n>:<r>:<p>:<salt-b64url>:<hash-b64url>` into `.env` (colons, not `$`: Docker Compose would try to expand `$` in `.env` values), replacing any existing line. It keeps the file's mode 600 and prints neither the password nor the hash.
+- Config: `Settings.gui_password_hash: SecretStr | None` (optional; empty means unset). A malformed value fails startup with a clear message. Compose passes it as `GUI_PASSWORD_HASH: ${GUI_PASSWORD_HASH:-}`.
 - Login page:
   - hash set → one password field; only the password logs in (the API key does not);
   - hash not set → the API-key field, exactly as today.
@@ -39,7 +39,7 @@ Date: 2026-10-14. Status: approved by the owner. Feature IDs: **V1-23** (GUI pas
 - What is logged: every authenticated request to `/v1` or `/mcp`, whether it passed or failed downstream. Unauthenticated 401s are not logged per key; they are already in the app log.
 - What is not logged: request bodies, query strings, search terms, URLs fetched.
 - Caller: the auth middleware puts a `Caller` into `scope["state"]["caller"]`. A logging wrapper measures status and duration and enqueues one row.
-- MCP tool name: the MCP tool wrappers set a contextvar the logger reads; `null` when it's unknown.
+- MCP tool name: the logging middleware reads the request body as it streams through (first 64 KiB only) and takes `params.name` from a JSON-RPC `tools/call`; otherwise `null`. Not a contextvar: the MCP SDK may run the tool in another task's context.
 - Writer (`research_engine/keys/usage.py`):
   - an `asyncio.Queue` with a cap of 10,000, flushed in batches every second and at shutdown;
   - when the queue is full, the row is dropped and a counter rises, which is logged as a warning at the next flush;
