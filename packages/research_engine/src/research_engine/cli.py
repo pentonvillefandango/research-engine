@@ -142,9 +142,15 @@ def _set_password(env_file: Path) -> int:
         result |= {"ok": False, "error": f"env file not found: {env_file}"}
         code = 2
     else:
-        pw = getpass("New GUI password: ")
-        again = getpass("Repeat: ")
-        if pw != again:
+        try:
+            pw = getpass("New GUI password: ")
+            again = getpass("Repeat: ")
+        except (EOFError, KeyboardInterrupt):
+            pw, again = "", None
+        if again is None:
+            result |= {"ok": False, "error": "no password entered"}
+            code = 2
+        elif pw != again:
             result |= {"ok": False, "error": "passwords do not match"}
             code = 2
         elif len(pw) < MIN_LENGTH:

@@ -77,3 +77,35 @@ def test_cli_missing_env_file(
     _prompts(monkeypatch, "correct horse battery", "correct horse battery")
     assert cli.main(["gui", "set-password", "--env-file", str(tmp_path / "nope")]) == 2
     assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["ok"] is False
+
+
+def test_set_env_value_keeps_other_bytes_crlf_and_odd_separators(tmp_path: Path) -> None:
+    p = tmp_path / "crlf.env"
+    p.write_bytes(b"A=1\r\nB=x\x0cy\xc2\x85z\r\nGUI_PASSWORD_HASH=old\r\nC=3\r\n")
+    p.chmod(0o600)
+    set_env_value(p, "GUI_PASSWORD_HASH", "h")
+    assert p.read_bytes() == b"A=1\r\nB=x\x0cy\xc2\x85z\r\nGUI_PASSWORD_HASH=h\r\nC=3\r\n"
+
+
+def test_set_env_value_prefers_live_over_commented(tmp_path: Path) -> None:
+    p = _env(tmp_path, "# GUI_PASSWORD_HASH=\nGUI_PASSWORD_HASH=old\n")
+    set_env_value(p, "GUI_PASSWORD_HASH", "h")
+    assert p.read_text() == "# GUI_PASSWORD_HASH=\nGUI_PASSWORD_HASH=h\n"
+
+
+@pytest.mark.parametrize("exc", [EOFError, KeyboardInterrupt])
+def test_cli_prompt_interrupted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    exc: type[BaseException],
+) -> None:
+    p = _env(tmp_path, "API_KEY=x\n")
+
+    def boom(prompt: str = "") -> str:
+        raise exc
+
+    monkeypatch.setattr(cli, "getpass", boom)
+    assert cli.main(["gui", "set-password", "--env-file", str(p)]) == 2
+    assert json.loads(capsys.readouterr().out.strip().splitlines()[-1])["ok"] is False
+    assert p.read_text() == "API_KEY=x\n"
