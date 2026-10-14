@@ -37,6 +37,7 @@ from research_engine.config import Settings, get_settings
 from research_engine.config_files import IntentRegistry
 from research_engine.events.base import EventSink
 from research_engine.events.sqlite import SqliteEventBus
+from research_engine.gui import keys as gui_keys
 from research_engine.gui import routes as gui_routes
 from research_engine.gui.routes import GUI_DIR, SecurityHeadersMiddleware
 from research_engine.gui.session import LoginRateLimiter, SessionCodec
@@ -312,6 +313,7 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     app.include_router(health_api.router)
     app.include_router(health_api.schemas_router)
     app.include_router(gui_routes.router)
+    app.include_router(gui_keys.router)
     app.mount("/static", StaticFiles(directory=GUI_DIR / "static"), name="static")
     # MCP (V1-12) at /mcp, behind ApiKeyMiddleware like /v1. Built per app: its session
     # manager runs once, in this app's lifespan.

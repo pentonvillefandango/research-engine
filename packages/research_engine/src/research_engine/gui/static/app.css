@@ -247,3 +247,10 @@ pre.code {
   background: var(--bg);
 }
 .runs td.summary { overflow-wrap: anywhere; }
+
+/* Keys page (V1-24) */
+tr.revoked { opacity: .55; }
+#new-key { font-family: var(--mono); word-break: break-all; }
+.keys, .requests { width: 100%; border-collapse: collapse; font-size: 13px; }
+.keys th, .keys td, .requests th, .requests td { text-align: left; padding: 0.2rem 0.5rem; border-bottom: 1px solid var(--line); }
+.requests tr.error td { color: var(--error); }

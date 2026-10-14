@@ -1,0 +1,22 @@
+<table class="requests">
+  <thead><tr><th>Time (UTC)</th><th>Caller</th><th>Method</th><th>Path</th><th>Tool</th><th>Status</th><th>ms</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr{% if r.status >= 400 %} class="error"{% endif %}>
+      <td>{{ r.ts.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td>{{ r.caller_name }}</td>
+      <td>{{ r.method }}</td>
+      <td>{{ r.path }}</td>
+      <td>{{ r.tool or "" }}</td>
+      <td>{{ r.status }}</td>
+      <td>{{ r.duration_ms }}</td>
+      <td>{{ r.client_ip }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="muted">No requests logged.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if rows|length == page %}
+<p><a href="#" hx-get="/keys/requests?before={{ rows[-1].id }}{% if caller %}&amp;caller={{ caller|urlencode }}{% endif %}{% if errors_only %}&amp;errors=1{% endif %}" hx-target="#requests">Older</a></p>
+{% endif %}
