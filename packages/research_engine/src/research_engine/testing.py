@@ -19,6 +19,8 @@ from research_engine.events.base import Emitter
 from research_engine.events.sqlite import SqliteEventBus
 from research_engine.jobs.runner import JobRunner
 from research_engine.jobs.store import JobStore
+from research_engine.keys.store import KeyStore
+from research_engine.keys.usage import UsageLog
 from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
 from research_engine.safety.limiter import DomainLimiter
@@ -124,6 +126,8 @@ def build_test_services(settings: Settings) -> Services:
     engine = create_engine_for(settings.db_path)
     events, cache = SqliteEventBus(engine), SqliteCache(engine)
     job_store = JobStore(engine)
+    keys = KeyStore(engine, settings.api_key.get_secret_value().encode())
+    usage = UsageLog(engine)
     runner = JobRunner(
         job_store, events, workers=settings.job_workers, timeout_s=settings.job_timeout_s
     )
@@ -151,5 +155,7 @@ def build_test_services(settings: Settings) -> Services:
         engine=engine,
         jobs=runner,
         job_store=job_store,
+        keys=keys,
+        usage=usage,
         health_checks={"searxng": provider.health, "crawl4ai": fetch.browser_health},
     )

@@ -14,6 +14,8 @@ from research_engine.config_files import IntentRegistry
 from research_engine.events.base import EventStore
 from research_engine.jobs.runner import JobRunner
 from research_engine.jobs.store import JobStore
+from research_engine.keys.store import KeyStore
+from research_engine.keys.usage import UsageLog
 from research_engine.pipeline.fetch import FetchService
 from research_engine.pipeline.search import SearchService
 
@@ -32,6 +34,8 @@ class Services:
     engine: AsyncEngine
     jobs: JobRunner
     job_store: JobStore
+    keys: KeyStore
+    usage: UsageLog
     health_checks: dict[str, Callable[[], Awaitable[bool]]]
     """Name -> adapter ``health`` callable (searxng, crawl4ai); wired in the composition root."""
     http: httpx.AsyncClient | None = None

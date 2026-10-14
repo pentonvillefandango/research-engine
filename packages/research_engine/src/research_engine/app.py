@@ -42,6 +42,8 @@ from research_engine.gui.routes import GUI_DIR, SecurityHeadersMiddleware
 from research_engine.gui.session import LoginRateLimiter, SessionCodec
 from research_engine.jobs.runner import JobRunner
 from research_engine.jobs.store import JobStore
+from research_engine.keys.store import KeyStore
+from research_engine.keys.usage import UsageLog
 from research_engine.logging import configure_logging
 from research_engine.maintenance import maintenance_loop
 from research_engine.mcp import build_mcp, mount_mcp
@@ -116,6 +118,8 @@ def build_services(settings: Settings) -> Services:
     events = SqliteEventBus(engine)
     cache = SqliteCache(engine)
     job_store = JobStore(engine)
+    keys = KeyStore(engine, settings.api_key.get_secret_value().encode())
+    usage = UsageLog(engine)
     runner = JobRunner(
         job_store, events, workers=settings.job_workers, timeout_s=settings.job_timeout_s
     )
@@ -135,6 +139,8 @@ def build_services(settings: Settings) -> Services:
         engine=engine,
         jobs=runner,
         job_store=job_store,
+        keys=keys,
+        usage=usage,
         health_checks={"searxng": provider.health, "crawl4ai": fetch.browser_health},
         http=http,
         fetch_http=fetch_http,
@@ -271,6 +277,7 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
         started = False
         try:
             await init_db(svc.engine)
+            await svc.keys.load()
             await svc.jobs.start()
             await _emit_system(svc, EventKind.SYSTEM_STARTUP, "service started")
             maintenance = asyncio.create_task(maintenance_loop(svc), name="maintenance")
