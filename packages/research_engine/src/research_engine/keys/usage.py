@@ -67,6 +67,10 @@ class UsageLog:
         self._queue: asyncio.Queue[RequestRecord] = asyncio.Queue(maxsize=max_queue)
         self._interval = interval_s
         self._task: asyncio.Task[None] | None = None
+        self._stopping = asyncio.Event()
+        # Held across drain + INSERT: a second flush waits for an in-flight write, so
+        # "flush() returned" always means "everything queued before the call is committed".
+        self._lock = asyncio.Lock()
         self.dropped = 0
 
     def record(self, rec: RequestRecord) -> None:
@@ -79,6 +83,10 @@ class UsageLog:
     async def flush(self) -> int:
         """Write everything queued in one transaction. Returns rows written; a database error
         is logged (the batch is lost) and never raised."""
+        async with self._lock:
+            return await self._flush_locked()
+
+    async def _flush_locked(self) -> int:
         batch: list[RequestRecord] = []
         while not self._queue.empty():
             batch.append(self._queue.get_nowait())
@@ -93,26 +101,30 @@ class UsageLog:
                     insert(ApiRequestRow),
                     [asdict(r) | {"ts": _naive(r.ts)} for r in batch],
                 )
-        except Exception:
-            _log.exception("request log flush failed", rows=len(batch))
+        except Exception as exc:
+            # Type only: the exception text would carry the row values (path, IP, caller).
+            _log.warning("request log flush failed", rows=len(batch), error=type(exc).__name__)
             return 0
         return len(batch)
 
     async def _loop(self) -> None:
-        while True:
-            await asyncio.sleep(self._interval)
+        while not self._stopping.is_set():
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._stopping.wait(), self._interval)
             await self.flush()
 
     def start(self) -> None:
         if self._task is None:
+            self._stopping.clear()
             self._task = asyncio.create_task(self._loop(), name="usage-log")
 
     async def stop(self) -> None:
-        """Stop the flusher, then write what is still queued (before the engine is disposed)."""
+        """End the flusher without cancelling it (a cancel mid-INSERT would roll back a batch
+        already taken off the queue), then write what is still queued. Runs before the engine
+        is disposed. Rows recorded after this are not written (the process is exiting)."""
         if self._task is not None:
-            self._task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._task
+            self._stopping.set()
+            await self._task
             self._task = None
         await self.flush()
 

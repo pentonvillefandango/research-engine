@@ -1,14 +1,21 @@
 """Per-request API usage log (V1-24): middleware, batched writer, pruning, stats and paging."""
 
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
 import structlog.testing
 from research_engine.gui.session import COOKIE, SessionCodec
+from research_engine.keys.middleware import UsageMiddleware
+from research_engine.keys.models import ENV_CALLER
 from research_engine.keys.usage import RequestRecord, UsageLog
 from research_engine.store.db import create_engine_for, init_db
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from tests.conftest import TEST_API_KEY, TEST_ENV
 
@@ -213,3 +220,88 @@ async def test_record_failure_never_fails_the_request(app, monkeypatch) -> None:
     monkeypatch.setattr(app.state.services.usage, "record", boom)
     async with raw(app, TEST_API_KEY) as c:
         assert (await c.get("/v1/engines")).status_code == 200
+
+
+class SlowBegin:
+    """Engine stand-in whose ``begin()`` pauses (without blocking the loop) inside the
+    transaction, as a slow INSERT would."""
+
+    def __init__(self, engine: AsyncEngine, delay_s: float) -> None:
+        self.engine = engine
+        self.delay_s = delay_s
+        self.inside = asyncio.Event()
+
+    @asynccontextmanager
+    async def begin(self) -> AsyncIterator[AsyncConnection]:
+        async with self.engine.begin() as conn:
+            self.inside.set()
+            await asyncio.sleep(self.delay_s)
+            yield conn
+
+
+async def _count(engine: AsyncEngine) -> int:
+    async with engine.connect() as conn:
+        return (await conn.execute(text("SELECT count(*) FROM api_request"))).scalar_one()
+
+
+async def test_stop_during_inflight_flush_loses_no_rows(settings_env: None, tmp_path) -> None:
+    """stop() must not cancel the flusher mid-write (that rolls back a drained batch)."""
+    engine = create_engine_for(str(tmp_path / "s.db"))
+    await init_db(engine)
+    slow = SlowBegin(engine, 0.3)
+    log = UsageLog(slow, interval_s=0.01)  # type: ignore[arg-type]
+    log.start()
+    for _ in range(3):
+        log.record(_rec())
+    async with asyncio.timeout(5):
+        await slow.inside.wait()  # the loop has drained the queue and is mid-transaction
+    await log.stop()
+    n = await _count(engine)
+    await engine.dispose()
+    assert n == 3
+
+
+async def test_concurrent_flush_waits_for_inflight_write(settings_env: None, tmp_path) -> None:
+    """A flush() that finds the queue drained by an in-flight flush returns only once that
+    write has committed, so flush-then-SELECT always sees the rows."""
+    engine = create_engine_for(str(tmp_path / "c.db"))
+    await init_db(engine)
+    slow = SlowBegin(engine, 0.2)
+    log = UsageLog(slow)  # type: ignore[arg-type]
+    log.record(_rec())
+    first = asyncio.create_task(log.flush())
+    await slow.inside.wait()
+    await log.flush()
+    n = await _count(engine)
+    await first
+    await engine.dispose()
+    assert n == 1
+
+
+async def test_ts_is_request_start_time() -> None:
+    got: list[RequestRecord] = []
+
+    class Usage:
+        def record(self, rec: RequestRecord) -> None:
+            got.append(rec)
+
+    app_obj = SimpleNamespace(state=SimpleNamespace(services=SimpleNamespace(usage=Usage())))
+
+    async def slow_app(scope: Any, _receive: Any, send: Any) -> None:
+        scope["state"]["caller"] = ENV_CALLER
+        await asyncio.sleep(0.3)
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(_m: Any) -> None:
+        return None
+
+    scope = {"type": "http", "path": "/v1/x", "method": "GET", "state": {}, "app": app_obj}
+    t0 = datetime.now(UTC)
+    await UsageMiddleware(slow_app)(scope, receive, send)
+    [rec] = got
+    assert (rec.ts - t0).total_seconds() < 0.1
+    assert rec.duration_ms >= 300

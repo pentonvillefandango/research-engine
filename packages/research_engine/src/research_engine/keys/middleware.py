@@ -43,6 +43,7 @@ class UsageMiddleware:
         if scope["type"] != "http" or not is_api_path(scope["path"]):
             await self.app(scope, receive, send)
             return
+        ts = datetime.now(UTC)  # arrival time; duration_ms covers the rest
         started = time.perf_counter()
         status = 500
         body = bytearray()
@@ -66,17 +67,17 @@ class UsageMiddleware:
         finally:
             # Usage logging must never fail (or delay) a request: record() only queues.
             with contextlib.suppress(Exception):
-                self._record(scope, status, started, _tool(bytes(body)) if sniff else None)
+                self._record(scope, ts, status, started, _tool(bytes(body)) if sniff else None)
 
     @staticmethod
-    def _record(scope: Scope, status: int, started: float, tool: str | None) -> None:
+    def _record(scope: Scope, ts: datetime, status: int, started: float, tool: str | None) -> None:
         caller: Caller | None = scope.get("state", {}).get("caller")
         if caller is None:  # unauthenticated: auth answered 401/403 itself
             return
         client = scope.get("client")
         scope["app"].state.services.usage.record(
             RequestRecord(
-                ts=datetime.now(UTC),
+                ts=ts,
                 caller_kind=caller.kind.value,
                 key_id=caller.key_id,
                 caller_name=caller.name,
