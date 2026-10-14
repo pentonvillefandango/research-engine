@@ -10,6 +10,7 @@ from research_engine import app as app_mod
 from research_engine import maintenance
 from research_engine.api.deps import Services
 from research_engine.config import Settings
+from research_engine.keys.usage import RequestRecord
 from research_engine.testing import build_test_services
 from research_engine_client.models import Event, EventKind, EventLevel
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -44,7 +45,26 @@ async def test_run_once_prunes_events_and_cache(services: Services) -> None:
     )
     await services.cache.set("expired", b"x", ttl_s=-1)
     await services.cache.set("fresh", b"y", ttl_s=600)
-    assert await maintenance.run_once(services) == {"events_pruned": 1, "cache_pruned": 1}
+    services.usage.record(
+        RequestRecord(
+            ts=old,
+            caller_kind="env",
+            key_id=None,
+            caller_name="env (built-in)",
+            method="GET",
+            path="/v1/x",
+            tool=None,
+            status=200,
+            duration_ms=1,
+            client_ip="1.1.1.1",
+        )
+    )
+    await services.usage.flush()
+    assert await maintenance.run_once(services) == {
+        "events_pruned": 1,
+        "cache_pruned": 1,
+        "requests_pruned": 1,
+    }
     assert [e.message for e in await services.events.tail(10)] == ["new"]
     assert await services.cache.get("fresh") == b"y"
 
@@ -131,12 +151,19 @@ async def test_shutdown_steps_all_run_when_earlier_ones_raise(
         await real_emit(event)
 
     monkeypatch.setattr(services.events, "emit", emit)
+    real_usage_stop = services.usage.stop
+
+    async def usage_stop() -> None:
+        order.append("usage")
+        await real_usage_stop()
+
     monkeypatch.setattr(services.jobs, "stop", bad_stop)
+    monkeypatch.setattr(services.usage, "stop", usage_stop)
     monkeypatch.setattr(AsyncEngine, "dispose", lambda _self: dispose())
     with pytest.raises(RuntimeError, match="emit failed"):
         async with app.router.lifespan_context(app):
             pass
-    assert order == ["emit", "stop", "dispose"]
+    assert order == ["emit", "stop", "usage", "dispose"]
     assert services.http and services.http.is_closed
     assert services.fetch_http and services.fetch_http.is_closed
 

@@ -42,6 +42,7 @@ from research_engine.gui.routes import GUI_DIR, SecurityHeadersMiddleware
 from research_engine.gui.session import LoginRateLimiter, SessionCodec
 from research_engine.jobs.runner import JobRunner
 from research_engine.jobs.store import JobStore
+from research_engine.keys.middleware import UsageMiddleware
 from research_engine.keys.store import KeyStore
 from research_engine.keys.usage import UsageLog
 from research_engine.logging import configure_logging
@@ -251,6 +252,8 @@ async def _shutdown(
     ]
     if close_http:
         steps.append(("close http clients", lambda: _close_http(services)))
+    # Flush the queued request-log rows while the engine is still there.
+    steps.append(("stop usage log", services.usage.stop))
     steps.append(("dispose engine", services.engine.dispose))
     steps.append(("join aiosqlite workers", _join_sqlite_workers))
     first: Exception | None = None
@@ -278,6 +281,7 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
         try:
             await init_db(svc.engine)
             await svc.keys.load()
+            svc.usage.start()
             await svc.jobs.start()
             await _emit_system(svc, EventKind.SYSTEM_STARTUP, "service started")
             maintenance = asyncio.create_task(maintenance_loop(svc), name="maintenance")
@@ -327,13 +331,15 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     app.state.login_limiter = LoginRateLimiter()
     # Middleware order: last added is outermost. RequestContext must wrap everything (so even
     # the 401 carries a request_id), then the security headers (so GUI redirects, 403s and
-    # 500s carry the CSP), then the catch-all, then auth.
+    # 500s carry the CSP), then the catch-all, then usage logging (it reads the caller auth
+    # sets), then auth.
     app.add_middleware(
         ApiKeyMiddleware,
         keys=lambda: app.state.services.keys,
         codec=codec,
         site_host=settings.site_host,
     )
+    app.add_middleware(UsageMiddleware)
     app.add_middleware(UnhandledErrorMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
