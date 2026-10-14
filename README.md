@@ -50,6 +50,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `GUI_PASSWORD_HASH` | empty | Optional scrypt hash of the GUI password, set by `research-engine gui set-password`. When empty, the GUI login asks for `API_KEY`. |
 | `API_KEY` | none (secret) | The key for REST, MCP and the GUI login, sent as `X-API-Key`. |
 | `SESSION_SECRET` | none (secret) | Signs GUI session cookies. |
 | `SITE_HOST` | `research.localhost` | The public host name Caddy serves. Must equal `SITE_HOST` in Caddy's own `.env`, or `/mcp` returns 421. |
@@ -78,6 +79,7 @@ All settings come from `.env` (copy `.env.example`; never commit `.env`). Secret
 | `JOB_FETCH_CONCURRENCY` | `5` | Pages fetched at the same time within one job. |
 | `JOB_TIMEOUT_S` | `900` | A job is stopped after this long. |
 | `EVENT_RETENTION_DAYS` | `30` | Events older than this are deleted. |
+| `REQUEST_LOG_RETENTION_DAYS` | `30` | Days of per-request API usage to keep. |
 | `APP_PORT` | empty | Optional debug port: with `compose.debug.yaml`, the app is published on `127.0.0.1:<APP_PORT>` only. |
 | `APP_MEM_LIMIT` | `1g` | Memory limit for `app`. |
 | `APP_CPUS` | `1.0` | CPU limit for `app`. |
