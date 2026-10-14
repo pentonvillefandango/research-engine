@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from research_engine.api.auth import key_matches
+from research_engine.api import auth
 from research_engine.keys.models import ENV_CALLER, Caller, CallerKind
 from research_engine.store.tables import ApiKeyRow
 
@@ -55,7 +55,7 @@ class KeyStore:
     def match(self, supplied: bytes) -> Caller | None:
         if not supplied:
             return None
-        if key_matches(supplied, self._env_key):
+        if auth.key_matches(supplied, self._env_key):
             return ENV_CALLER
         return self._active.get(_digest(supplied))
 

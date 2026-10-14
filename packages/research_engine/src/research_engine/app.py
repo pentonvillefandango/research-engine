@@ -328,7 +328,12 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     # Middleware order: last added is outermost. RequestContext must wrap everything (so even
     # the 401 carries a request_id), then the security headers (so GUI redirects, 403s and
     # 500s carry the CSP), then the catch-all, then auth.
-    app.add_middleware(ApiKeyMiddleware, api_key=api_key, codec=codec, site_host=settings.site_host)
+    app.add_middleware(
+        ApiKeyMiddleware,
+        keys=lambda: app.state.services.keys,
+        codec=codec,
+        site_host=settings.site_host,
+    )
     app.add_middleware(UnhandledErrorMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
