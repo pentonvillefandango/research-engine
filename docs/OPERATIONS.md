@@ -111,9 +111,30 @@ Fields: `ts` (UTC), `action` (`deploy` or `rollback`), `from`, `to`, `result` (`
 5. starts Caddy, which creates the `proxy` network. If the `Caddyfile`, `compose.yaml` or `.env` changed it recreates the container; if only `sites/` changed it reloads Caddy;
 6. installs and enables the nightly backup timer with `sudo` (its only sudo use, which may ask for the password; skipped when the timer is already installed and running).
 
+## GUI password and API keys
+
+**GUI password (optional).** By default the GUI login asks for `API_KEY`. To use a password instead:
+
+```bash
+cd /opt/research-engine
+uv run research-engine gui set-password
+make deploy
+```
+
+The command prompts twice (at least 12 characters), writes only a scrypt hash as `GUI_PASSWORD_HASH` in `.env`, and prints one JSON line. Once the hash is set, `/login` accepts only the password. To go back to key login, remove the `GUI_PASSWORD_HASH` line and run `make deploy`. See ADR-0027.
+
+**Named API keys.** Open `/keys` in the GUI (a GUI session only; a request with `X-API-Key` gets 403).
+- **Create:** enter a name. The key (`re_` plus 43 characters) is shown once; copy it then. Only its SHA-256 hash is stored, so a lost key cannot be recovered. Create a new one instead.
+- **Revoke:** the key stops working at once and stays listed, greyed out. There is no delete or rename.
+- **Use:** the page shows each caller's requests in the last 24 hours and 30 days, last use and last client IP, and a recent-requests table you can filter by caller and by errors only.
+
+**Built-in key.** The `.env` `API_KEY` stays valid as the caller `env (built-in)`. It cannot be revoked in the GUI. `make smoke`, `make health` and the ops scripts use it. Rotate it with [Rotating secrets](#rotating-secrets).
+
+**Request log.** Every authenticated request is logged to the `api_request` table in the app database: start time, caller (kind, name, key id), method, path, MCP tool name for `tools/call`, status, duration and client IP. Bodies, query strings, search terms and fetched URLs are never stored. Test-console calls from the GUI are logged as `GUI session`. Rows are written in batches about every second, and the hourly maintenance loop deletes those older than `REQUEST_LOG_RETENTION_DAYS` (default 30). The table is in the same SQLite file, so `make backup` includes it. Active keys are matched from memory, which assumes a single uvicorn worker.
+
 ## Rotating secrets
 
-All four secrets live in `.env`: `API_KEY`, `SESSION_SECRET`, `SEARXNG_SECRET` and `CRAWL4AI_API_TOKEN`. There is one API key, shared by every agent and person. To replace one (here `API_KEY`):
+All four secrets live in `.env`: `API_KEY`, `SESSION_SECRET`, `SEARXNG_SECRET` and `CRAWL4AI_API_TOKEN`. `API_KEY` is the built-in key; named keys from the Keys page are separate and unaffected. To replace one (here `API_KEY`):
 
 ```bash
 cd /opt/research-engine

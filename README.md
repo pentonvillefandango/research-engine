@@ -168,15 +168,16 @@ It has `search`, `fetch`, `fetch_batch`, `search_read`, `get_job`, `wait_for_job
 
 ## GUI
 
-Open `https://<SITE_HOST>/` and log in with the API key. The session lasts 12 hours.
+Open `https://<SITE_HOST>/` and log in. The session lasts 12 hours. By default you log in with the `API_KEY` from `.env`. To use a password instead, run `uv run research-engine gui set-password` and then `make deploy` (see the [runbook](docs/OPERATIONS.md#gui-password-and-api-keys)).
 
 - **Dashboard** (`/`): service health, running and recent jobs, and a live event stream with filters.
 - **Job pages** (`/jobs/<id>`): the request, progress, a timeline and the results.
+- **Keys** (`/keys`): create a named API key for each app or agent, revoke it, and see per-key use and a recent-requests log. Only a GUI session can open this page.
 - **Test console** (`/try`): run searches, fetches and jobs against the real API, including the demo set from `config/demos.yaml`. It shows the rendered results, the raw JSON, the live events and past runs, and builds a copyable `curl` command (without the key).
 
 ## Security notes
 
-- **API key** on every `/v1` and `/mcp` request; the GUI uses a signed, HTTP-only session cookie with a same-origin check.
+- **API key** on every `/v1` and `/mcp` request: the `.env` key or a named key from the Keys page (stored only as a SHA-256 hash, ADR-0028); the GUI uses a signed, HTTP-only session cookie with a same-origin check.
 - **SSRF:** fetches to loopback, private, link-local, CGNAT and other internal addresses are blocked (ADR-0026). `SSRF_ALLOW_HOSTS` exempts named hosts. Static fetches are checked on every redirect hop. Browser fetches are not: the start URL and the final URL are checked, but the redirects Chromium follows in between and the page's subresources (images, scripts, frames, XHR) are not checked by this service, only by Crawl4AI's own internal-URL block. Blocking the browser container's LAN egress at the network layer is planned for V2 (ADR-0022).
 - **robots.txt** is obeyed, with per-domain pacing and `Crawl-delay`.
 - **Browser sandbox:** Chromium runs with its sandbox on, never `--no-sandbox` (ADR-0022).

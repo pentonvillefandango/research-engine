@@ -23,7 +23,7 @@ It does **not** think. It makes no calls to any AI model. It doesn't summarise, 
 ## Connect
 
 - **URL:** `https://<SITE_HOST>`, where `SITE_HOST` is the host name the operator configured (default `research.localhost`). MCP is at `https://<SITE_HOST>/mcp`.
-- **Key:** send the API key in the `X-API-Key` header on every request. A missing or wrong key gets HTTP 401 with the error code `unauthorized`. Never put the key in a URL, a prompt or a log.
+- **Key:** ask the operator for your own key (GUI Keys page), then send it in the `X-API-Key` header on every request. A missing, wrong or revoked key gets HTTP 401 (`unauthorized`). Never put it in a URL, prompt or log.
 - **TLS:** the standard deployment serves HTTPS with a certificate from Caddy's own private certificate authority (CA). Your client must trust that CA's root certificate, or you get `CERTIFICATE_VERIFY_FAILED`. Ask the operator for `root.crt`. For Python, add it to the public CA bundle and point `SSL_CERT_FILE` at the result:
 
   ```bash

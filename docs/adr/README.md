@@ -31,3 +31,4 @@ Seeded from REQUIREMENTS.md §2 (D1–D20) and the 2026-10-04 brainstorming (des
 | [0025](0025-build-order-adjustments-for-v1.md) | Build-order adjustments for V1 | design addendum §4 |
 | [0026](0026-ssrf-and-robots-semantics.md) | SSRF guard and robots.txt semantics | design addendum §5 |
 | [0027](0027-gui-password-sign-on.md) | GUI password sign-on | V1-23 |
+| [0028](0028-named-api-keys-and-request-log.md) | Named API keys and request log | V1-24 |

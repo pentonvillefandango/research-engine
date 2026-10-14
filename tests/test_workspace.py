@@ -6,7 +6,7 @@ import research_engine_client
 from research_engine.config import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 
 def _project_version(path: Path) -> str:
