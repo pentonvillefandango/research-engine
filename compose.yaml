@@ -111,7 +111,7 @@ services:
     networks: [internal]
 
   crawl4ai:
-    image: unclecode/crawl4ai:0.9.4
+    image: unclecode/crawl4ai:0.9.5
     restart: unless-stopped
     shm_size: 1gb
     environment:
