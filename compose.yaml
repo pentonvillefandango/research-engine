@@ -82,7 +82,7 @@ services:
         aliases: [research-engine-app]
 
   searxng:
-    image: searxng/searxng:2026.10.4-d48c4b555
+    image: searxng/searxng:2026.10.19-d47cb96bf
     restart: unless-stopped
     # The image has no USER, so it would run as root with Docker's default capabilities. Its
     # entrypoint needs root only to chown /etc/searxng and /var/cache/searxng when they are not
